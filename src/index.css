@@ -1,0 +1,224 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+
+    --primary: 0 85% 22%; /* Dark Red */
+    --primary-foreground: 0 0% 100%; /* White */
+
+    --secondary: 0 0% 0%; /* Pure Black */
+    --secondary-foreground: 0 0% 100%; /* White */
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 46%;
+
+    --accent: 43 74% 49%; /* Gold */
+    --accent-foreground: 0 0% 0%; /* Black */
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 85% 22%; /* Dark Red */
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 0%; /* Pure Black */
+    --sidebar-foreground: 0 0% 100%; /* White */
+    --sidebar-primary: 0 85% 22%; /* Dark Red */
+    --sidebar-primary-foreground: 0 0% 100%; /* White */
+    --sidebar-accent: 43 74% 49%; /* Gold */
+    --sidebar-accent-foreground: 0 0% 0%; /* Black */
+    --sidebar-border: 0 0% 20%; /* Dark border */
+    --sidebar-ring: 0 85% 22%; /* Dark Red */
+  }
+
+  .dark {
+    --background: 0 0% 7%; /* Dark background */
+    --foreground: 0 0% 100%; /* White text */
+
+    --card: 0 0% 10%; /* Slightly lighter than background */
+    --card-foreground: 0 0% 100%; /* White text */
+
+    --popover: 0 0% 10%; /* Same as card */
+    --popover-foreground: 0 0% 100%; /* White text */
+
+    --primary: 0 85% 22%; /* Dark Red */
+    --primary-foreground: 0 0% 100%; /* White */
+
+    --secondary: 0 0% 0%; /* Pure Black */
+    --secondary-foreground: 0 0% 100%; /* White */
+
+    --muted: 0 0% 20%; /* Dark gray */
+    --muted-foreground: 0 0% 70%; /* Light gray */
+
+    --accent: 43 74% 49%; /* Gold */
+    --accent-foreground: 0 0% 0%; /* Black */
+
+    --destructive: 0 84% 40%; /* Darker red */
+    --destructive-foreground: 0 0% 100%; /* White */
+
+    --border: 0 0% 20%; /* Dark border */
+    --input: 0 0% 20%; /* Dark input */
+    --ring: 0 85% 22%; /* Dark Red */
+
+    --sidebar-background: 0 0% 0%; /* Pure Black */
+    --sidebar-foreground: 0 0% 100%; /* White */
+    --sidebar-primary: 0 85% 22%; /* Dark Red */
+    --sidebar-primary-foreground: 0 0% 100%; /* White */
+    --sidebar-accent: 43 74% 49%; /* Gold */
+    --sidebar-accent-foreground: 0 0% 0%; /* Black */
+    --sidebar-border: 0 0% 15%; /* Very dark border */
+    --sidebar-ring: 0 85% 22%; /* Dark Red */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.alumni-layout {
+  @apply min-h-screen flex flex-col;
+}
+
+.alumni-container {
+  @apply container max-w-7xl mx-auto px-4 sm:px-6 py-8;
+}
+
+.auth-form {
+  @apply space-y-4 w-full max-w-md;
+}
+
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-md hover:-translate-y-1;
+}
+
+.profile-card {
+  @apply p-6 rounded-lg border bg-card text-card-foreground shadow-sm;
+}
+
+.post-card {
+  @apply p-5 rounded-lg border bg-card text-card-foreground shadow-sm mb-4;
+}
+
+.job-card {
+  @apply p-5 rounded-lg border bg-card text-card-foreground shadow-sm mb-4;
+}
+
+.group-card {
+  @apply p-4 rounded-lg border bg-card text-card-foreground shadow-sm;
+}
+
+.nav-link {
+  @apply flex items-center gap-2 px-4 py-3 rounded-md transition-colors hover:bg-muted;
+}
+
+.nav-link.active {
+  @apply bg-primary/10 text-primary font-medium;
+}
+
+/* Enhanced UI classes */
+.gradient-text {
+  @apply bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent;
+}
+
+.btn-accent {
+  @apply bg-accent text-accent-foreground hover:bg-accent/90 transition-colors;
+}
+
+.btn-outline-accent {
+  @apply border-accent text-accent hover:bg-accent/10 transition-colors;
+}
+
+.card-enhanced {
+  @apply border border-border/50 bg-card/80 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-300;
+}
+
+.section-divider {
+  @apply border-b border-primary/20 my-8;
+}
+
+/* Responsive enhancement classes */
+.container-responsive {
+  @apply px-4 md:px-6 lg:px-8;
+}
+
+.grid-responsive {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6;
+}
+
+.flex-responsive {
+  @apply flex flex-col sm:flex-row gap-4;
+}
+
+.text-responsive {
+  @apply text-sm md:text-base;
+}
+
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+}
+
+.mobile-friendly {
+  @apply touch-manipulation select-none;
+}
+
+/* Enhanced button states for mobile */
+.btn-mobile {
+  @apply min-h-[44px] min-w-[44px] touch-manipulation;
+}
+
+/* Better spacing for mobile forms */
+.form-mobile {
+  @apply space-y-4 md:space-y-6;
+}
+
+/* Mobile-optimized input sizing */
+.input-mobile {
+  @apply min-h-[44px] text-base;
+}
+
+/* Improved mobile navigation */
+.nav-mobile {
+  @apply fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50;
+}
+
+/* Better mobile modal sizing */
+.modal-mobile {
+  @apply max-h-[90vh] overflow-y-auto;
+}
+
+/* Responsive text truncation */
+.text-truncate-mobile {
+  @apply truncate sm:text-clip;
+}
+
+/* Mobile-friendly tab sizing */
+.tabs-mobile {
+  @apply min-h-[48px];
+}
