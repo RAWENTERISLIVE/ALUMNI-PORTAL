@@ -94,6 +94,24 @@ export const approveUser = asyncHandler(async (req: AuthRequest, res: Response):
     return;
   }
 
+  // If user is manual verification and has MANUAL_VERIFICATION as admissionNumber, assign a unique admission number
+  if (user.needsManualVerification && user.admissionNumber === 'MANUAL_VERIFICATION') {
+    const year = user.admissionYear;
+    const yy = year.slice(-2);
+    // Find the highest number for this year
+    const lastUser = await User.find({ admissionNumber: { $regex: `^501/${yy}` } })
+      .sort({ admissionNumber: -1 })
+      .limit(1);
+    let nextNumber = 1;
+    if (lastUser.length > 0 && lastUser[0] && lastUser[0].admissionNumber) {
+      const match = lastUser[0].admissionNumber!.match(/^501\/(\d{2})(?:-(\d+))?$/);
+      if (match) {
+        nextNumber = match[2] ? parseInt(match[2], 10) + 1 : 2;
+      }
+    }
+    user.admissionNumber = nextNumber === 1 ? `501/${yy}` : `501/${yy}-${nextNumber}`;
+  }
+
   user.status = UserStatus.ACTIVE;
   user.isVerified = true;
   await user.save();
@@ -105,7 +123,9 @@ export const approveUser = asyncHandler(async (req: AuthRequest, res: Response):
       id: user._id,
       name: user.name,
       email: user.email,
-      status: user.status
+      status: user.status,
+      admissionNumber: user.admissionNumber,
+      admissionYear: user.admissionYear
     }
   });
 });
@@ -299,7 +319,7 @@ export const deleteUser = asyncHandler(async (req: AuthRequest, res: Response): 
 export const getAlumniDirectory = async (_req: Request, res: Response) => {
   try {
     const alumni = await User.find({ status: 'active' })
-      .select('name firstName lastName email graduationYear company jobTitle location profileImage')
+      .select('name firstName lastName email admissionYear company jobTitle location profileImage')
       .sort({ lastName: 1, firstName: 1 });
 
     // Map the data to match the frontend expectations
@@ -312,7 +332,7 @@ export const getAlumniDirectory = async (_req: Request, res: Response) => {
         profilePicture: user.profileImage,
         location: user.location || `${user.city || ''} ${user.country || ''}`.trim(),
         education: {
-          graduationYear: user.graduationYear
+          admissionYear: user.admissionYear // changed from graduationYear
         },
         professionalInfo: {
           company: user.company,

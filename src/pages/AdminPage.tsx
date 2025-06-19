@@ -30,7 +30,7 @@ interface User {
   role: 'user' | 'admin' | 'super_admin';
   status: 'pending' | 'active' | 'suspended' | 'deleted';
   admissionNumber: string;
-  graduationYear: string;
+  admissionYear: string; // changed from graduationYear
   isVerified: boolean;
   createdAt: string;
   lastLogin?: string;
@@ -457,7 +457,7 @@ export default function AdminPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{user.admissionNumber}</TableCell>
-                      <TableCell>{user.graduationYear}</TableCell>
+                      <TableCell>{user.admissionYear}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           {user.status === 'suspended' && (

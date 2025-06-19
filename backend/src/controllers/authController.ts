@@ -36,7 +36,7 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
     admissionNumber,
     needsManualVerification,
     verificationDetails,
-    graduationYear: manualGraduationYear
+    admissionYear: manualAdmissionYear
   } = req.body;
 
   console.log('Registration request body:', req.body);
@@ -70,22 +70,22 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
       res.status(400).json({ success: false, message: 'Please provide sufficient details for manual verification.' });
       return;
     }
-    if (!manualGraduationYear) {
-      res.status(400).json({ success: false, message: 'Graduation year is required for manual verification.' });
+    if (!manualAdmissionYear) {
+      res.status(400).json({ success: false, message: 'Admission year is required for manual verification.' });
       return;
     }
 
-    const year = parseInt(manualGraduationYear, 10);
+    const year = parseInt(manualAdmissionYear, 10);
     const currentYear = new Date().getFullYear();
     if (isNaN(year) || year < 1989 || year > currentYear + 1) {
-      res.status(400).json({ success: false, message: `Graduation year must be between 1989 and ${currentYear + 1}.` });
+      res.status(400).json({ success: false, message: `Admission year must be between 1989 and ${currentYear + 1}.` });
       return;
     }
 
     userToCreate = {
       ...userToCreate,
-      admissionNumber: 'MANUAL_VERIFICATION',
-      graduationYear: manualGraduationYear,
+      admissionNumber: `501/MV${Math.floor(Math.random()*1e6)}`,
+      admissionYear: manualAdmissionYear,
       verificationDetails,
       status: UserStatus.PENDING,
       isVerified: false,
@@ -96,15 +96,13 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
       res.status(400).json({ success: false, message: 'Admission number is required.' });
       return;
     }
-    
     // Check if admission number is already used
     const existingAdmission = await User.findOne({ admissionNumber });
     if (existingAdmission) {
       res.status(400).json({ success: false, message: 'Admission number already registered' });
       return;
     }
-
-    // Extract and validate graduation year from admission number
+    // Extract and validate admission year from admission number
     const parts = admissionNumber.split('/');
     if (parts.length < 2) {
         res.status(400).json({ success: false, message: 'Invalid admission number format. Expected format: number/year.' });
@@ -113,44 +111,34 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
     const yearPart = parts[parts.length - 1];
     const year = parseInt(yearPart, 10);
     const currentYear = new Date().getFullYear();
-
-    if (isNaN(year) || ![2, 4].includes(yearPart.length)) {
-        res.status(400).json({ success: false, message: 'Invalid year in admission number. Expected two or four digits.' });
-        return;
-    }
-
-    let graduationYear;
+    let admissionYear;
     if (yearPart.length === 2) {
       if (year >= 89 && year <= 99) {
-        graduationYear = `19${year}`;
+        admissionYear = `19${year}`;
       } else {
-        graduationYear = `20${year.toString().padStart(2, '0')}`;
+        admissionYear = `20${year.toString().padStart(2, '0')}`;
       }
     } else {
-      graduationYear = year.toString();
+      admissionYear = year.toString();
     }
-
-    const numericGraduationYear = parseInt(graduationYear, 10);
-    if (numericGraduationYear < 1989 || numericGraduationYear > currentYear + 1) {
-      res.status(400).json({ success: false, message: `Invalid graduation year. Must be between 1989 and ${currentYear + 1}.` });
+    const numericAdmissionYear = parseInt(admissionYear, 10);
+    if (isNaN(numericAdmissionYear) || numericAdmissionYear < 1989 || numericAdmissionYear > currentYear + 1) {
+      res.status(400).json({ success: false, message: `Invalid admission year. Must be between 1989 and ${currentYear + 1}.` });
       return;
     }
-
     userToCreate = {
       ...userToCreate,
       admissionNumber,
-      graduationYear,
+      admissionYear,
       status: isSuperAdmin ? UserStatus.ACTIVE : UserStatus.PENDING,
       isVerified: isSuperAdmin,
     };
   }
-  
   userToCreate.role = isSuperAdmin ? UserRole.SUPER_ADMIN : UserRole.USER;
 
   try {
     // Create user
     const user = await User.create(userToCreate);
-
     // For non-super-admins, we don't log them in, just send a success message.
     if (!isSuperAdmin) {
       res.status(201).json({
@@ -160,14 +148,11 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
       });
       return;
     }
-
     // For super-admins, generate tokens and log them in
     const { accessToken, refreshToken } = generateTokens(user._id);
-
     // Add refresh token to user
     user.refreshTokens.push(refreshToken);
     await user.save();
-
     res.status(201).json({
       success: true,
       message: 'Super admin account created successfully',
@@ -183,13 +168,7 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
       refreshToken
     });
   } catch (error: any) {
-    console.error('User creation error:', error);
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-      res.status(400).json({ success: false, message: `Validation error: ${validationErrors.join(', ')}` });
-    } else {
-      res.status(500).json({ success: false, message: 'Internal server error during registration' });
-    }
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -253,7 +232,6 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
       status: user.status,
       isVerified: user.isVerified,
       admissionNumber: user.admissionNumber,
-      graduationYear: user.graduationYear,
       profileImage: user.profileImage,
       bio: user.bio,
       headline: user.headline,

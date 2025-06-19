@@ -10,7 +10,7 @@ export interface ExtendedUser {
   name: string;
   role?: 'user' | 'admin' | 'super_admin';
   admissionNumber?: string;
-  graduationYear?: string;
+  admissionYear?: string; // changed from graduationYear
   status?: 'pending' | 'active' | 'suspended' | 'deleted';
   isVerified?: boolean;
   profileImage?: string;
@@ -41,7 +41,7 @@ interface AuthContextType {
     admissionNumber?: string;
     needsManualVerification?: boolean;
     verificationDetails?: string;
-    graduationYear?: string;
+    admissionYear?: string; // changed from graduationYear
   }) => Promise<any>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -166,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     admissionNumber?: string;
     needsManualVerification?: boolean;
     verificationDetails?: string;
-    graduationYear?: string;
+    admissionYear?: string; // changed from graduationYear
   }) => {
     try {
       setIsLoading(true);

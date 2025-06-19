@@ -30,7 +30,7 @@ const registerSchema = z
     admissionNumber: z.string().optional(),
     forgotAdmissionNumber: z.boolean().default(false),
     verificationDetails: z.string().optional(),
-    graduationYear: z.string().optional(),
+    manverifadmissionyear: z.string().optional(), // changed from graduationYear
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -59,20 +59,20 @@ const registerSchema = z
           path: ["verificationDetails"],
         });
       }
-      if (!data.graduationYear || data.graduationYear.trim() === "") {
+      if (!data.manverifadmissionyear || data.manverifadmissionyear.trim() === "") {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Graduation year is required for manual verification.",
-          path: ["graduationYear"],
+          message: "Admission year is required for manual verification.",
+          path: ["manverifadmissionyear"],
         });
       } else {
-        const year = parseInt(data.graduationYear, 10);
+        const year = parseInt(data.manverifadmissionyear, 10);
         const currentYear = new Date().getFullYear();
         if (isNaN(year) || year < 1989 || year > currentYear + 1) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `Graduation year must be between 1989 and ${currentYear + 1}.`,
-            path: ["graduationYear"],
+            message: `Admission year must be between 1989 and ${currentYear + 1}.`,
+            path: ["manverifadmissionyear"],
           });
         }
       }
@@ -95,7 +95,7 @@ export default function RegisterPage() {
       confirmPassword: "",
       forgotAdmissionNumber: false,
       verificationDetails: "",
-      graduationYear: "",
+      manverifadmissionyear: "",
     },
   });
 
@@ -112,7 +112,7 @@ export default function RegisterPage() {
         admissionNumber: values.forgotAdmissionNumber ? undefined : values.admissionNumber,
         needsManualVerification: values.forgotAdmissionNumber,
         verificationDetails: values.verificationDetails,
-        graduationYear: values.graduationYear,
+        admissionYear: values.manverifadmissionyear,
       };
 
       console.log('Frontend sending registration data:', registrationData);
@@ -204,10 +204,10 @@ export default function RegisterPage() {
                 <>
                   <FormField
                     control={form.control}
-                    name="graduationYear"
+                    name="manverifadmissionyear"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Graduation Year</FormLabel>
+                        <FormLabel>Admission Year</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="e.g. 2010"

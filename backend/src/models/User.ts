@@ -22,7 +22,7 @@ export interface IUser extends Document {
   firstName?: string;
   lastName?: string;
   admissionNumber: string;
-  graduationYear: string;
+  admissionYear: string; // Changed from graduationYear
   role: UserRole;
   status: UserStatus;
   isVerified: boolean;
@@ -113,7 +113,7 @@ const userSchema = new Schema<IUser>({
       message: 'Admission number is not valid.'
     }
   },
-  graduationYear: {
+  admissionYear: {
     type: String,
     required: true,
     trim: true
@@ -211,33 +211,6 @@ userSchema.methods.generateEmailVerificationToken = function(): string {
   return verificationToken;
 };
 
-// Extract graduation year from admission number before saving
-userSchema.pre('save', function(next) {
-  if (this.isModified('admissionNumber') && this.admissionNumber) {
-    const yearMatch = this.admissionNumber.match(/\/(\d{2})$/);
-    if (yearMatch && yearMatch[1]) {
-      const shortYear = parseInt(yearMatch[1]);
-      // Convert 2-digit year to 4-digit year (assuming 20XX for years < 50, 19XX for years >= 50)
-      const fullYear = shortYear < 50 ? 2000 + shortYear : 1900 + shortYear;
-      this.graduationYear = fullYear.toString();
-    }
-  }
-  next();
-});
-
-// Split name into firstName and lastName
-userSchema.pre('save', function(next) {
-  if (this.isModified('name') && this.name) {
-    const nameParts = this.name.trim().split(' ');
-    if (nameParts.length > 0 && nameParts[0]) {
-      this.firstName = nameParts[0];
-      const lastNameParts = nameParts.slice(1).join(' ');
-      this.lastName = lastNameParts || ''; // Ensure it's always a string
-    }
-  }
-  next();
-});
-
 // Static method to create super admin accounts
 userSchema.statics.createSuperAdmins = async function() {
   const superAdminCredentials = [
@@ -245,13 +218,15 @@ userSchema.statics.createSuperAdmins = async function() {
       email: 'mpsajmer123@gmail.com',
       password: 'bajmav-1qojmu-qoKkod',
       name: 'Super Admin 1',
-      admissionNumber: '00001/24'
+      admissionNumber: '00001/24',
+      admissionYear: '2024',
     },
     {
       email: 'futurist.raghav@gmail.com',
       password: 'bajmav-1qojmu-qoKkod',
       name: 'Super Admin 2',
-      admissionNumber: '00002/24'
+      admissionNumber: '00002/24',
+      admissionYear: '2024',
     }
   ];
 
@@ -260,7 +235,6 @@ userSchema.statics.createSuperAdmins = async function() {
     if (!existingAdmin) {
       await this.create({
         ...admin,
-        graduationYear: '2024',
         role: UserRole.SUPER_ADMIN,
         status: UserStatus.ACTIVE,
         isVerified: true

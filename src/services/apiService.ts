@@ -159,7 +159,7 @@ class ApiService {
     admissionNumber?: string;
     needsManualVerification?: boolean;
     verificationDetails?: string;
-    graduationYear?: string;
+    admissionYear?: string; // changed from graduationYear
   }) {
     return this.request('/auth/register', {
       method: 'POST',
