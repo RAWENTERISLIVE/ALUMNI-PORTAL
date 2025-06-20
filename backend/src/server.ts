@@ -5,7 +5,8 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { connectDB } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
-import { authMiddleware } from './middleware/auth';
+// Import middleware
+import './middleware/auth';
 import User from './models/User';
 
 // Import routes
@@ -21,7 +22,8 @@ import mentorshipRoutes from './routes/mentorship';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+// Ensure PORT is a number
+const PORT = parseInt(process.env.PORT || '5000', 10);
 
 // Connect to MongoDB and initialize super admins
 const initializeApp = async () => {
@@ -48,33 +50,76 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/users', authMiddleware, userRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/jobs', jobRoutes);
-app.use('/api/events', authMiddleware, eventRoutes);
-app.use('/api/groups', authMiddleware, groupRoutes);
-app.use('/api/mentorship', authMiddleware, mentorshipRoutes);
-
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
-});
+app.use('/api/events', eventRoutes);
+app.use('/api/groups', groupRoutes);
+app.use('/api/mentorship', mentorshipRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+// Root endpoint
+app.get('/api', (_req, res) => {
+  res.send('Alumni Connect API is running');
 });
+
+// Health check endpoint
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+  });
+});
+
+// Start server with port retry logic
+const startServer = (port: number) => {
+  try {
+    const server = app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`API base URL: http://localhost:${port}/api`);
+    }).on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`Port ${port} is already in use, trying port ${port + 1}`);
+        startServer(port + 1);
+      } else {
+        console.error('Server error:', err);
+      }
+    });
+
+    // Handle uncaught exceptions to prevent server crash
+    process.on('uncaughtException', (error) => {
+      console.error('Uncaught Exception:', error);
+    });
+
+    process.on('SIGTERM', () => {
+      console.info('SIGTERM received, shutting down server');
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
+
+  } catch (error: any) {
+    if (error.code === 'EADDRINUSE') {
+      console.log(`Port ${port} is already in use, trying port ${port + 1}`);
+      const newPort = port + 1;
+      startServer(newPort);
+    } else {
+      console.error('Server error:', error);
+      process.exit(1);
+    }
+  }
+};
+
+startServer(PORT);
 
 export default app;

@@ -441,3 +441,114 @@ export const getUserById = asyncHandler(async (req: AuthRequest, res: Response):
     user
   });
 });
+
+// Get user suggestions (people you may know)
+export const getUserSuggestions = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
+    });
+    return;
+  }
+
+  const limit = parseInt(req.query.limit as string) || 5;
+  
+  // Get current user to access their details for matching
+  const currentUser = await User.findById(userId);
+  if (!currentUser) {
+    res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+    return;
+  }
+
+  // Build suggestion criteria - prioritize users with similar attributes
+  const suggestionPipeline = [
+    // Exclude current user and users they already follow/are connected with
+    {
+      $match: {
+        _id: { $ne: userId },
+        status: 'active'
+      }
+    },
+    // Add scoring based on similarity
+    {
+      $addFields: {
+        similarityScore: {
+          $sum: [
+            // Same admission year gets 3 points
+            {
+              $cond: [
+                { $eq: ['$admissionYear', currentUser.admissionYear] },
+                3,
+                0
+              ]
+            },
+            // Same company gets 2 points
+            {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ['$company', null] },
+                    { $ne: ['$company', ''] },
+                    { $eq: ['$company', currentUser.company] }
+                  ]
+                },
+                2,
+                0
+              ]
+            },
+            // Same city gets 1 point
+            {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ['$city', null] },
+                    { $ne: ['$city', ''] },
+                    { $eq: ['$city', currentUser.city] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          ]
+        }
+      }
+    },
+    // Sort by similarity score descending, then by recent activity
+    {
+      $sort: {
+        similarityScore: -1 as const,
+        lastLogin: -1 as const,
+        createdAt: -1 as const
+      }
+    },
+    // Limit results
+    { $limit: limit },
+    // Project only needed fields
+    {
+      $project: {
+        name: 1,
+        profileImage: 1,
+        role: 1,
+        company: 1,
+        jobTitle: 1,
+        city: 1,
+        admissionYear: 1,
+        headline: 1,
+        similarityScore: 1
+      }
+    }
+  ];
+
+  const suggestions = await User.aggregate(suggestionPipeline);
+
+  res.json({
+    success: true,
+    data: suggestions
+  });
+});

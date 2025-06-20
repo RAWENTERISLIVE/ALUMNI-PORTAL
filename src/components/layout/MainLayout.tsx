@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useNavigate } from "react-router-dom";
-import { Bell } from "lucide-react";
+import { Bell, MessageCircle } from "lucide-react";
 
 export const MainLayout = () => {
   const isMobile = useIsMobile();
@@ -18,63 +18,83 @@ export const MainLayout = () => {
   const showAdminButton = currentUser?.role === "admin" || currentUser?.role === "super_admin";
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {!isMobile && <Sidebar />}
-      
-      <main className="flex-1 overflow-x-hidden">
-        {!isMobile && (
-          <div className="border-b sticky top-0 bg-background z-10 px-4 py-3 shadow-sm">
-            <div className="container max-w-6xl mx-auto flex justify-between items-center">
-              <div className="flex items-center space-x-4">
-                {showAdminButton && (
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="border-primary text-primary hover:bg-primary/10"
-                    onClick={() => navigate('/admin')}
-                  >
-                    Admin Dashboard
-                  </Button>
-                )}
-                
-                <div className="hidden md:block">
-                  <GlobalSearch />
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute top-0 right-0 h-2 w-2 bg-primary rounded-full"></span>
-                </Button>
-                
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => navigate('/profile')}
-                  className="flex items-center gap-2"
-                >
-                  <Avatar className="h-7 w-7">
-                    <AvatarImage src={currentUser?.profileImage} />
-                    <AvatarFallback className="text-xs">
-                      {currentUser?.name?.[0] || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="hidden md:inline">
-                    {currentUser?.name || 'User'}
-                  </span>
-                </Button>
-              </div>
+    <div className="min-h-screen bg-white">
+      {/* Header - Fixed Top */}
+      <header className="h-14 bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
+        <div className="h-full px-4 flex items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center">
+            <div className="h-8 w-8 bg-orange-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">AC</span>
             </div>
           </div>
-        )}
-        
-        <div className="container py-4 px-4 md:py-6 md:px-6 lg:py-8 lg:px-8 max-w-6xl mx-auto min-h-[calc(100vh-4rem)]">
-          <Outlet />
+          
+          {/* Global Search - Center */}
+          <div className="flex-1 max-w-md mx-8">
+            <GlobalSearch />
+          </div>
+          
+          {/* Right Controls */}
+          <div className="flex items-center space-x-4">
+            {showAdminButton && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="border-orange-500 text-orange-500 hover:bg-orange-50"
+                onClick={() => navigate('/admin')}
+              >
+                Admin Dashboard
+              </Button>
+            )}
+            
+            {/* Notification Bell */}
+            <Button variant="ghost" size="icon" className="relative h-8 w-8">
+              <Bell className="h-4 w-4 text-gray-600" />
+              <span className="absolute -top-1 -right-1 h-4 w-4 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
+                3
+              </span>
+            </Button>
+            
+            {/* Messages */}
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MessageCircle className="h-4 w-4 text-gray-600" />
+            </Button>
+            
+            {/* Profile Avatar */}
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => navigate('/profile')}
+              className="p-0 h-8 w-8"
+            >
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={currentUser?.profileImage} />
+                <AvatarFallback className="text-xs bg-gray-200">
+                  {currentUser?.name?.[0] || 'U'}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          </div>
         </div>
+      </header>
+
+      {/* Main Layout */}
+      <div className="flex pt-14">
+        {/* Left Sidebar */}
+        {!isMobile && <Sidebar />}
         
-        {isMobile && <MobileNavbar />}
-      </main>
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-x-hidden">
+          <div className="p-6 max-w-3xl mx-auto">
+            <Outlet />
+          </div>
+        </main>
+        
+        {/* Right Sidebar - Will be added later for specific pages */}
+      </div>
+      
+      {/* Mobile Navigation */}
+      {isMobile && <MobileNavbar />}
     </div>
   );
 };

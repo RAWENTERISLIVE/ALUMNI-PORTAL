@@ -7,6 +7,7 @@ import {
   updatePost,
   deletePost,
   likePost,
+  unlikePost,
   toggleFeaturePost,
   getFeaturedPosts,
   getSchoolUpdates
@@ -69,7 +70,8 @@ router.patch('/:postId', authMiddleware, postValidationRules, validate, updatePo
 router.delete('/:postId', authMiddleware, deletePost);
 
 // Like/Unlike a post
-router.patch('/:postId/like', authMiddleware, likePost);
+router.post('/:postId/like', authMiddleware, likePost);
+router.delete('/:postId/like', authMiddleware, unlikePost);
 
 // Feature/Unfeature a post (Admin/Super Admin only)
 router.patch('/:postId/feature', authMiddleware, requireAdmin, toggleFeaturePost);

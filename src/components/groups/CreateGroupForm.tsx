@@ -36,6 +36,7 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
       name: "",
       description: "",
       privacy: "public",
+      category: "professional"
     }
   });
 
@@ -62,9 +63,9 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl rounded-xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Create New Group</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-gray-900">Create New Group</DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
@@ -76,7 +77,11 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
                 <FormItem>
                   <FormLabel>Group Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Tech Alumni Network" {...field} />
+                    <Input 
+                      placeholder="e.g., Tech Alumni Network" 
+                      {...field} 
+                      className="rounded-lg border-gray-300 focus:border-orange-300 focus:ring-orange-300"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -92,10 +97,40 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
                   <FormControl>
                     <Textarea 
                       placeholder="Describe the purpose and goals of your group..."
-                      className="min-h-[100px]"
+                      className="min-h-[100px] rounded-lg border-gray-300 focus:border-orange-300 focus:ring-orange-300"
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="rounded-lg border-gray-300 focus:border-orange-300 focus:ring-orange-300">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="professional">Professional</SelectItem>
+                      <SelectItem value="social">Social</SelectItem>
+                      <SelectItem value="academic">Academic</SelectItem>
+                      <SelectItem value="regional">Regional</SelectItem>
+                      <SelectItem value="tech">Technology</SelectItem>
+                      <SelectItem value="entrepreneurship">Entrepreneurship</SelectItem>
+                      <SelectItem value="mentorship">Mentorship</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Choose the main focus of your group
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -109,26 +144,26 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
                   <FormLabel>Privacy Setting</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="rounded-lg border-gray-300 focus:border-orange-300 focus:ring-orange-300">
                         <SelectValue placeholder="Select privacy setting" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="public">
                         <div className="flex items-center gap-2">
-                          <Globe className="h-4 w-4" />
+                          <Globe className="h-4 w-4 text-blue-500" />
                           <div>
                             <div className="font-medium">Public</div>
-                            <div className="text-xs text-muted-foreground">Anyone can see and join</div>
+                            <div className="text-xs text-gray-500">Anyone can see and join</div>
                           </div>
                         </div>
                       </SelectItem>
                       <SelectItem value="private">
                         <div className="flex items-center gap-2">
-                          <Lock className="h-4 w-4" />
+                          <Lock className="h-4 w-4 text-red-500" />
                           <div>
                             <div className="font-medium">Private</div>
-                            <div className="text-xs text-muted-foreground">Invitation only</div>
+                            <div className="text-xs text-gray-500">Invitation only</div>
                           </div>
                         </div>
                       </SelectItem>
@@ -146,10 +181,18 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
             />
 
             <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={onClose}
+                className="border-gray-300 hover:bg-gray-50 text-gray-700"
+              >
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button 
+                type="submit"
+                className="bg-orange-500 hover:bg-orange-600 text-white transform hover:scale-105 hover:shadow-md transition-all duration-300"
+              >
                 <Users className="h-4 w-4 mr-2" />
                 Create Group
               </Button>

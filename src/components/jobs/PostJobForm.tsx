@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -48,10 +47,10 @@ const jobFormSchema = z.object({
 export interface PostJobFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onJobCreated: (job: Job) => void;
+  onSubmit: (data: any) => Promise<void>;
 }
 
-export function PostJobForm({ isOpen, onClose, onJobCreated }: PostJobFormProps) {
+export function PostJobForm({ isOpen, onClose, onSubmit }: PostJobFormProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -123,22 +122,13 @@ export function PostJobForm({ isOpen, onClose, onJobCreated }: PostJobFormProps)
         jobData.tags = data.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
       }
 
-      const response = await apiService.createJob(jobData);
+      await onSubmit(jobData);
       
-      if (response.success && response.data) {
-        onJobCreated(response.data as Job);
-        form.reset();
-        toast({
-          title: "Success",
-          description: "Job posted successfully!",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: response.message || "Failed to create job",
-          variant: "destructive",
-        });
-      }
+      form.reset();
+      toast({
+        title: "Success",
+        description: "Job posted successfully!",
+      });
     } catch (error) {
       console.error('Error creating job:', error);
       toast({

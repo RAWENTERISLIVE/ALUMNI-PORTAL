@@ -12,6 +12,7 @@ export interface IGroup extends Document {
   members: Types.ObjectId[];
   privacy: GroupPrivacy;
   memberCount: number;
+  category?: string;
   lastActivity: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -41,13 +42,34 @@ const GroupSchema: Schema = new Schema<IGroup>({
     enum: Object.values(GroupPrivacy),
     default: GroupPrivacy.PUBLIC,
   },
+  category: {
+    type: String,
+    default: 'professional',
+  },
+  lastActivity: {
+    type: Date,
+    default: Date.now
+  }
 }, {
   timestamps: true,
 });
 
-// Update memberCount when members array changes
+// Virtual field to get member count dynamically
+GroupSchema.virtual('totalMembers').get(function() {
+  return this.members ? (this.members as Types.ObjectId[]).length : 0;
+});
+
+// Ensure virtuals are included in JSON
+GroupSchema.set('toJSON', {
+  virtuals: true
+});
+
+GroupSchema.set('toObject', {
+  virtuals: true
+});
+
+// Update lastActivity when members array changes
 GroupSchema.pre('save', function(this: IGroup, next) {
-  this.memberCount = this.members.length;
   this.lastActivity = new Date();
   
   // Make sure creator is always a member

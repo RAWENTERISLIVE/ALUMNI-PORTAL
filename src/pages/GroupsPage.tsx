@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Users, Plus, MessageSquare, Lock, Globe } from "lucide-react";
+import { Search, Users, Plus, Filter, Laptop, Leaf, GraduationCap, Lightbulb, Lock, Globe, MessageSquare } from "lucide-react";
 import { GroupDiscussionModal } from "@/components/groups/GroupDiscussionModal";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -13,11 +12,101 @@ import { CreateGroupForm } from "@/components/groups/CreateGroupForm";
 import { useToast } from "@/hooks/use-toast";
 import apiService from "@/services/apiService";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
+
+const groupCategories = [
+  { id: 'all', name: 'All Groups', active: true },
+  { id: 'my', name: 'My Groups', active: false },
+  { id: 'professional', name: 'Professional', active: false },
+  { id: 'social', name: 'Social', active: false },
+  { id: 'academic', name: 'Academic', active: false },
+  { id: 'regional', name: 'Regional', active: false },
+];
+
+const getCategoryIcon = (category: string) => {
+  switch (category?.toLowerCase()) {
+    case 'tech':
+    case 'technology':
+      return Laptop;
+    case 'sustainability':
+    case 'environment':
+      return Leaf;
+    case 'mentorship':
+    case 'education':
+      return GraduationCap;
+    case 'entrepreneurship':
+    case 'business':
+      return Lightbulb;
+    default:
+      return Users;
+  }
+};
+
+const getCategoryColor = (category: string) => {
+  switch (category?.toLowerCase()) {
+    case 'tech':
+    case 'technology':
+      return 'bg-blue-50 text-blue-500';
+    case 'sustainability':
+    case 'environment':
+      return 'bg-green-50 text-green-500';
+    case 'mentorship':
+    case 'education':
+      return 'bg-purple-50 text-purple-500';
+    case 'entrepreneurship':
+    case 'business':
+      return 'bg-amber-50 text-amber-500';
+    default:
+      return 'bg-gray-50 text-gray-500';
+  }
+};
+
+const getBadgeColor = (category: string) => {
+  switch (category?.toLowerCase()) {
+    case 'tech':
+    case 'technology':
+      return 'bg-blue-100 text-blue-800';
+    case 'sustainability':
+    case 'environment':
+      return 'bg-green-100 text-green-800';
+    case 'mentorship':
+    case 'education':
+      return 'bg-purple-100 text-purple-800';
+    case 'entrepreneurship':
+    case 'business':
+      return 'bg-amber-100 text-amber-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+// Helper function to consistently check if a user is a member of a group
+const checkMembership = (member: any, userId: string | undefined): boolean => {
+  if (!userId) return false;
+  
+  // If member is just a string (ID)
+  if (typeof member === 'string') {
+    return member === userId;
+  }
+  
+  // If member is an object with _id
+  if (member && member._id) {
+    return member._id.toString() === userId.toString();
+  }
+  
+  // If member is an object with id
+  if (member && member.id) {
+    return member.id.toString() === userId.toString();
+  }
+  
+  return false;
+};
 
 export default function GroupsPage() {
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [isDiscussionModalOpen, setIsDiscussionModalOpen] = useState(false);
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
@@ -42,12 +131,45 @@ export default function GroupsPage() {
       setLoading(false);
     }
   };
-  
-  const filteredGroups = useMemo(() => 
-    groups.filter(group =>
-      (group.name && group.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (group.description && group.description.toLowerCase().includes(searchQuery.toLowerCase()))
-    ), [groups, searchQuery]);
+
+  const filteredGroups = useMemo(() =>
+    groups.filter(group => {
+      const matchesSearch = (group.name && group.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (group.description && group.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      // Check if user is a member by comparing ids or comparing with string values for flexibility
+      const checkMembership = (memberId: any, userId: string) => {
+        return (
+          memberId === userId || 
+          memberId?.toString() === userId?.toString() ||
+          (memberId?._id && memberId._id === userId) || 
+          (memberId?._id && memberId._id?.toString() === userId?.toString()) ||
+          (memberId?.id === userId) || 
+          (memberId?.id?.toString() === userId?.toString())
+        );
+      };
+
+      if (selectedCategory === 'all') return matchesSearch;
+      
+      if (selectedCategory === 'my') {
+        // First check if current user is in members array as a string ID
+        if (group.members?.includes(currentUser?.id)) {
+          return matchesSearch;
+        }
+        
+        // If not, check if current user ID matches any member object's ID
+        const isJoined = group.members?.some((member: any) => 
+          checkMembership(member, currentUser?.id)
+        );
+        
+        return matchesSearch && isJoined;
+      }
+
+      // Handle case sensitivity in category
+      return matchesSearch && 
+        (group.category?.toLowerCase() === selectedCategory.toLowerCase() ||
+         (!group.category && selectedCategory === 'professional')); // Default to professional if no category
+    }), [groups, searchQuery, selectedCategory, currentUser]);
 
   const handleViewDiscussion = (group: any) => {
     setSelectedGroup(group);
@@ -60,12 +182,12 @@ export default function GroupsPage() {
       return;
     }
 
-    const isJoined = group.members.some((member: any) => 
-      (member._id === currentUser.id) || (member.id === currentUser.id)
+    const isJoined = group.members?.some((member: any) => 
+      checkMembership(member, currentUser.id)
     );
 
     try {
-      const groupId = group.id || group._id; // Use id if available, fallback to _id
+      const groupId = group.id || group._id;
       if (isJoined) {
         await apiService.leaveGroup(groupId);
         toast({ title: "Left Group", description: `You have left the "${group.name}" group.` });
@@ -73,7 +195,7 @@ export default function GroupsPage() {
         await apiService.joinGroup(groupId);
         toast({ title: "Joined Group", description: `You have successfully joined the "${group.name}" group.` });
       }
-      loadGroups(); // Refresh groups data
+      loadGroups();
     } catch (error) {
       console.error('Error joining/leaving group:', error);
       toast({ title: "Error", description: "An error occurred. Please try again.", variant: "destructive" });
@@ -86,182 +208,187 @@ export default function GroupsPage() {
       if (response.success) {
         toast({ title: "Group Created", description: `The "${response.data.name}" group has been created.` });
         setIsCreateGroupModalOpen(false);
-        loadGroups(); // Refresh groups data
+        loadGroups();
       } else {
         throw new Error(response.message || "Failed to create group");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating group:', error);
       toast({ title: "Error", description: `Failed to create group: ${error.message}`, variant: "destructive" });
     }
   };
-  
+
   if (loading) {
     return (
-      <div>
-        <PageHeader 
-          title="Alumni Groups" 
-          description="Connect with specific alumni communities"
-        />
-        <LoadingSpinner />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
+        <span className="ml-4 text-gray-600">Loading groups...</span>
       </div>
     );
   }
 
   return (
-    <div>
-      <PageHeader 
-        title="Alumni Groups" 
-        description="Connect with specific alumni communities"
-        action={<Button className="flex items-center gap-2" onClick={() => setIsCreateGroupModalOpen(true)}><Plus className="h-4 w-4" /> Create Group</Button>}
-      />
-      
-      {/* Search and filters */}
-      <div className="mb-6 relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-        <Input
-          placeholder="Search groups by name or description..."
-          className="pl-10"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+    <div className="container mx-auto p-4 sm:p-6">
+      {/* Page Header */}
+      <div className="mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-800">Alumni Groups</h1>
+          <p className="text-md text-gray-500 mt-1">Connect, collaborate, and grow with your alumni community.</p>
       </div>
-      
-      {groups.length === 0 ? (
+
+      {/* Search and Filter Section */}
+      <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            type="text"
+            placeholder="Search groups..."
+            className="pl-10 pr-4 py-2 w-full rounded-lg border-gray-300 focus:ring-orange-300 focus:border-orange-300"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Button
+            onClick={() => setIsCreateGroupModalOpen(true)}
+            className="bg-orange-500 text-white rounded-lg hover:bg-orange-600 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Group
+          </Button>
+        </div>
+      </div>
+
+      {/* Category Filters */}
+      <div className="flex items-center space-x-2 mb-8 overflow-x-auto pb-2">
+        {groupCategories.map((category) => (
+          <Button
+            key={category.id}
+            onClick={() => setSelectedCategory(category.id)}
+            variant={selectedCategory === category.id ? "default" : "outline"}
+            className={cn(
+              "rounded-full whitespace-nowrap transition-all duration-300",
+              selectedCategory === category.id
+                ? "bg-orange-500 text-white border-orange-500 shadow-sm"
+                : "border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400"
+            )}
+          >
+            {category.name}
+          </Button>
+        ))}
+      </div>
+
+      {/* Groups Grid */}
+      {filteredGroups.length === 0 ? (
         <EmptyState
-          title="No groups yet"
-          description="Be the first to create a group and connect with your alumni community!"
+          title="No Groups Found"
+          description={searchQuery ? "Try adjusting your search or filter." : "Be the first to create a group!"}
           action={{
-            label: "Create First Group",
+            label: "Create a New Group",
             onClick: () => setIsCreateGroupModalOpen(true)
           }}
         />
       ) : (
-        <div>
-          {filteredGroups.length === 0 ? (
-            <div className="text-center py-10">
-              <Users className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
-              <h4 className="text-xl font-medium">No groups found</h4>
-              <p className="text-muted-foreground">Try a different search term or create a new group</p>
-            </div>
-          ) : (
-            <div>
-              <h3 className="text-lg font-medium mb-4">All Groups</h3>
-              <div className="grid md:grid-cols-3 gap-4">
-                {filteredGroups.map(group => (
-                  <GroupCard 
-                    key={group._id} 
-                    group={group} 
-                    isJoined={currentUser ? group.members.some((member: any) => member._id === currentUser.id) : false}
-                    onJoin={() => handleJoinLeaveGroup(group)}
-                    onViewDiscussion={() => handleViewDiscussion(group)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {filteredGroups.map((group) => {
+            const IconComponent = getCategoryIcon(group.category);
+            // Use the helper function to check membership
+            const isJoined = group.members?.some((member: any) => 
+              checkMembership(member, currentUser?.id)
+            );
+            const isPrivate = group.privacy === 'private';
+
+            return (
+              <Card
+                key={group.id || group._id}
+                className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 flex flex-col"
+              >
+                <CardContent className="p-5 flex-grow">
+                  <div className="flex justify-between items-start mb-3">
+                     <div className={cn("p-2 rounded-lg inline-block shadow-sm", getCategoryColor(group.category))}>
+                        <IconComponent className="h-5 w-5" />
+                     </div>
+                     <Badge variant={isPrivate ? "destructive" : "secondary"} className="capitalize flex items-center gap-1 font-medium">
+                        {isPrivate ? <Lock className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
+                        {group.privacy}
+                     </Badge>
+                  </div>
+
+                  <h3 className="text-lg font-bold line-clamp-2 mb-2 h-14 text-gray-900 hover:text-orange-600 transition-colors">{group.name}</h3>
+
+                  <p className="text-gray-600 text-sm mb-4 line-clamp-3 h-16 leading-relaxed">
+                    {group.description || "No description available."}
+                  </p>
+
+                  <div className="flex items-center justify-between text-sm text-gray-500">
+                     <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-orange-500" />
+                        <span className="font-medium">{group.memberCount || group.members?.length || 0} members</span>
+                     </div>
+                     <div className="flex -space-x-2 overflow-hidden">
+                        {Array.isArray(group.members) && group.members.slice(0, 3).map((member: any, index: number) => (
+                           <Avatar key={index} className="inline-block h-8 w-8 rounded-full border-2 border-white ring-1 ring-gray-200">
+                             <AvatarImage src={typeof member === 'object' ? member.profileImage : undefined} />
+                             <AvatarFallback className="bg-orange-100 text-orange-800 font-medium">
+                               {typeof member === 'object' && member.name 
+                                 ? member.name[0] 
+                                 : typeof member === 'object' && member.firstName 
+                                   ? member.firstName[0] 
+                                   : 'A'}
+                             </AvatarFallback>
+                           </Avatar>
+                        ))}
+                        {(group.memberCount > 3 || (Array.isArray(group.members) && group.members.length > 3)) && (
+                           <div className="w-8 h-8 bg-gray-200 border-2 border-white rounded-full flex items-center justify-center text-xs text-gray-800 font-medium shadow-sm">
+                             +{(group.memberCount || group.members.length) - 3}
+                           </div>
+                        )}
+                     </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="p-4 pt-0 bg-gray-50 border-t">
+                    <div className="flex w-full gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewDiscussion(group)}
+                        className={`w-full border-gray-300 hover:border-orange-500 hover:text-orange-600 transition-colors ${isPrivate && !isJoined ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={isPrivate && !isJoined}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2"/>
+                        {isPrivate && !isJoined ? 'Private' : 'Discuss'}
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        onClick={() => handleJoinLeaveGroup(group)}
+                        className={`w-full ${isJoined 
+                          ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' 
+                          : 'bg-orange-500 hover:bg-orange-600 text-white transform hover:scale-105 hover:shadow-sm transition-all duration-300'}`}
+                        variant={isJoined ? "secondary" : "default"}
+                      >
+                        {isJoined ? "Leave" : "Join"}
+                      </Button>
+                    </div>
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       )}
-      
-      {/* Group discussion modal */}
-      {selectedGroup && (
-        <GroupDiscussionModal
-          group={selectedGroup}
-          isOpen={isDiscussionModalOpen}
-          onClose={() => setIsDiscussionModalOpen(false)}
-        />
-      )}
-      
-      {/* Create group modal */}
+
+      {/* Modals */}
+      <GroupDiscussionModal
+        group={selectedGroup}
+        isOpen={isDiscussionModalOpen}
+        onClose={() => setIsDiscussionModalOpen(false)}
+      />
+
       <CreateGroupForm
         isOpen={isCreateGroupModalOpen}
         onClose={() => setIsCreateGroupModalOpen(false)}
         onSubmit={handleCreateGroup}
       />
     </div>
-  );
-}
-
-function GroupCard({ group, isJoined, onJoin, onViewDiscussion }: { 
-  group: any; 
-  isJoined: boolean;
-  onJoin: () => void;
-  onViewDiscussion: () => void;
-}) {
-  const isPrivate = group.privacy === 'private';
-  
-  return (
-    <Card className="group-card transition-all duration-300 hover:shadow-md hover:-translate-y-1">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <Avatar className="h-12 w-12">
-            {group.image ? (
-              <AvatarImage src={group.image} alt={group.name} />
-            ) : (
-              <AvatarFallback className="bg-alumni-primary text-white">
-                {group.name.charAt(0)}
-              </AvatarFallback>
-            )}
-          </Avatar>
-          
-          <div className="flex gap-2">
-            <Badge 
-              variant={isPrivate ? "destructive" : "secondary"} 
-              className="h-6 flex items-center gap-1"
-            >
-              {isPrivate ? (
-                <>
-                  <Lock className="h-3 w-3" />
-                  Private
-                </>
-              ) : (
-                <>
-                  <Globe className="h-3 w-3" />
-                  Public
-                </>
-              )}
-            </Badge>
-            {group.category && (
-              <Badge variant="outline" className="h-6">
-                {group.category}
-              </Badge>
-            )}
-          </div>
-        </div>
-        
-        <h4 className="text-lg font-medium mb-1">{group.name}</h4>
-        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{group.description}</p>
-        
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Users className="h-3 w-3" />
-            <span>{group.memberCount || group.members?.length || 0} members</span>
-          </div>
-          <span>Active {group.lastActivity || 'recently'}</span>
-        </div>
-      </CardContent>
-      
-      <CardFooter className="px-4 py-3 pt-0 flex gap-2">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="flex-1 flex items-center justify-center gap-1"
-          onClick={onViewDiscussion}
-          disabled={isPrivate && !isJoined}
-        >
-          <MessageSquare className="h-3 w-3" />
-          <span>{isPrivate && !isJoined ? "Private" : "View"}</span>
-        </Button>
-        <Button 
-          size="sm" 
-          className="flex-1"
-          variant={isJoined ? "secondary" : "default"}
-          onClick={onJoin}
-          disabled={isPrivate && !isJoined}
-        >
-          {isPrivate && !isJoined ? "Private Group" : (isJoined ? "Leave" : "Join")}
-        </Button>
-      </CardFooter>
-    </Card>
   );
 }

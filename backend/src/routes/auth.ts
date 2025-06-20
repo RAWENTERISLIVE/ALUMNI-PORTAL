@@ -7,7 +7,10 @@ import {
   logout,
   getMe,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  changePassword,
+  updateNotificationSettings,
+  updatePrivacySettings
 } from '../controllers/authController';
 import { authMiddleware } from '../middleware/auth';
 import { authLimiter } from '../middleware/rateLimiter';
@@ -68,6 +71,35 @@ const resetPasswordValidation = [
     .withMessage('Password must be at least 6 characters long')
 ];
 
+const changePasswordValidation = [
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('Current password is required'),
+  body('newPassword')
+    .isLength({ min: 8 })
+    .withMessage('New password must be at least 8 characters long')
+];
+
+const notificationSettingsValidation = [
+  body('emailMessages').optional().isBoolean(),
+  body('emailJobs').optional().isBoolean(),
+  body('emailEvents').optional().isBoolean(),
+  body('emailGroups').optional().isBoolean(),
+  body('pushMessages').optional().isBoolean(),
+  body('pushJobs').optional().isBoolean(),
+  body('pushEvents').optional().isBoolean(),
+  body('pushGroups').optional().isBoolean()
+];
+
+const privacySettingsValidation = [
+  body('profileVisibility').optional().isIn(['public', 'alumni', 'connections']),
+  body('showEmail').optional().isBoolean(),
+  body('showPhone').optional().isBoolean(),
+  body('allowMessaging').optional().isBoolean(),
+  body('allowConnection').optional().isBoolean(),
+  body('allowProfileSearch').optional().isBoolean()
+];
+
 // Auth routes
 router.post('/register', authLimiter, registerValidation, validate, register);
 router.post('/login', authLimiter, loginValidation, validate, login);
@@ -76,5 +108,12 @@ router.post('/logout', authMiddleware, logout);
 router.get('/me', authMiddleware, getMe);
 router.post('/forgot-password', authLimiter, forgotPasswordValidation, validate, forgotPassword);
 router.post('/reset-password', authLimiter, resetPasswordValidation, validate, resetPassword);
+
+// Password change endpoint
+router.patch('/change-password', authMiddleware, changePasswordValidation, validate, changePassword);
+
+// Settings endpoints  
+router.patch('/notification-settings', authMiddleware, notificationSettingsValidation, validate, updateNotificationSettings);
+router.patch('/privacy-settings', authMiddleware, privacySettingsValidation, validate, updatePrivacySettings);
 
 export default router;

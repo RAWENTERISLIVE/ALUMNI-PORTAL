@@ -47,9 +47,10 @@ export function PostList({
   if (posts.length === 0) {
     return (
       <EmptyState
-        icon={<MessageSquare className="h-12 w-12" />}
+        icon={<MessageSquare className="h-12 w-12 text-orange-500" />}
         title={emptyMessage}
         description={emptyDescription}
+        className="bg-gray-50 rounded-xl p-8 border border-gray-200"
       />
     );
   }
@@ -57,12 +58,13 @@ export function PostList({
   return (
     <div className="space-y-6">
       {posts.map((post) => (
-        <PostCard
-          key={post.id}
-          post={post}
-          onPostUpdated={onPostUpdated}
-          onPostDeleted={onPostDeleted}
-        />
+        <div key={post.id} className="transform hover:-translate-y-1 transition-all duration-300">
+          <PostCard
+            post={post}
+            onPostUpdated={onPostUpdated}
+            onPostDeleted={onPostDeleted}
+          />
+        </div>
       ))}
     </div>
   );

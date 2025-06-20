@@ -294,6 +294,29 @@ class ApiService {
     });
   }
 
+  // Password change
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request('/auth/change-password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
+  // Settings endpoints
+  async updateNotificationSettings(settings: any) {
+    return this.request('/auth/notification-settings', {
+      method: 'PATCH',
+      body: JSON.stringify(settings),
+    });
+  }
+
+  async updatePrivacySettings(settings: any) {
+    return this.request('/auth/privacy-settings', {
+      method: 'PATCH',
+      body: JSON.stringify(settings),
+    });
+  }
+
   // Post API methods
   async createPost(postData: any) {
     return this.request('/posts', {
@@ -324,9 +347,15 @@ class ApiService {
     });
   }
 
-  async likePost(postId: string) {
+  async likePost(postId: string): Promise<ApiResponse> {
     return this.request(`/posts/${postId}/like`, {
-      method: 'PATCH',
+      method: 'POST',
+    });
+  }
+
+  async unlikePost(postId: string): Promise<ApiResponse> {
+    return this.request(`/posts/${postId}/like`, {
+      method: 'DELETE',
     });
   }
 
@@ -348,8 +377,18 @@ class ApiService {
 
   // Job endpoints
   async getJobs(params?: any) {
-    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.request(`/jobs${queryString}`);
+    try {
+      const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+      return await this.request(`/jobs${queryString}`);
+    } catch (error: any) {
+      console.error('Error fetching jobs:', error);
+      // Return a standardized error response instead of throwing
+      return {
+        success: false,
+        message: error.message || 'Failed to load job listings.',
+        data: []
+      };
+    }
   }
 
   async getJobById(jobId: string) {
@@ -405,10 +444,21 @@ class ApiService {
     return this.request(`/jobs/saved${queryString}`);
   }
 
-  async applyToJob(jobId: string) {
-    return this.request(`/jobs/${jobId}/apply`, {
+  async saveJob(jobId: string) {
+    return this.request(`/jobs/${jobId}/save`, {
       method: 'POST',
     });
+  }
+
+  async unsaveJob(jobId: string) {
+    return this.request(`/jobs/${jobId}/save`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAppliedJobs(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/jobs/applied${queryString}`);
   }
 
   async getJobStats() {
@@ -448,6 +498,14 @@ class ApiService {
   }
 
   // Groups endpoints
+  async getGroup(groupId: string): Promise<ApiResponse> {
+    return this.request(`/groups/${groupId}`);
+  }
+
+  async getGroupById(groupId: string): Promise<ApiResponse> {
+    return this.request(`/groups/${groupId}`);
+  }
+
   async getGroups(): Promise<ApiResponse> {
     return this.request('/groups');
   }
@@ -460,23 +518,48 @@ class ApiService {
   }
 
   async joinGroup(groupId: string): Promise<ApiResponse> {
-    return this.request(`/groups/${groupId}/join`, {
-      method: 'POST',
-    });
+    try {
+      return await this.request(`/groups/${groupId}/join`, {
+        method: 'POST',
+      });
+    } catch (error: any) {
+      console.error('Error joining group:', error);
+      return {
+        success: false,
+        message: error.message || 'An error occurred. Please try again.',
+      };
+    }
   }
 
   async leaveGroup(groupId: string): Promise<ApiResponse> {
-    return this.request(`/groups/${groupId}/leave`, {
-      method: 'POST',
-    });
+    try {
+      return await this.request(`/groups/${groupId}/leave`, {
+        method: 'POST',
+      });
+    } catch (error: any) {
+      console.error('Error leaving group:', error);
+      return {
+        success: false,
+        message: error.message || 'An error occurred. Please try again.',
+      };
+    }
   }
 
   async getGroupMessages(groupId: string, page = 1, limit = 20): Promise<ApiResponse> {
-    const queryParams = new URLSearchParams({
-      page: String(page),
-      limit: String(limit)
-    }).toString();
-    return this.request(`/groups/${groupId}/messages?${queryParams}`);
+    try {
+      const queryParams = new URLSearchParams({
+        page: String(page),
+        limit: String(limit)
+      }).toString();
+      return await this.request(`/groups/${groupId}/messages?${queryParams}`);
+    } catch (error: any) {
+      console.error('Error fetching group messages:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to load messages.',
+        data: []
+      };
+    }
   }
 
   async sendGroupMessage(groupId: string, messageData: any): Promise<ApiResponse> {
@@ -517,6 +600,83 @@ class ApiService {
     });
   }
 
+  async applyToJob(jobId: string) {
+    return this.request(`/jobs/${jobId}/apply`, {
+      method: 'POST',
+    });
+  }
+
+  // Events
+  async getEvents(params: { 
+    page?: number; 
+    limit?: number; 
+    status?: string; 
+    category?: string; 
+    search?: string;
+  } = {}): Promise<ApiResponse> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        searchParams.append(key, value.toString());
+      }
+    });
+    
+    return this.request(`/events?${searchParams.toString()}`);
+  }
+
+  async getUpcomingEvents(limit: number = 5): Promise<ApiResponse> {
+    return this.request(`/events/upcoming?limit=${limit}`);
+  }
+
+  async getEvent(eventId: string): Promise<ApiResponse> {
+    return this.request(`/events/${eventId}`);
+  }
+
+  async createEvent(eventData: any): Promise<ApiResponse> {
+    return this.request('/events', {
+      method: 'POST',
+      body: JSON.stringify(eventData),
+    });
+  }
+
+  async updateEvent(eventId: string, eventData: any): Promise<ApiResponse> {
+    return this.request(`/events/${eventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(eventData),
+    });
+  }
+
+  async deleteEvent(eventId: string): Promise<ApiResponse> {
+    return this.request(`/events/${eventId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async rsvpEvent(eventId: string): Promise<ApiResponse> {
+    return this.request(`/events/${eventId}/rsvp`, {
+      method: 'POST',
+    });
+  }
+
+  async cancelRsvp(eventId: string): Promise<ApiResponse> {
+    return this.request(`/events/${eventId}/rsvp`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getUserEvents(): Promise<ApiResponse> {
+    return this.request('/events/my-events');
+  }
+
+  // User suggestions
+  async getUserSuggestions(limit: number = 5): Promise<ApiResponse> {
+    return this.request(`/users/suggestions?limit=${limit}`);
+  }
+
+  // Get user's groups
+  async getUserGroups(): Promise<ApiResponse> {
+    return this.request('/groups?member=true');
+  }
 }
 
 const apiService = new ApiService();

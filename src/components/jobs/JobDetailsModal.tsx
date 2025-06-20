@@ -1,4 +1,3 @@
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +12,19 @@ export interface JobDetailsModalProps {
   onClose: () => void;
   onApply: (jobId: string) => Promise<void>;
   onSave: (jobId: string) => Promise<void>;
+  isSaved?: boolean;
+  isApplied?: boolean;
 }
 
-export function JobDetailsModal({ job, isOpen, onClose, onApply, onSave }: JobDetailsModalProps) {
+export function JobDetailsModal({ 
+  job, 
+  isOpen, 
+  onClose, 
+  onApply, 
+  onSave, 
+  isSaved = false, 
+  isApplied = false 
+}: JobDetailsModalProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
@@ -23,7 +32,8 @@ export function JobDetailsModal({ job, isOpen, onClose, onApply, onSave }: JobDe
   if (!job) return null;
 
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-  const isJobSaved = job.savedBy.includes(currentUser.id);
+  const savedByCurrentUser = job.savedBy?.includes(currentUser.id) || isSaved;
+  const appliedByCurrentUser = job.applicants?.includes(currentUser.id) || isApplied;
   
   const handleApply = async () => {
     try {
@@ -79,7 +89,7 @@ export function JobDetailsModal({ job, isOpen, onClose, onApply, onSave }: JobDe
         <div className="space-y-2 mt-4">
           <div className="flex items-center gap-2">
             <Building className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">{job.company}</span>
+            <span className="font-medium">{typeof job.company === 'string' ? job.company : job.company.name}</span>
           </div>
           
           <div className="flex items-center gap-2">
@@ -162,8 +172,8 @@ export function JobDetailsModal({ job, isOpen, onClose, onApply, onSave }: JobDe
             disabled={isSaving}
             className="flex items-center gap-2"
           >
-            {isJobSaved ? <Bookmark className="h-4 w-4" /> : <BookmarkPlus className="h-4 w-4" />}
-            {isSaving ? "Saving..." : (isJobSaved ? "Saved" : "Save Job")}
+            {savedByCurrentUser ? <Bookmark className="h-4 w-4" /> : <BookmarkPlus className="h-4 w-4" />}
+            {isSaving ? "Saving..." : (savedByCurrentUser ? "Saved" : "Save Job")}
           </Button>
           
           {job.applicationUrl ? (

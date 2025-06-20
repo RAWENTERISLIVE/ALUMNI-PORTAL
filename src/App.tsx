@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -28,59 +27,59 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={
-              <ProtectedRoute requireAuth={false}>
-                <HomePage />
-              </ProtectedRoute>
-            } />
-            <Route path="/login" element={
-              <ProtectedRoute requireAuth={false}>
-                <LoginPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/register" element={
-              <ProtectedRoute requireAuth={false}>
-                <RegisterPage />
-              </ProtectedRoute>
-            } />
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={
+                <ProtectedRoute requireAuth={false}>
+                  <HomePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/login" element={
+                <ProtectedRoute requireAuth={false}>
+                  <LoginPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/register" element={
+                <ProtectedRoute requireAuth={false}>
+                  <RegisterPage />
+                </ProtectedRoute>
+              } />
 
-            {/* Protected routes with layout */}
-            <Route element={
-              <ProtectedRoute requireAuth={true}>
-                <MainLayout />
-              </ProtectedRoute>
-            }>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/directory" element={<DirectoryPage />} />
-              <Route path="/directory/profile/:id" element={<ProfilePage />} />
-              <Route path="/posts" element={<PostsPage />} />
-              <Route path="/posts/:id" element={<PostsPage />} />
-              <Route path="/groups" element={<GroupsPage />} />
-              <Route path="/groups/:id" element={<GroupsPage />} />
-              <Route path="/mentorship" element={<MentorshipPage />} />
-              <Route path="/jobs" element={<JobsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/admin" element={<AdminPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-            </Route>
+              {/* Protected routes with layout */}
+              <Route element={
+                <ProtectedRoute requireAuth={true}>
+                  <MainLayout />
+                </ProtectedRoute>
+              }>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/directory" element={<DirectoryPage />} />
+                <Route path="/directory/profile/:id" element={<ProfilePage />} />
+                <Route path="/posts" element={<PostsPage />} />
+                <Route path="/groups" element={<GroupsPage />} />
+                <Route path="/mentorship" element={<MentorshipPage />} />
+                <Route path="/jobs" element={<JobsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/analytics" element={<AnalyticsPage />} />
+              </Route>
 
-            {/* 404 route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+              {/* 404 route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;

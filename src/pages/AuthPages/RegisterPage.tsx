@@ -137,16 +137,17 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-muted/30">
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gray-50">
       <div className="w-full max-w-md mx-auto space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">Create an Account</h1>
-          <p className="text-muted-foreground">
-            Join the Alumni Network
+          <h1 className="text-4xl font-bold text-gray-800">Alumni Connect</h1>
+          <h2 className="text-2xl font-semibold text-orange-500 mb-2">Create an Account</h2>
+          <p className="text-gray-600">
+            Join the Alumni Network to connect with your peers
           </p>
         </div>
 
-        <div className="bg-background border rounded-lg p-6 sm:p-8 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-xl p-6 sm:p-8 shadow-lg">
           {authError && (
             <div className="bg-destructive/10 text-destructive p-3 rounded-md mb-4 text-sm">
               {authError}
@@ -160,9 +161,13 @@ export default function RegisterPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Full Name</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Full Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="John Doe" {...field} />
+                      <Input 
+                        placeholder="John Doe" 
+                        {...field} 
+                        className="text-gray-900 placeholder:text-gray-400"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -173,9 +178,13 @@ export default function RegisterPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="your.email@example.com" {...field} />
+                      <Input 
+                        placeholder="your.email@example.com" 
+                        {...field} 
+                        className="text-gray-900 placeholder:text-gray-400"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -193,7 +202,7 @@ export default function RegisterPage() {
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <FormLabel className="font-normal text-sm">
+                    <FormLabel className="font-normal text-sm text-gray-600">
                       I don&apos;t have/remember my Admission Number
                     </FormLabel>
                   </FormItem>
@@ -207,11 +216,12 @@ export default function RegisterPage() {
                     name="manverifadmissionyear"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Admission Year</FormLabel>
+                        <FormLabel className="text-gray-700 font-medium">Admission Year</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="e.g. 2010"
                             {...field}
+                            className="text-gray-900 placeholder:text-gray-400"
                           />
                         </FormControl>
                         <FormMessage />
@@ -223,11 +233,12 @@ export default function RegisterPage() {
                     name="verificationDetails"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Details for Manual Verification</FormLabel>
+                        <FormLabel className="text-gray-700 font-medium">Details for Manual Verification</FormLabel>
                         <FormControl>
                           <Textarea
                             placeholder="Please provide your course, any teachers you remember, or other details to help us verify your identity."
                             {...field}
+                            className="text-gray-900 placeholder:text-gray-400"
                           />
                         </FormControl>
                         <FormMessage />
@@ -241,9 +252,13 @@ export default function RegisterPage() {
                   name="admissionNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Admission Number / Student ID</FormLabel>
+                      <FormLabel className="text-gray-700 font-medium">Admission Number / Student ID</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. 12345/89 or 00123/05" {...field} />
+                        <Input 
+                          placeholder="e.g. 12345/89 or 00123/05" 
+                          {...field} 
+                          className="text-gray-900 placeholder:text-gray-400"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -256,9 +271,14 @@ export default function RegisterPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
+                      <Input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        {...field} 
+                        className="text-gray-900 placeholder:text-gray-400"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -269,26 +289,37 @@ export default function RegisterPage() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Confirm Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
+                      <Input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        {...field} 
+                        className="text-gray-900 placeholder:text-gray-400"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white" 
+                disabled={isLoading}
+              >
                 {isLoading ? <LoadingSpinner /> : "Create Account"}
               </Button>
             </form>
           </Form>
 
           <div className="mt-6 text-center text-sm">
-            Already have an account?{" "}
-            <Link to="/login" className="underline hover:text-primary">
-              Log in
-            </Link>
+            <p className="text-gray-600">
+              Already have an account?{" "}
+              <Link to="/login" className="text-orange-500 hover:text-orange-600 font-medium hover:underline">
+                Log in
+              </Link>
+            </p>
           </div>
         </div>
       </div>

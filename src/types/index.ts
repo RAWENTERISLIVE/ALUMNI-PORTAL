@@ -52,12 +52,19 @@ export interface JobAuthor {
   profileImage?: string;
 }
 
+export interface Company {
+  name: string;
+  logo?: string;
+}
+
 export interface Job {
   id: string;
+  _id?: string; // For MongoDB compatibility
   title: string;
-  company: string;
+  company: string | Company;
   location: string;
-  type: 'full-time' | 'part-time' | 'contract' | 'internship' | 'freelance';
+  type: 'full-time' | 'part-time' | 'contract' | 'internship' | 'freelance' | 'Full-time' | 'Part-time' | 'Contract' | 'Internship' | 'Remote';
+  salary?: string;
   salaryRange?: {
     min: number;
     max: number;
@@ -72,12 +79,18 @@ export interface Job {
   contactEmail?: string;
   isAlumniReferral: boolean;
   applicationDeadline?: string;
+  postedDate?: string;
   isActive: boolean;
-  applicationCount: number;
-  savedBy: string[];
+  applicationCount?: number;
+  applicants?: string[];
+  savedBy?: string[];
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  experienceLevel?: string;
+  category?: string;
+  alumni?: number;
+  isSaved?: boolean;
 }
 
 // API Response types

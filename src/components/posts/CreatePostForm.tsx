@@ -1,5 +1,5 @@
 
-import { useState, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -32,12 +32,23 @@ const postSchema = z.object({
 });
 
 type CreatePostFormProps = {
-  onPostCreated: (post: any) => void;
+  // Support either the direct prop approach or the dialog trigger approach
+  onPostCreated?: (post: any) => void;
+  onSubmit?: (post: any) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
   children?: ReactNode;
 };
 
-export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps) {
-  const [open, setOpen] = useState(false);
+export function CreatePostForm({ onPostCreated, onSubmit, isOpen, onClose, children }: CreatePostFormProps) {
+  const [open, setOpen] = useState(isOpen || false);
+  
+  // Handle controlled open state from parent
+  useEffect(() => {
+    if (isOpen !== undefined) {
+      setOpen(isOpen);
+    }
+  }, [isOpen]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -56,7 +67,7 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
 
   const watchedImageUrl = form.watch('imageUrl');
 
-  async function onSubmit(values: z.infer<typeof postSchema>) {
+  async function handleSubmit(values: z.infer<typeof postSchema>) {
     try {
       setIsSubmitting(true);
       
@@ -73,7 +84,14 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
       const response = await apiService.createPost(cleanedValues);
       
       if (response.success) {
-        onPostCreated((response as any).post);
+        // Support both callback patterns
+        if (onPostCreated) {
+          onPostCreated((response as any).post);
+        }
+        
+        if (onSubmit) {
+          onSubmit((response as any).post);
+        }
         
         toast({
           title: 'Post created',
@@ -83,6 +101,11 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
         
         form.reset();
         setOpen(false);
+        
+        // Call onClose if provided
+        if (onClose) {
+          onClose();
+        }
       } else {
         throw new Error(response.message || 'Failed to create post');
       }
@@ -99,25 +122,33 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog 
+      open={open} 
+      onOpenChange={(openState) => {
+        setOpen(openState);
+        if (!openState && onClose) {
+          onClose();
+        }
+      }}
+    >
       <DialogTrigger asChild>
         {children || (
-          <Button className="w-full flex items-center gap-2 bg-primary hover:bg-primary/90">
+          <Button className="w-full flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300">
             <PlusCircle className="h-4 w-4" />
             Create New Post
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md rounded-xl border border-gray-200 shadow-lg">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-serif">Share Your Story</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-2xl font-bold text-gray-900">Share Your Story</DialogTitle>
+          <DialogDescription className="text-gray-600">
             Connect with your alumni community. Share updates, news, or insights.
           </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="title"
@@ -127,6 +158,7 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
                   <FormControl>
                     <Input 
                       placeholder="Give your post a title..." 
+                      className="px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300"
                       {...field}
                     />
                   </FormControl>
@@ -144,7 +176,7 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
                   <FormControl>
                     <Textarea 
                       placeholder="Share updates, news, or insights with fellow alumni..." 
-                      className="min-h-[120px] resize-none"
+                      className="min-h-[120px] resize-none px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300"
                       {...field}
                     />
                   </FormControl>
@@ -166,7 +198,7 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
                     <FormControl>
                       <select 
                         {...field}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300"
                       >
                         <option value="general">General</option>
                         <option value="career">Career</option>
@@ -190,7 +222,7 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
                     <FormControl>
                       <select 
                         {...field}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300"
                       >
                         <option value="alumni_only">Alumni Only</option>
                         <option value="public">Public</option>
@@ -213,13 +245,14 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
                     <div className="flex gap-2">
                       <Input 
                         placeholder="Image URL" 
+                        className="px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300"
                         {...field} 
                       />
                       <Button 
                         type="button" 
                         variant="outline" 
                         size="icon" 
-                        className="shrink-0 border-accent text-accent hover:bg-accent/10"
+                        className="shrink-0 border border-orange-500 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
                       >
                         <Image className="h-4 w-4" />
                       </Button>
@@ -232,11 +265,12 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
             
             {/* Image preview section */}
             {watchedImageUrl && (
-              <div className="mt-2 relative aspect-video w-full overflow-hidden rounded-md">
+              <div className="mt-2 relative aspect-video w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm">
                 <img
                   src={watchedImageUrl}
                   alt="Post preview"
                   className="object-cover w-full h-full"
+                  loading="lazy"
                   onError={(e) => {
                     // Handle image loading error
                     e.currentTarget.src = 'https://placehold.co/600x400?text=Image+Not+Found';
@@ -253,13 +287,14 @@ export function CreatePostForm({ onPostCreated, children }: CreatePostFormProps)
                   form.reset();
                   setOpen(false);
                 }}
+                className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 transition-colors rounded-lg"
               >
                 Cancel
               </Button>
               <Button 
                 type="submit" 
                 disabled={isSubmitting}
-                className="bg-primary hover:bg-primary/90"
+                className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
               >
                 {isSubmitting ? <LoadingSpinner size="sm" /> : 'Publish Post'}
               </Button>

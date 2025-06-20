@@ -7,10 +7,10 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Hero Section */}
-      <header className="bg-gradient-to-r from-primary to-black text-white py-20">
+      <header className="bg-gradient-to-r from-orange-500 to-orange-700 text-white py-20">
         <div className="container mx-auto px-4 flex flex-col lg:flex-row items-center justify-between gap-8">
           <div className="space-y-6 max-w-2xl">
-            <h1 className="text-4xl md:text-6xl font-bold font-serif">
+            <h1 className="text-4xl md:text-6xl font-bold">
               Your Legacy Continues Here
             </h1>
             <p className="text-lg md:text-xl opacity-90">
@@ -18,65 +18,65 @@ export default function HomePage() {
               and contribute to the ongoing success of our prestigious institution.
             </p>
             <div className="flex flex-wrap gap-4 pt-4">
-              <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90">
+              <Button asChild size="lg" className="bg-white text-orange-600 hover:bg-gray-50 hover:scale-105 transition-all duration-300 shadow-lg">
                 <Link to="/register">Join Our Community</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+              <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10 transition-all duration-300">
                 <Link to="/login">Welcome Back</Link>
               </Button>
             </div>
           </div>
           <div className="hidden lg:block relative">
-            <div className="absolute -top-6 -left-6 w-24 h-24 bg-accent rounded-full opacity-30"></div>
+            <div className="absolute -top-6 -left-6 w-24 h-24 bg-orange-200 rounded-full opacity-30"></div>
             <img 
               src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" 
               alt="Alumni" 
               className="rounded-lg shadow-xl w-[450px] h-auto relative z-10"
             />
-            <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-primary rounded-full opacity-30"></div>
+            <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-orange-500 rounded-full opacity-30"></div>
           </div>
         </div>
       </header>
 
       {/* School Highlights */}
-      <section className="py-16 bg-background">
+      <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto mb-12">
-            <span className="text-accent font-medium uppercase tracking-wider">OUR LEGACY</span>
-            <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4 font-serif">A Tradition of Excellence</h2>
-            <div className="h-1 w-20 bg-primary mx-auto mb-6"></div>
-            <p className="text-muted-foreground text-lg">
+            <span className="text-orange-600 font-medium uppercase tracking-wider">OUR LEGACY</span>
+            <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4 text-gray-900">A Tradition of Excellence</h2>
+            <div className="h-1 w-20 bg-orange-500 mx-auto mb-6"></div>
+            <p className="text-gray-600 text-lg">
               For over 75 years, our institution has been shaping leaders, innovators, and changemakers who make an impact worldwide.
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 mt-12">
-            <div className="card-enhanced p-8 text-center">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Star className="h-8 w-8 text-primary" />
+            <div className="bg-white p-8 text-center rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Star className="h-8 w-8 text-orange-500" />
               </div>
-              <h3 className="text-2xl font-bold mb-3 font-serif">Top-Ranked</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-2xl font-bold mb-3 text-gray-900">Top-Ranked</h3>
+              <p className="text-gray-600">
                 Consistently ranked among the top educational institutions nationwide for academic excellence and student outcomes.
               </p>
             </div>
 
-            <div className="card-enhanced p-8 text-center">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="h-8 w-8 text-primary" />
+            <div className="bg-white p-8 text-center rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="h-8 w-8 text-orange-500" />
               </div>
-              <h3 className="text-2xl font-bold mb-3 font-serif">Global Network</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-2xl font-bold mb-3 text-gray-900">Global Network</h3>
+              <p className="text-gray-600">
                 Join over 50,000 alumni across 75 countries who are changing the world in countless ways.
               </p>
             </div>
 
-            <div className="card-enhanced p-8 text-center">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Briefcase className="h-8 w-8 text-primary" />
+            <div className="bg-white p-8 text-center rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Briefcase className="h-8 w-8 text-orange-500" />
               </div>
-              <h3 className="text-2xl font-bold mb-3 font-serif">Career Success</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-2xl font-bold mb-3 text-gray-900">Career Success</h3>
+              <p className="text-gray-600">
                 Our graduates achieve exceptional career trajectories with 95% employment within six months of graduation.
               </p>
             </div>
@@ -85,72 +85,72 @@ export default function HomePage() {
       </section>
 
       {/* Features Section with Enhanced Design */}
-      <section className="py-16 bg-accent/5">
+      <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto mb-12">
-            <span className="text-accent font-medium uppercase tracking-wider">ALUMNI BENEFITS</span>
-            <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4 font-serif">Reconnect &amp; Grow Together</h2>
-            <div className="h-1 w-20 bg-primary mx-auto mb-6"></div>
-            <p className="text-muted-foreground text-lg">
+            <span className="text-orange-600 font-medium uppercase tracking-wider">ALUMNI BENEFITS</span>
+            <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4 text-gray-900">Reconnect &amp; Grow Together</h2>
+            <div className="h-1 w-20 bg-orange-500 mx-auto mb-6"></div>
+            <p className="text-gray-600 text-lg">
               Our platform offers everything you need to stay connected with your school community
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mt-12">
-            <div className="bg-background p-6 rounded-xl shadow-sm border border-accent/20 flex flex-col items-center text-center hover:border-accent transition-colors">
-              <div className="bg-accent/10 p-4 rounded-full mb-4">
-                <Users className="h-8 w-8 text-primary" />
+            <div className="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center text-center hover:border-orange-300 hover:shadow-md transition-all duration-300">
+              <div className="bg-orange-100 p-4 rounded-full mb-4">
+                <Users className="h-8 w-8 text-orange-500" />
               </div>
-              <h3 className="text-xl font-medium mb-2 font-serif">Alumni Directory</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-xl font-medium mb-2 text-gray-900">Alumni Directory</h3>
+              <p className="text-gray-600">
                 Find and reconnect with former classmates and teachers
               </p>
-              <Button variant="ghost" size="sm" className="mt-4 text-primary" asChild>
+              <Button variant="ghost" size="sm" className="mt-4 text-orange-500 hover:text-orange-600 hover:bg-orange-50" asChild>
                 <Link to="/register" className="flex items-center">
                   Explore <ChevronRight className="h-4 w-4 ml-1" />
                 </Link>
               </Button>
             </div>
 
-            <div className="bg-background p-6 rounded-xl shadow-sm border border-accent/20 flex flex-col items-center text-center hover:border-accent transition-colors">
-              <div className="bg-accent/10 p-4 rounded-full mb-4">
-                <MessageSquare className="h-8 w-8 text-primary" />
+            <div className="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center text-center hover:border-orange-300 hover:shadow-md transition-all duration-300">
+              <div className="bg-orange-100 p-4 rounded-full mb-4">
+                <MessageSquare className="h-8 w-8 text-orange-500" />
               </div>
-              <h3 className="text-xl font-medium mb-2 font-serif">Groups &amp; Events</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-xl font-medium mb-2 text-gray-900">Groups &amp; Events</h3>
+              <p className="text-gray-600">
                 Join interest groups and attend alumni events
               </p>
-              <Button variant="ghost" size="sm" className="mt-4 text-primary" asChild>
+              <Button variant="ghost" size="sm" className="mt-4 text-orange-500 hover:text-orange-600 hover:bg-orange-50" asChild>
                 <Link to="/register" className="flex items-center">
                   Join Now <ChevronRight className="h-4 w-4 ml-1" />
                 </Link>
               </Button>
             </div>
 
-            <div className="bg-background p-6 rounded-xl shadow-sm border border-accent/20 flex flex-col items-center text-center hover:border-accent transition-colors">
-              <div className="bg-accent/10 p-4 rounded-full mb-4">
-                <GraduationCap className="h-8 w-8 text-primary" />
+            <div className="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center text-center hover:border-orange-300 hover:shadow-md transition-all duration-300">
+              <div className="bg-orange-100 p-4 rounded-full mb-4">
+                <GraduationCap className="h-8 w-8 text-orange-500" />
               </div>
-              <h3 className="text-xl font-medium mb-2 font-serif">Mentorship</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-xl font-medium mb-2 text-gray-900">Mentorship</h3>
+              <p className="text-gray-600">
                 Connect with mentors or become one yourself
               </p>
-              <Button variant="ghost" size="sm" className="mt-4 text-primary" asChild>
+              <Button variant="ghost" size="sm" className="mt-4 text-orange-500 hover:text-orange-600 hover:bg-orange-50" asChild>
                 <Link to="/register" className="flex items-center">
                   Learn More <ChevronRight className="h-4 w-4 ml-1" />
                 </Link>
               </Button>
             </div>
 
-            <div className="bg-background p-6 rounded-xl shadow-sm border border-accent/20 flex flex-col items-center text-center hover:border-accent transition-colors">
-              <div className="bg-accent/10 p-4 rounded-full mb-4">
-                <Briefcase className="h-8 w-8 text-primary" />
+            <div className="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center text-center hover:border-orange-300 hover:shadow-md transition-all duration-300">
+              <div className="bg-orange-100 p-4 rounded-full mb-4">
+                <Briefcase className="h-8 w-8 text-orange-500" />
               </div>
-              <h3 className="text-xl font-medium mb-2 font-serif">Job Board</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-xl font-medium mb-2 text-gray-900">Job Board</h3>
+              <p className="text-gray-600">
                 Explore career opportunities shared by alumni
               </p>
-              <Button variant="ghost" size="sm" className="mt-4 text-primary" asChild>
+              <Button variant="ghost" size="sm" className="mt-4 text-orange-500 hover:text-orange-600 hover:bg-orange-50" asChild>
                 <Link to="/register" className="flex items-center">
                   View Jobs <ChevronRight className="h-4 w-4 ml-1" />
                 </Link>
@@ -161,59 +161,59 @@ export default function HomePage() {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-16 bg-background">
+      <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto mb-12">
-            <span className="text-accent font-medium uppercase tracking-wider">ALUMNI VOICES</span>
-            <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4 font-serif">What Our Community Says</h2>
-            <div className="h-1 w-20 bg-primary mx-auto mb-6"></div>
+            <span className="text-orange-600 font-medium uppercase tracking-wider">ALUMNI VOICES</span>
+            <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4 text-gray-900">What Our Community Says</h2>
+            <div className="h-1 w-20 bg-orange-500 mx-auto mb-6"></div>
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="bg-background p-8 rounded-xl shadow-md border border-border relative">
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 relative hover:shadow-md transition-all duration-300">
               <div className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4">
-                <div className="text-accent text-6xl opacity-20">"</div>
+                <div className="text-orange-200 text-6xl opacity-50">"</div>
               </div>
-              <p className="italic mb-6 text-foreground/80">
+              <p className="italic mb-6 text-gray-700">
                 "The alumni network has been instrumental in my career growth. I've found mentors, job opportunities, and lifelong friends."
               </p>
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-primary rounded-full mr-4"></div>
+                <div className="w-12 h-12 bg-orange-500 rounded-full mr-4"></div>
                 <div>
-                  <h4 className="font-medium">Sarah Johnson</h4>
-                  <p className="text-sm text-muted-foreground">Class of 2015</p>
+                  <h4 className="font-medium text-gray-900">Sarah Johnson</h4>
+                  <p className="text-sm text-gray-500">Class of 2015</p>
                 </div>
               </div>
             </div>
             
-            <div className="bg-background p-8 rounded-xl shadow-md border border-border relative">
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 relative hover:shadow-md transition-all duration-300">
               <div className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4">
-                <div className="text-accent text-6xl opacity-20">"</div>
+                <div className="text-orange-200 text-6xl opacity-50">"</div>
               </div>
-              <p className="italic mb-6 text-foreground/80">
+              <p className="italic mb-6 text-gray-700">
                 "Being part of this alumni community keeps me connected to the school's values and the amazing people I met during my time there."
               </p>
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-primary rounded-full mr-4"></div>
+                <div className="w-12 h-12 bg-orange-500 rounded-full mr-4"></div>
                 <div>
-                  <h4 className="font-medium">Michael Chen</h4>
-                  <p className="text-sm text-muted-foreground">Class of 2008</p>
+                  <h4 className="font-medium text-gray-900">Michael Chen</h4>
+                  <p className="text-sm text-gray-500">Class of 2008</p>
                 </div>
               </div>
             </div>
             
-            <div className="bg-background p-8 rounded-xl shadow-md border border-border relative lg:col-span-1 md:col-span-2 lg:col-auto">
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 relative lg:col-span-1 md:col-span-2 lg:col-auto hover:shadow-md transition-all duration-300">
               <div className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4">
-                <div className="text-accent text-6xl opacity-20">"</div>
+                <div className="text-orange-200 text-6xl opacity-50">"</div>
               </div>
-              <p className="italic mb-6 text-foreground/80">
+              <p className="italic mb-6 text-gray-700">
                 "The mentorship program changed my life. I'm now giving back by mentoring recent graduates. It's a full-circle experience."
               </p>
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-primary rounded-full mr-4"></div>
+                <div className="w-12 h-12 bg-orange-500 rounded-full mr-4"></div>
                 <div>
-                  <h4 className="font-medium">Alicia Rodriguez</h4>
-                  <p className="text-sm text-muted-foreground">Class of 2010</p>
+                  <h4 className="font-medium text-gray-900">Alicia Rodriguez</h4>
+                  <p className="text-sm text-gray-500">Class of 2010</p>
                 </div>
               </div>
             </div>
@@ -222,17 +222,17 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="bg-gradient-to-r from-primary to-black text-white py-20">
+      <section className="bg-gradient-to-r from-orange-500 to-orange-700 text-white py-20">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-5xl font-bold mb-6 max-w-3xl mx-auto font-serif">Ready to reconnect with your alma mater?</h2>
+          <h2 className="text-3xl md:text-5xl font-bold mb-6 max-w-3xl mx-auto">Ready to reconnect with your alma mater?</h2>
           <p className="text-lg md:text-xl mb-8 max-w-2xl mx-auto opacity-90">
             Join our growing community of alumni and start building valuable connections today.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90">
+            <Button asChild size="lg" className="bg-white text-orange-600 hover:bg-gray-50 hover:scale-105 transition-all duration-300 shadow-lg">
               <Link to="/register">Join Now</Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+            <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10 transition-all duration-300">
               <Link to="/login">Sign In</Link>
             </Button>
           </div>
@@ -240,11 +240,11 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-black text-white py-12">
+      <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
             <div>
-              <h3 className="text-2xl font-bold mb-4 font-serif">AlumniConnect</h3>
+              <h3 className="text-2xl font-bold mb-4">AlumniConnect</h3>
               <p className="text-gray-300 mb-4">
                 Connecting school communities since 2023
               </p>

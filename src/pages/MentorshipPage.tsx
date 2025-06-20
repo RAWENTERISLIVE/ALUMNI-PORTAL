@@ -1,478 +1,510 @@
 import { useState, useEffect } from "react";
-import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Search, Briefcase, GraduationCap, MessageSquare, User } from "lucide-react";
-import { RequestMentorshipModal } from "@/components/mentorship/RequestMentorshipModal";
 import { BecomeMentorForm } from "@/components/mentorship/BecomeMentorForm";
-import { useToast } from "@/hooks/use-toast";
-import apiService from "@/services/apiService";
+import { RequestMentorshipModal } from "@/components/mentorship/RequestMentorshipModal";
+import { Search, Calendar, MessageSquare, Filter, GraduationCap, Users, Briefcase, Tag, Star, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import apiService from "@/services/apiService";
+import { ApiResponse } from "@/types";
 
-export default function MentorshipPage() {
+// Mock data for mentors until we can fetch from API
+const CATEGORIES = ["Career Guidance", "Industry Insights", "Technical Skills", "Entrepreneurship", "Leadership", "Graduate Studies"];
+const YEARS_OF_EXPERIENCE = ["1-3 years", "3-5 years", "5-10 years", "10+ years"];
+
+function MentorshipPage() {
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterIndustry, setFilterIndustry] = useState("all");
-  const [selectedMentor, setSelectedMentor] = useState<any>(null);
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const [isMentorFormOpen, setIsMentorFormOpen] = useState(false);
-  const [isUserMentor, setIsUserMentor] = useState(false);
-  const [activeMentorships, setActiveMentorships] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedExperience, setSelectedExperience] = useState<string | null>(null);
   const [mentors, setMentors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMentorModalOpen, setIsMentorModalOpen] = useState(false);
+  const [selectedMentor, setSelectedMentor] = useState<any>(null);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [myMentorships, setMyMentorships] = useState<any[]>([]);
 
   useEffect(() => {
-    loadMentorshipData();
+    loadMentors();
+    loadMyMentorships();
   }, []);
 
-  const loadMentorshipData = async () => {
+  const loadMentors = async () => {
     try {
       setLoading(true);
-      const [mentorsResponse, userMentorshipResponse] = await Promise.all([
-        apiService.getMentors(),
-        apiService.getMentorshipProfile()
-      ]);
+      // In a real implementation, we'd call the API
+      const response = await new Promise<ApiResponse>(resolve => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            data: [
+              {
+                id: "1",
+                user: {
+                  id: "u1",
+                  name: "Alex Johnson",
+                  profileImage: "",
+                  title: "Senior Software Engineer at TechCorp",
+                  graduationYear: 2018,
+                },
+                expertise: ["Career Guidance", "Technical Skills"],
+                experience: "5-10 years",
+                bio: "Experienced software engineer specializing in cloud architecture and distributed systems. Happy to help recent grads navigate the tech industry.",
+                availability: "Weekday evenings",
+                rating: 4.8,
+                reviewCount: 24
+              },
+              {
+                id: "2",
+                user: {
+                  id: "u2",
+                  name: "Priya Patel",
+                  profileImage: "",
+                  title: "Product Manager at Innovation Inc",
+                  graduationYear: 2016,
+                },
+                expertise: ["Leadership", "Industry Insights"],
+                experience: "3-5 years",
+                bio: "Product leader with experience in taking products from concept to market. Can provide guidance on transitioning from engineering to product roles.",
+                availability: "Weekend mornings",
+                rating: 4.9,
+                reviewCount: 32
+              },
+              {
+                id: "3",
+                user: {
+                  id: "u3",
+                  name: "Marcus Williams",
+                  profileImage: "",
+                  title: "Founder & CEO at StartUp",
+                  graduationYear: 2012,
+                },
+                expertise: ["Entrepreneurship", "Leadership"],
+                experience: "10+ years",
+                bio: "Serial entrepreneur with multiple successful exits. Passionate about helping the next generation of business leaders.",
+                availability: "Flexible scheduling",
+                rating: 4.7,
+                reviewCount: 18
+              }
+            ]
+          });
+        }, 1000);
+      });
       
-      if (mentorsResponse.success) {
-        setMentors(mentorsResponse.data || []);
+      if (response.success) {
+        setMentors(response.data || []);
       }
-
-      if (userMentorshipResponse.success && userMentorshipResponse.data) {
-        setIsUserMentor(userMentorshipResponse.data.isMentor);
-      }
-
-      // TODO: Load active mentorships
-      setActiveMentorships([]);
     } catch (error) {
-      console.error('Error loading mentorship data:', error);
-      toast({ title: "Error", description: "Failed to load mentorship data.", variant: "destructive" });
+      console.error("Error loading mentors:", error);
+      toast({ description: "Failed to load mentors", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
-  
-  // Filter mentors based on search query and industry filter
-  const filteredMentors = mentors.filter(mentor => {
-    const user = mentor.userId;
-    const matchesSearch = 
-      (user.firstName && `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (mentor.position && mentor.position.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (mentor.company && mentor.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (mentor.expertise && mentor.expertise.some((skill: string) => skill.toLowerCase().includes(searchQuery.toLowerCase())));
-    
-    const matchesIndustry = filterIndustry === "all" || (mentor.industry && mentor.industry.toLowerCase() === filterIndustry.toLowerCase());
-    
-    return matchesSearch && matchesIndustry;
-  });
 
-  const handleRequestMentorship = async (mentor: any) => {
+  const loadMyMentorships = async () => {
     try {
-      await apiService.requestMentorship(mentor.userId._id);
-      toast({ title: "Request Sent", description: `Your mentorship request to ${mentor.userId.firstName} ${mentor.userId.lastName} has been sent.` });
-      setIsRequestModalOpen(false);
+      // In a real implementation, we'd call the API
+      const response = await new Promise<ApiResponse>(resolve => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            data: [
+              {
+                id: "m1",
+                mentor: {
+                  id: "2",
+                  user: {
+                    id: "u2",
+                    name: "Priya Patel",
+                    profileImage: "",
+                    title: "Product Manager at Innovation Inc",
+                  },
+                },
+                mentee: {
+                  id: currentUser?.id || "current-user",
+                  name: currentUser?.name || "Current User",
+                },
+                status: "active",
+                topics: ["Product Management", "Career Transition"],
+                nextSession: "2025-06-22T15:00:00Z",
+                createdAt: "2025-05-01T10:30:00Z"
+              }
+            ]
+          });
+        }, 1000);
+      });
+      
+      if (response.success) {
+        setMyMentorships(response.data || []);
+      }
     } catch (error) {
-      console.error('Error requesting mentorship:', error);
-      toast({ title: "Error", description: "Failed to send mentorship request.", variant: "destructive" });
+      console.error("Error loading mentorships:", error);
+      toast({ description: "Failed to load your mentorships", variant: "destructive" });
     }
   };
+
+  const filteredMentors = mentors.filter(mentor => {
+    const matchesQuery = !searchQuery || 
+      mentor.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      mentor.bio.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      mentor.user.title.toLowerCase().includes(searchQuery.toLowerCase());
+      
+    const matchesCategory = !selectedCategory || 
+      mentor.expertise.some((expertise: string) => expertise === selectedCategory);
+      
+    const matchesExperience = !selectedExperience || mentor.experience === selectedExperience;
+    
+    return matchesQuery && matchesCategory && matchesExperience;
+  });
 
   const handleBecomeMentor = async (data: any) => {
     try {
-      const response = await apiService.becomeMentor(data);
-      if (response.success) {
-        toast({ title: "Success", description: "You are now listed as a mentor!" });
-        setIsMentorFormOpen(false);
-        loadMentorshipData();
-      } else {
-        throw new Error(response.message || "Failed to become a mentor");
-      }
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      toast({ 
+        title: "Success", 
+        description: "Your mentor profile has been created. It will be reviewed shortly." 
+      });
+      setIsMentorModalOpen(false);
+      
+      // Refresh the list
+      loadMentors();
     } catch (error) {
-      console.error('Error becoming a mentor:', error);
-      toast({ title: "Error", description: `Failed to become a mentor: ${error.message}`, variant: "destructive" });
+      console.error("Error creating mentor profile:", error);
+      toast({ description: "Failed to create mentor profile", variant: "destructive" });
     }
   };
 
-  // This function will be triggered when a mentee accepts a mentorship request
-  const handleAcceptMentorship = () => {
-    // TODO: Replace with actual API call to accept mentorship request
-    // const response = await apiService.acceptMentorshipRequest(requestId);
-    
-    toast({
-      title: "Mentorship Request Accepted",
-      description: "You are now connected with your new mentee.",
-    });
+  const handleRequestMentorship = async (data: any) => {
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      toast({ 
+        title: "Request Sent", 
+        description: "Your mentorship request has been sent. You will be notified when they respond." 
+      });
+      setIsRequestModalOpen(false);
+      
+      // Refresh the list
+      loadMyMentorships();
+    } catch (error) {
+      console.error("Error requesting mentorship:", error);
+      toast({ description: "Failed to send mentorship request", variant: "destructive" });
+    }
   };
-  
-  // Fix the handleFindMentor function to use a proper DOM method
-  const handleFindMentor = () => {
-    setSearchQuery("");
-    setFilterIndustry("all");
-  };
-
-  if (loading) {
-    return (
-      <div>
-        <PageHeader 
-          title="Mentorship Hub" 
-          description="Connect with alumni mentors for guidance and advice"
-        />
-        <LoadingSpinner />
-      </div>
-    );
-  }
 
   return (
-    <div>
-      <PageHeader 
-        title="Mentorship Hub" 
-        description="Connect with alumni mentors and accelerate your career growth"
-        action={
-          !isUserMentor && (
-            <Button onClick={() => setIsMentorFormOpen(true)} className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Become a Mentor
-            </Button>
-          )
-        }
-      />
+    <div className="container mx-auto px-4 sm:px-6 py-6">
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-800">Alumni Mentorship Network</h1>
+        <p className="text-md text-gray-500 mt-1">Connect with experienced alumni for career guidance and professional growth.</p>
+      </div>
       
-      <Tabs defaultValue="find-mentor" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="find-mentor" className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            Find Mentors
+      <Tabs defaultValue="find" className="mb-6">
+        <TabsList className="w-full bg-gray-50 mb-2 p-1 rounded-lg">
+          <TabsTrigger 
+            value="find" 
+            className="flex-1 data-[state=active]:bg-orange-500 data-[state=active]:text-white hover:text-orange-500"
+          >
+            Find a Mentor
           </TabsTrigger>
-          <TabsTrigger value="become-mentor" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Become a Mentor
-          </TabsTrigger>
-          <TabsTrigger value="my-mentorships" className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
-            My Connections
+          <TabsTrigger 
+            value="my" 
+            className="flex-1 data-[state=active]:bg-orange-500 data-[state=active]:text-white hover:text-orange-500"
+          >
+            My Mentorships
           </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="find-mentor">
-          {/* Search and filters */}
-          <div className="mb-6 space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Search by name, skills, company..."
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="w-full sm:w-1/2">
-                <Select value={filterIndustry} onValueChange={setFilterIndustry}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by Industry" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Industries</SelectItem>
-                    <SelectItem value="Technology">Technology</SelectItem>
-                    <SelectItem value="Finance">Finance</SelectItem>
-                    <SelectItem value="Healthcare">Healthcare</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                  </SelectContent>
-                </Select>
+        <TabsContent value="find">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2">
+              <div className="flex flex-col md:flex-row items-start gap-3 mb-6">
+                <div className="relative flex-grow w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search mentors by name, expertise or keywords..."
+                    className="pl-10 w-full"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
               </div>
               
-              <Button 
-                variant="outline" 
-                className="w-full sm:w-1/2"
-                onClick={() => {
-                  setSearchQuery("");
-                  setFilterIndustry("all");
-                }}
-              >
-                Clear Filters
-              </Button>
-            </div>
-          </div>
-          
-          {/* Mentors list */}
-          {mentors.length === 0 ? (
-            <EmptyState
-              title="No mentors available"
-              description="Check back later for available mentors or become a mentor yourself!"
-              action={{
-                label: "Become a Mentor",
-                onClick: () => {
-                  const becomeMentorTab = document.querySelector('[value="become-mentor"]') as HTMLElement;
-                  becomeMentorTab?.click();
-                }
-              }}
-            />
-          ) : filteredMentors.length === 0 ? (
-            <EmptyState
-              title="No mentors found"
-              description="Try adjusting your search criteria or clear filters to see all mentors."
-              action={{
-                label: "Clear Filters",
-                onClick: handleFindMentor
-              }}
-            />
-          ) : (
-            <div className="grid md:grid-cols-2 gap-4">
-              {filteredMentors.map(mentor => (
-                <MentorCard 
-                  key={mentor.id} 
-                  mentor={mentor} 
-                  onRequestMentorship={() => handleRequestMentorship(mentor)}
+              {loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <LoadingSpinner size="lg" />
+                  <span className="ml-3 text-gray-600">Looking for mentors...</span>
+                </div>
+              ) : filteredMentors.length === 0 ? (
+                <EmptyState
+                  title="No mentors found"
+                  description="Try adjusting your filters or search terms."
+                  action={{
+                    label: "Clear Filters",
+                    onClick: () => {
+                      setSearchQuery("");
+                      setSelectedCategory(null);
+                      setSelectedExperience(null);
+                    }
+                  }}
                 />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="become-mentor">
-          {isUserMentor ? (
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center mb-6">
-                  <GraduationCap className="h-16 w-16 mx-auto text-alumni-primary mb-4" />
-                  <h3 className="text-2xl font-bold mb-2">Thank You for Being a Mentor!</h3>
-                  <p className="text-muted-foreground">
-                    Your profile is now visible to potential mentees. You'll be notified when someone requests your mentorship.
-                  </p>
-                </div>
-                
-                <div className="mt-8 grid md:grid-cols-2 gap-6">
-                  <div className="border rounded-lg p-4">
-                    <h4 className="font-medium mb-2">Tips for Great Mentoring</h4>
-                    <ul className="text-sm space-y-2">
-                      <li className="flex items-start gap-2">
-                        <span className="text-alumni-primary font-bold">•</span>
-                        <span>Schedule regular check-ins with your mentees</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-alumni-primary font-bold">•</span>
-                        <span>Set clear expectations about your availability</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-alumni-primary font-bold">•</span>
-                        <span>Listen actively and ask thoughtful questions</span>
-                      </li>
-                    </ul>
-                  </div>
-                  
-                  <div className="border rounded-lg p-4">
-                    <h4 className="font-medium mb-2">Pending Requests</h4>
-                    
-                    {false ? (
-                      <div>
-                        {/* Pending request UI that would appear when there are requests */}
-                        <div className="border-b pb-2 mb-2">
-                          <div className="flex justify-between">
-                            <span className="font-medium">Chris Thompson</span>
-                            <span className="text-xs text-muted-foreground">2 hours ago</span>
+              ) : (
+                <div className="space-y-4">
+                  {filteredMentors.map(mentor => (
+                    <Card key={mentor.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 border border-gray-200 rounded-xl">
+                      <CardContent className="p-6">
+                        <div className="md:flex md:justify-between">
+                          <div className="flex gap-4 mb-4 md:mb-0">
+                            <Avatar className="h-16 w-16">
+                              <AvatarImage src={mentor.user.profileImage} />
+                              <AvatarFallback className="bg-orange-100 text-orange-800 text-xl font-medium">
+                                {mentor.user.name.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h3 className="font-semibold text-lg text-gray-900">{mentor.user.name}</h3>
+                              <p className="text-gray-600">{mentor.user.title}</p>
+                              <div className="flex items-center text-sm text-gray-500 mt-1">
+                                <GraduationCap className="h-3 w-3 mr-1" />
+                                <span>Class of {mentor.user.graduationYear}</span>
+                              </div>
+                              <div className="flex items-center mt-1">
+                                <Star className="h-3 w-3 text-yellow-400" />
+                                <span className="text-sm font-medium ml-1">{mentor.rating}</span>
+                                <span className="text-xs text-gray-500 ml-1">({mentor.reviewCount} reviews)</span>
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-sm text-muted-foreground mb-2">Topic: Career Transition to Tech</p>
-                          <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="outline">Decline</Button>
-                            <Button size="sm" onClick={handleAcceptMentorship}>Accept</Button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted-foreground text-center py-4">
-                        No pending mentorship requests
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center mb-6">
-                  <GraduationCap className="h-16 w-16 mx-auto text-alumni-primary mb-4" />
-                  <h3 className="text-2xl font-bold mb-2">Share Your Expertise</h3>
-                  <p className="text-muted-foreground">
-                    Help guide the next generation of alumni by becoming a mentor.
-                    Mentors typically spend 1-4 hours per month connecting with mentees.
-                  </p>
-                </div>
-                
-                <div className="grid md:grid-cols-3 gap-6 my-8">
-                  <div className="text-center">
-                    <div className="rounded-full bg-muted h-12 w-12 flex items-center justify-center mx-auto mb-3">
-                      <span className="font-bold">1</span>
-                    </div>
-                    <h4 className="font-medium mb-1">Create Your Profile</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Set your expertise areas and availability
-                    </p>
-                  </div>
-                  
-                  <div className="text-center">
-                    <div className="rounded-full bg-muted h-12 w-12 flex items-center justify-center mx-auto mb-3">
-                      <span className="font-bold">2</span>
-                    </div>
-                    <h4 className="font-medium mb-1">Connect with Mentees</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Review and accept mentorship requests
-                    </p>
-                  </div>
-                  
-                  <div className="text-center">
-                    <div className="rounded-full bg-muted h-12 w-12 flex items-center justify-center mx-auto mb-3">
-                      <span className="font-bold">3</span>
-                    </div>
-                    <h4 className="font-medium mb-1">Share Knowledge</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Schedule meetings and provide guidance
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex justify-center">
-                  <Button size="lg" className="px-8" onClick={() => setIsMentorFormOpen(true)}>Become a Mentor</Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="my-mentorships">
-          {activeMentorships.length > 0 ? (
-            <div className="space-y-4">
-              {activeMentorships.map(mentorship => (
-                <Card key={mentorship.id} className="card-hover">
-                  <CardContent className="p-5">
-                    <div className="flex gap-4">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={mentorship.mentee.avatar} />
-                        <AvatarFallback>{mentorship.mentee.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      
-                      <div className="flex-1">
-                        <div className="flex justify-between">
-                          <h3 className="font-medium">{mentorship.mentee.name}</h3>
-                          <div className="text-xs bg-muted rounded-full px-2 py-1 flex items-center gap-1">
-                            <GraduationCap className="h-3 w-3" />
-                            <span>Class of {mentorship.mentee.graduationYear}</span>
+                          
+                          <div>
+                            <Button
+                              className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300 mt-2"
+                              onClick={() => {
+                                setSelectedMentor(mentor);
+                                setIsRequestModalOpen(true);
+                              }}
+                            >
+                              Request Mentorship
+                            </Button>
                           </div>
                         </div>
                         
-                        <div className="mt-2">
-                          <p className="text-sm">
-                            <span className="font-medium">Topic:</span> {mentorship.topic}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            <span className="font-medium">Started:</span> {mentorship.startDate}
-                          </p>
+                        <div className="mt-4">
+                          <p className="text-sm text-gray-600 mb-3">{mentor.bio}</p>
+                          
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {mentor.expertise.map((expertise: string) => (
+                              <Badge key={expertise} variant="outline">{expertise}</Badge>
+                            ))}
+                          </div>
+                          
+                          <div className="flex items-center gap-4 mt-4 text-sm text-gray-600">
+                            <div className="flex items-center">
+                              <Briefcase className="h-3 w-3 mr-1 text-gray-400" />
+                              <span>{mentor.experience}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <Clock className="h-3 w-3 mr-1 text-gray-400" />
+                              <span>{mentor.availability}</span>
+                            </div>
+                          </div>
                         </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="lg:col-span-1">
+              <Card className="mb-6 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-gray-200 rounded-xl">
+                <CardContent className="p-6">
+                  <Button 
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                    onClick={() => setIsMentorModalOpen(true)}
+                  >
+                    Become a Mentor
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              <Card className="mb-6">
+                <CardContent className="p-6">
+                  <h3 className="font-medium text-lg mb-4">Filters</h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">Expertise</label>
+                      <div className="flex flex-wrap gap-2">
+                        {CATEGORIES.map(cat => (
+                          <Button
+                            key={cat}
+                            size="sm"
+                            variant={selectedCategory === cat ? "default" : "outline"}
+                            className={selectedCategory === cat 
+                              ? "bg-orange-500 hover:bg-orange-600 text-white" 
+                              : "hover:bg-gray-100 text-gray-700"}
+                            onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                          >
+                            {cat}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">Experience Level</label>
+                      <div className="flex flex-wrap gap-2">
+                        {YEARS_OF_EXPERIENCE.map(exp => (
+                          <Button
+                            key={exp}
+                            size="sm"
+                            variant={selectedExperience === exp ? "default" : "outline"}
+                            className={selectedExperience === exp ? "bg-orange-500" : ""}
+                            onClick={() => setSelectedExperience(selectedExperience === exp ? null : exp)}
+                          >
+                            {exp}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {(selectedCategory || selectedExperience) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedCategory(null);
+                          setSelectedExperience(null);
+                        }}
+                        className="w-full text-orange-500 hover:text-orange-600"
+                      >
+                        Clear all filters
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-6">
+                  <h3 className="font-medium text-lg mb-2">Why Find a Mentor?</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Mentoring relationships can help you navigate career challenges, expand your network, and gain valuable insights from experienced alumni.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => {
+                      document.querySelector<HTMLElement>('[data-value="find"]')?.click();
+                    }}
+                  >
+                    Learn More
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="my">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold mb-2">Your Mentorship Relationships</h2>
+            <p className="text-gray-600">Manage your ongoing mentorship connections and scheduled sessions.</p>
+          </div>
+          
+          {myMentorships.length === 0 ? (
+            <EmptyState
+              title="No active mentorships"
+              description="You don't have any active mentorship relationships yet."
+              action={{
+                label: "Find a Mentor",
+                onClick: () => {
+                  document.querySelector<HTMLElement>('[data-value="find"]')?.click();
+                }
+              }}
+            />
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              {myMentorships.map(mentorship => (
+                <Card key={mentorship.id} className="border border-gray-200 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 rounded-xl overflow-hidden">
+                  <CardContent className="p-6">
+                    <div className="flex gap-4 mb-4">
+                      <Avatar className="h-14 w-14">
+                        <AvatarImage src={mentorship.mentor.user.profileImage} />
+                        <AvatarFallback className="bg-orange-100 text-orange-800 text-lg font-medium">
+                          {mentorship.mentor.user.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h4 className="font-semibold text-lg">{mentorship.mentor.user.name}</h4>
+                        <p className="text-sm text-gray-600">{mentorship.mentor.user.title}</p>
+                        <Badge className="mt-1 bg-green-100 text-green-800 hover:bg-green-100">
+                          Active Mentorship
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-1">Focus Areas:</h5>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {mentorship.topics.map((topic: string) => (
+                          <Badge key={topic} variant="outline" className="text-xs">{topic}</Badge>
+                        ))}
+                      </div>
+                      
+                      <div className="text-sm text-gray-600 flex items-center mt-4">
+                        <Calendar className="h-4 w-4 mr-1" />
+                        <span>Next Session: {new Date(mentorship.nextSession).toLocaleDateString()} at {new Date(mentorship.nextSession).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                       </div>
                     </div>
                   </CardContent>
-                  
-                  <CardFooter className="px-5 py-3 border-t">
-                    <div className="flex justify-between items-center w-full">
-                      <span className="text-sm text-muted-foreground">Next meeting: {mentorship.nextMeeting}</span>
-                      <Button variant="outline" className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4" />
-                        <span>Message</span>
-                      </Button>
-                    </div>
+                  <CardFooter className="bg-gray-50 px-6 py-3 flex justify-between gap-2 border-t">
+                    <Button variant="outline" size="sm">
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      Send Message
+                    </Button>
+                    <Button variant="default" size="sm" className="bg-orange-500 hover:bg-orange-600">
+                      <Calendar className="h-4 w-4 mr-1" />
+                      Schedule Session
+                    </Button>
                   </CardFooter>
                 </Card>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-10">
-              <MessageSquare className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
-              <h4 className="text-xl font-medium">No active mentorships</h4>
-              <p className="text-muted-foreground mb-4">Connect with a mentor to get started</p>
-              <Button onClick={handleFindMentor}>Find a Mentor</Button>
             </div>
           )}
         </TabsContent>
       </Tabs>
       
-      {/* Request mentorship modal */}
-      {selectedMentor && (
-        <RequestMentorshipModal
-          mentor={selectedMentor}
-          isOpen={isRequestModalOpen}
-          onClose={() => setIsRequestModalOpen(false)}
-        />
-      )}
-      
-      {/* Become a mentor form */}
-      <BecomeMentorForm
-        isOpen={isMentorFormOpen}
-        onClose={() => setIsMentorFormOpen(false)}
+      <BecomeMentorForm 
+        isOpen={isMentorModalOpen}
+        onClose={() => setIsMentorModalOpen(false)}
         onSubmit={handleBecomeMentor}
       />
+      
+      {selectedMentor && (
+        <RequestMentorshipModal 
+          isOpen={isRequestModalOpen}
+          onClose={() => setIsRequestModalOpen(false)}
+          mentor={selectedMentor}
+          onSubmit={handleRequestMentorship}
+        />
+      )}
     </div>
   );
 }
 
-function MentorCard({ mentor, onRequestMentorship }: { mentor: any; onRequestMentorship: () => void }) {
-  return (
-    <Card className="card-hover">
-      <CardContent className="p-5">
-        <div className="flex gap-4">
-          <Avatar className="h-16 w-16">
-            <AvatarImage src={mentor.avatar} alt={mentor.name} />
-            <AvatarFallback>{mentor.name.charAt(0)}</AvatarFallback>
-          </Avatar>
-          
-          <div className="flex-1">
-            <div className="flex justify-between items-start">
-              <h3 className="font-medium text-lg">{mentor.name}</h3>
-              <div className="text-xs bg-muted rounded-full px-2 py-1 flex items-center gap-1">
-                <GraduationCap className="h-3 w-3" />
-                <span>Class of {mentor.graduationYear}</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Briefcase className="h-3 w-3" />
-              <span>{mentor.role} at {mentor.company}</span>
-            </div>
-            
-            <div className="mt-3">
-              <p className="text-sm mb-2">{mentor.bio}</p>
-              <div className="flex flex-wrap gap-1 mb-2">
-                {mentor.expertise.map((skill: string, index: number) => (
-                  <span 
-                    key={index} 
-                    className="bg-alumni-light text-alumni-dark text-xs px-2 py-1 rounded-full"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                <span className="font-medium">Availability:</span> {mentor.availability}
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="px-5 py-3 border-t bg-muted/10">
-        <Button className="w-full" onClick={onRequestMentorship}>Request Mentorship</Button>
-      </CardFooter>
-    </Card>
-  );
-}
+export default MentorshipPage;

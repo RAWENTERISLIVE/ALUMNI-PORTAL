@@ -13,7 +13,8 @@ import {
   getUserStats,
   updateUserProfile,
   getUserById,
-  getAlumniDirectory
+  getAlumniDirectory,
+  getUserSuggestions
 } from '../controllers/userController';
 import { authMiddleware, requireAdmin, requireSuperAdmin } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -88,5 +89,8 @@ router.get('/directory', authMiddleware, getAlumniDirectory);
 // Profile routes
 router.get('/:userId', authMiddleware, getUserById);
 router.patch('/:userId/profile', authMiddleware, updateProfileValidation, validate, updateUserProfile);
+
+// User suggestions
+router.get('/suggestions', authMiddleware, getUserSuggestions);
 
 export default router;

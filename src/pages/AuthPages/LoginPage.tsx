@@ -49,16 +49,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-muted/30">
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gray-50">
       <div className="w-full max-w-md mx-auto space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">Welcome back</h1>
-          <p className="text-muted-foreground">
-            Enter your credentials to access your account
+          <h1 className="text-4xl font-bold text-gray-800">Alumni Connect</h1>
+          <h2 className="text-2xl font-semibold text-orange-500 mb-2">Welcome Back</h2>
+          <p className="text-gray-600">
+            Enter your credentials to access your alumni network
           </p>
         </div>
 
-        <div className="bg-background border rounded-lg p-6 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-lg">
           {authError && (
             <div className="bg-destructive/10 text-destructive p-3 rounded-md mb-4 text-sm">
               {authError}
@@ -72,9 +73,13 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="your.email@example.com" {...field} />
+                      <Input 
+                        placeholder="your.email@example.com" 
+                        {...field} 
+                        className="text-gray-900 placeholder:text-gray-400"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -85,24 +90,33 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
+                      <Input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        {...field} 
+                        className="text-gray-900 placeholder:text-gray-400"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white" 
+                disabled={isLoading}
+              >
                 {isLoading ? <LoadingSpinner size="sm" /> : "Sign in"}
               </Button>
             </form>
           </Form>
 
           <div className="mt-6 text-center text-sm">
-            <p className="text-muted-foreground">
+            <p className="text-gray-600">
               Don't have an account?{" "}
-              <Link to="/register" className="text-primary hover:underline">
+              <Link to="/register" className="text-orange-500 hover:text-orange-600 font-medium hover:underline">
                 Create an account
               </Link>
             </p>

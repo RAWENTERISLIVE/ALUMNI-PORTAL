@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -19,462 +20,536 @@ import {
   Clock,
   ExternalLink,
   Bookmark,
-  BookmarkPlus,
-  DollarSign,
-  Calendar,
+  BookmarkCheck,
   Filter,
-  SortAsc,
-  TrendingUp,
-  Users,
-  AlertCircle,
   Plus,
-  FileText
+  CalendarRange,
+  CircleDollarSign,
+  GraduationCap,
+  Users
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { EmptyState } from "@/components/common/EmptyState";
 import { JobDetailsModal } from "@/components/jobs/JobDetailsModal";
 import { PostJobForm } from "@/components/jobs/PostJobForm";
-import { useToast } from "@/hooks/use-toast";
-import { EmptyState } from "@/components/common/EmptyState";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import apiService from "@/services/apiService";
-import { Job, ApiResponse, PaginatedResponse } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { Job } from "@/types";
+
+const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Internship", "Remote"];
+const EXPERIENCE_LEVELS = ["Entry Level", "Mid-Level", "Senior", "Manager", "Executive"];
+const SALARY_RANGES = ["$0-50k", "$50-100k", "$100-150k", "$150-200k", "$200k+"];
+const JOB_CATEGORIES = ["Technology", "Finance", "Healthcare", "Education", "Marketing", "Engineering"];
 
 export default function JobsPage() {
   const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("all");
-  const [filterLocation, setFilterLocation] = useState("all");
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [isPostJobModalOpen, setIsPostJobModalOpen] = useState(false);
+  const { currentUser } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [savedJobs, setSavedJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savedJobsLoading, setSavedJobsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [isJobDetailsModalOpen, setIsJobDetailsModalOpen] = useState(false);
+  const [isPostJobModalOpen, setIsPostJobModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   
-  // Current user from localStorage
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  // Additional filters
+  const [jobTypeFilter, setJobTypeFilter] = useState<string | null>(null);
+  const [experienceLevelFilter, setExperienceLevelFilter] = useState<string | null>(null);
+  const [salaryRangeFilter, setSalaryRangeFilter] = useState<string | null>(null);
+  const [jobCategoryFilter, setJobCategoryFilter] = useState<string | null>(null);
+  
+  // Saved and applied jobs
+  const [savedJobs, setSavedJobs] = useState<string[]>([]);
+  const [appliedJobs, setAppliedJobs] = useState<string[]>([]);
 
-  // Load jobs on component mount
   useEffect(() => {
     loadJobs();
-  }, [filterType, filterLocation, searchQuery]);
-
-  // Load saved jobs when tab changes
-  useEffect(() => {
-    if (activeTab === "saved") {
-      loadSavedJobs();
-    }
-  }, [activeTab]);
+  }, []);
 
   const loadJobs = async () => {
     try {
       setLoading(true);
-      const params: any = {};
-      
-      if (filterType !== "all") {
-        params.type = filterType;
-      }
-      
-      if (filterLocation !== "all") {
-        params.location = filterLocation;
-      }
-      
-      if (searchQuery.trim()) {
-        params.company = searchQuery.trim();
-      }
-
-      const response = await apiService.getJobs(params);
-      
-      if (response.success && Array.isArray(response.data)) {
-        setJobs(response.data);
-      } else if (response.success && response.data && Array.isArray((response.data as any)?.data)) {
-        // Handling potential paginated response, though direct array is preferred
-        setJobs((response.data as any).data);
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to load jobs",
-          variant: "destructive",
-        });
+      const response = await apiService.getJobs();
+      if (response.success) {
+        setJobs(response.data as Job[] || []);
+        
+        // Load saved and applied jobs
+        if (currentUser) {
+          const savedResponse = await apiService.getSavedJobs();
+          if (savedResponse.success && savedResponse.data) {
+            setSavedJobs((savedResponse.data as any[]).map((job: any) => job.id));
+          }
+          
+          const appliedResponse = await apiService.getAppliedJobs();
+          if (appliedResponse.success && appliedResponse.data) {
+            setAppliedJobs((appliedResponse.data as any[]).map((job: any) => job.id));
+          }
+        }
       }
     } catch (error) {
-      console.error('Error loading jobs:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load jobs",
-        variant: "destructive",
-      });
+      console.error("Error loading jobs:", error);
+      toast({ title: "Error", description: "Failed to load job listings.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  const loadSavedJobs = async () => {
+  const handlePostJob = async (jobData: any) => {
     try {
-      setSavedJobsLoading(true);
-      const response = await apiService.getSavedJobs();
-      
-      if (response.success && response.data && Array.isArray((response.data as any)?.data)) {
-        setSavedJobs((response.data as any).data);
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to load saved jobs",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error loading saved jobs:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load saved jobs",
-        variant: "destructive",
-      });
-    } finally {
-      setSavedJobsLoading(false);
-    }
-  };
-
-  const handleJobClick = (job: Job) => {
-    setSelectedJob(job);
-    setIsDetailsModalOpen(true);
-  };
-
-  const handleApplyToJob = async (jobId: string) => {
-    try {
-      const response = await apiService.applyToJob(jobId);
-      
+      const response = await apiService.createJob(jobData);
       if (response.success) {
-        toast({
-          title: "Application Submitted",
-          description: "Your application has been recorded successfully!",
-        });
-        // Refresh jobs to update application count
+        toast({ title: "Success", description: "Job posted successfully." });
+        setIsPostJobModalOpen(false);
         loadJobs();
       } else {
-        toast({
-          title: "Error",
-          description: response.message || "Failed to submit application",
-          variant: "destructive",
-        });
+        throw new Error(response.message || "Failed to post job");
       }
-    } catch (error) {
-      console.error('Error applying to job:', error);
-      toast({
-        title: "Error",
-        description: "Failed to submit application",
-        variant: "destructive",
-      });
+    } catch (error: any) {
+      console.error("Error posting job:", error);
+      toast({ title: "Error", description: `Failed to post job: ${error.message}`, variant: "destructive" });
     }
   };
 
   const handleToggleSaveJob = async (jobId: string) => {
     try {
-      const response = await apiService.toggleSaveJob(jobId);
+      const isSaved = savedJobs.includes(jobId);
       
-      if (response.success) {
-        toast({
-          title: (response.data as any)?.isSaved ? "Job Saved" : "Job Unsaved",
-          description: response.message,
-        });
-        
-        // Refresh both lists
-        loadJobs();
-        if (activeTab === "saved") {
-          loadSavedJobs();
-        }
+      if (isSaved) {
+        await apiService.unsaveJob(jobId);
+        setSavedJobs(savedJobs.filter(id => id !== jobId));
+        toast({ title: "Removed", description: "Job removed from saved jobs." });
       } else {
-        toast({
-          title: "Error",
-          description: response.message || "Failed to save/unsave job",
-          variant: "destructive",
-        });
+        await apiService.saveJob(jobId);
+        setSavedJobs([...savedJobs, jobId]);
+        toast({ title: "Saved", description: "Job saved to your profile." });
       }
     } catch (error) {
-      console.error('Error toggling save job:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save/unsave job",
-        variant: "destructive",
-      });
+      console.error("Error saving/unsaving job:", error);
+      toast({ title: "Error", description: "Failed to update saved jobs.", variant: "destructive" });
     }
   };
 
-  const handleJobCreated = (newJob: Job) => {
-    setJobs(prev => [newJob, ...prev]);
-    setIsPostJobModalOpen(false);
-    toast({
-      title: "Success",
-      description: "Job posted successfully!",
-    });
+  const handleApplyJob = async (jobId: string) => {
+    try {
+      await apiService.applyToJob(jobId);
+      setAppliedJobs([...appliedJobs, jobId]);
+      toast({ title: "Applied", description: "Your application has been submitted." });
+    } catch (error) {
+      console.error("Error applying to job:", error);
+      toast({ title: "Error", description: "Failed to submit application.", variant: "destructive" });
+    }
   };
 
-  const renderJobCard = (job: Job) => {
-    const isJobSaved = job.savedBy && job.savedBy.includes(currentUser?.id);
+  const openJobDetails = (job: Job) => {
+    setSelectedJob(job);
+    setIsJobDetailsModalOpen(true);
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setLocationFilter("");
+    setJobTypeFilter(null);
+    setExperienceLevelFilter(null);
+    setSalaryRangeFilter(null);
+    setJobCategoryFilter(null);
+  };
+
+  const filteredJobs = useMemo(() => {
+    // First, filter according to the active tab
+    let filtered = jobs;
+    if (activeTab === "saved") {
+      filtered = jobs.filter(job => savedJobs.includes(job.id));
+    } else if (activeTab === "applied") {
+      filtered = jobs.filter(job => appliedJobs.includes(job.id));
+    }
     
-    return (
-      <Card key={job.id} className="hover:shadow-md transition-shadow">
-        <CardContent className="p-6">
-          <div className="flex justify-between items-start mb-4">
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 cursor-pointer hover:text-blue-600"
-                  onClick={() => handleJobClick(job)}>
-                {job.title}
-              </h3>
-              <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                <div className="flex items-center gap-1">
-                  <Building className="h-4 w-4" />
-                  {job.company}
-                </div>
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  {job.location}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="h-4 w-4" />
-                  {new Date(job.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleToggleSaveJob(job.id)}
-              className="text-gray-500 hover:text-blue-600"
-            >
-              {isJobSaved ? <Bookmark className="h-4 w-4 fill-current" /> : <BookmarkPlus className="h-4 w-4" />}
-            </Button>
-          </div>
+    // Then apply all other filters
+    return filtered.filter(job => {
+      const matchesSearch = !searchQuery || 
+        job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (typeof job.company === 'object' && job.company.name 
+          ? job.company.name.toLowerCase().includes(searchQuery.toLowerCase()) 
+          : String(job.company).toLowerCase().includes(searchQuery.toLowerCase())) ||
+        job.description.toLowerCase().includes(searchQuery.toLowerCase());
+        
+      const matchesLocation = !locationFilter || 
+        job.location.toLowerCase().includes(locationFilter.toLowerCase());
+        
+      const matchesJobType = !jobTypeFilter || job.type === jobTypeFilter;
+      
+      const matchesExperience = !experienceLevelFilter || 
+        job.experienceLevel === experienceLevelFilter;
+        
+      const matchesSalary = !salaryRangeFilter || job.salary === salaryRangeFilter;
+      
+      const matchesCategory = !jobCategoryFilter || job.category === jobCategoryFilter;
+      
+      return matchesSearch && matchesLocation && matchesJobType && 
+             matchesExperience && matchesSalary && matchesCategory;
+    });
+  }, [
+    jobs, 
+    activeTab, 
+    savedJobs, 
+    appliedJobs, 
+    searchQuery, 
+    locationFilter, 
+    jobTypeFilter, 
+    experienceLevelFilter, 
+    salaryRangeFilter, 
+    jobCategoryFilter
+  ]);
 
-          <p className="text-gray-700 text-sm mb-4 line-clamp-3">
-            {job.description}
-          </p>
+  // Helper function to get company name
+  const getCompanyName = (job: Job): string => {
+    if (typeof job.company === 'object' && job.company && job.company.name) {
+      return job.company.name;
+    }
+    return String(job.company || '');
+  };
 
-          <div className="flex flex-wrap gap-2 mb-4">
-            <Badge variant="secondary">{job.type}</Badge>
-            {job.salaryRange && job.salaryRange.min && job.salaryRange.max && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                <DollarSign className="h-3 w-3" />
-                {job.salaryRange.min.toLocaleString()} - {job.salaryRange.max.toLocaleString()} {job.salaryRange.currency || 'USD'}
-              </Badge>
-            )}
-            {job.applicationDeadline && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                Deadline: {new Date(job.applicationDeadline).toLocaleDateString()}
-              </Badge>
-            )}
-            {job.isAlumniReferral && (
-              <Badge className="bg-blue-100 text-blue-800">Alumni Referral</Badge>
-            )}
-          </div>
-
-          {job.tags && job.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-4">
-              {job.tags.slice(0, 3).map((tag, index) => (
-                <Badge key={index} variant="outline" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-              {job.tags.length > 3 && (
-                <Badge variant="outline" className="text-xs">
-                  +{job.tags.length - 3} more
-                </Badge>
-              )}
-            </div>
-          )}
-
-          <div className="text-xs text-gray-500 mb-4">
-            Posted by {job.postedByName} • {job.applicationCount} applications
-          </div>
-        </CardContent>
-
-        <CardFooter className="px-6 py-4 bg-gray-50 flex gap-2">
-          <Button
-            onClick={() => handleJobClick(job)}
-            variant="outline"
-            size="sm"
-            className="flex-1"
-          >
-            View Details
-          </Button>
-          {job.applicationUrl ? (
-            <Button
-              onClick={() => {
-                handleApplyToJob(job.id);
-                window.open(job.applicationUrl, '_blank');
-              }}
-              size="sm"
-              className="flex-1 flex items-center gap-1"
-            >
-              <ExternalLink className="h-4 w-4" />
-              Apply
-            </Button>
-          ) : job.contactEmail ? (
-            <Button
-              onClick={() => {
-                handleApplyToJob(job.id);
-                window.location.href = `mailto:${job.contactEmail}?subject=Application for ${job.title}`;
-              }}
-              size="sm"
-              className="flex-1"
-            >
-              Contact
-            </Button>
-          ) : (
-            <Button
-              onClick={() => handleApplyToJob(job.id)}
-              size="sm"
-              className="flex-1"
-            >
-              Apply
-            </Button>
-          )}
-        </CardFooter>
-      </Card>
-    );
+  // Helper function to get company logo
+  const getCompanyLogo = (job: Job): string => {
+    if (typeof job.company === 'object' && job.company && job.company.logo) {
+      return job.company.logo;
+    }
+    return '';
   };
 
   return (
-    <div>
-      <PageHeader 
-        title="Alumni Job Board" 
-        description="Explore career opportunities shared by fellow alumni"
-        action={
-          <Button 
-            className="flex items-center gap-2" 
-            onClick={() => setIsPostJobModalOpen(true)}
-          >
-            <Briefcase className="h-4 w-4" /> 
-            Post a Job
-          </Button>
-        }
-      />
+    <div className="container mx-auto px-4 sm:px-6 py-6">
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-800">Alumni Job Board</h1>
+        <p className="text-md text-gray-500 mt-1">Find opportunities and connect with alumni employers.</p>
+      </div>
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="all">All Jobs</TabsTrigger>
-          <TabsTrigger value="saved">Saved Jobs</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="all">
-          {/* Search and filters */}
-          <div className="mb-6 space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          {/* Search and Filters */}
+          <div className="flex flex-col md:flex-row items-start gap-3 mb-6">
+            <div className="relative flex-grow w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search by company name..."
-                className="pl-10"
+                type="text"
+                placeholder="Search job titles or keywords..."
+                className="pl-10 w-full rounded-lg border-gray-300 focus:ring-orange-300 focus:border-orange-300"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="w-full sm:w-1/3">
-                <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Job Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="full-time">Full-time</SelectItem>
-                    <SelectItem value="part-time">Part-time</SelectItem>
-                    <SelectItem value="contract">Contract</SelectItem>
-                    <SelectItem value="internship">Internship</SelectItem>
-                    <SelectItem value="freelance">Freelance</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="w-full sm:w-1/3">
-                <Select value={filterLocation} onValueChange={setFilterLocation}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Locations</SelectItem>
-                    <SelectItem value="Remote">Remote</SelectItem>
-                    <SelectItem value="San Francisco">San Francisco</SelectItem>
-                    <SelectItem value="New York">New York</SelectItem>
-                    <SelectItem value="Seattle">Seattle</SelectItem>
-                    <SelectItem value="Austin">Austin</SelectItem>
-                    <SelectItem value="Boston">Boston</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchQuery("");
-                  setFilterType("all");
-                  setFilterLocation("all");
-                }}
-                className="w-full sm:w-auto"
-              >
-                Clear Filters
-              </Button>
+            <div className="relative flex-grow w-full">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Location..."
+                className="pl-10 w-full rounded-lg border-gray-300 focus:ring-orange-300 focus:border-orange-300"
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+              />
             </div>
           </div>
-
+          
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+            <TabsList className="w-full bg-gray-50 mb-2 p-1 rounded-lg">
+              <TabsTrigger 
+                value="all" 
+                className={`flex-1 ${activeTab === "all" ? "bg-orange-500 text-white" : "hover:text-orange-500"}`}
+              >
+                All Jobs
+              </TabsTrigger>
+              <TabsTrigger 
+                value="saved" 
+                className={`flex-1 ${activeTab === "saved" ? "bg-orange-500 text-white" : "hover:text-orange-500"}`}
+              >
+                Saved Jobs
+              </TabsTrigger>
+              <TabsTrigger 
+                value="applied" 
+                className={`flex-1 ${activeTab === "applied" ? "bg-orange-500 text-white" : "hover:text-orange-500"}`}
+              >
+                Applied Jobs
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
           {/* Jobs List */}
           {loading ? (
-            <div className="flex justify-center py-8">
-              <LoadingSpinner />
+            <div className="flex items-center justify-center py-20">
+              <LoadingSpinner size="lg" />
+              <span className="ml-3 text-gray-600">Loading jobs...</span>
             </div>
-          ) : jobs.length === 0 ? (
+          ) : filteredJobs.length === 0 ? (
             <EmptyState
-              icon={<Briefcase className="h-12 w-12" />}
-              title="No jobs found"
-              description="No jobs match your current filters. Try adjusting your search criteria."
+              title={
+                activeTab === "saved" 
+                  ? "No saved jobs" 
+                  : activeTab === "applied" 
+                  ? "No applied jobs" 
+                  : "No jobs found"
+              }
+              description={
+                activeTab === "saved" 
+                  ? "Save jobs you're interested in to view them later."
+                  : activeTab === "applied" 
+                  ? "Track your job applications here."
+                  : "Try adjusting your filters or search terms."
+              }
+              action={{
+                label: activeTab !== "all" ? "View All Jobs" : "Clear Filters",
+                onClick: activeTab !== "all" ? () => setActiveTab("all") : clearFilters
+              }}
             />
           ) : (
-            <div className="grid gap-6">
-              {jobs.map(renderJobCard)}
+            <div className="space-y-4">
+              {filteredJobs.map(job => {
+                const isSaved = savedJobs.includes(job.id);
+                const isApplied = appliedJobs.includes(job.id);
+                const companyName = getCompanyName(job);
+                const companyLogo = getCompanyLogo(job);
+                
+                return (
+                  <Card key={job.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 border border-gray-200 rounded-xl">
+                    <CardContent className="p-6">
+                      <div className="md:flex md:justify-between">
+                        <div className="flex gap-4 mb-4 md:mb-0">
+                          <Avatar className="h-14 w-14">
+                            <AvatarImage src={companyLogo} alt={companyName} />
+                            <AvatarFallback className="bg-orange-100 text-orange-800 text-xl font-medium">
+                              {companyName.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <h3 
+                              className="font-semibold text-lg text-gray-900 hover:text-orange-600 cursor-pointer transition-colors"
+                              onClick={() => openJobDetails(job)}
+                            >
+                              {job.title}
+                            </h3>
+                            <p className="text-gray-600 font-medium">{companyName}</p>
+                            <div className="flex items-center text-sm text-gray-500 mt-1">
+                              <MapPin className="h-3 w-3 mr-1" />
+                              <span>{job.location}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-start gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleToggleSaveJob(job.id)}
+                            className={isSaved ? "text-orange-500 hover:text-orange-600" : "text-gray-400 hover:text-gray-500"}
+                          >
+                            {isSaved ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
+                          </Button>
+                          
+                          <Button
+                            size="sm"
+                            variant={isApplied ? "outline" : "default"}
+                            className={isApplied 
+                              ? "border-green-500 text-green-700 hover:bg-green-50" 
+                              : "bg-orange-500 hover:bg-orange-600 text-white transform hover:scale-105 transition-transform"}
+                            onClick={() => isApplied ? openJobDetails(job) : handleApplyJob(job.id)}
+                          >
+                            {isApplied ? "Applied" : "Apply"}
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">{job.description}</p>
+                        
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {job.type && (
+                            <Badge variant="secondary" className="flex items-center">
+                              <Briefcase className="h-3 w-3 mr-1" />
+                              {job.type}
+                            </Badge>
+                          )}
+                          
+                          {job.salary && (
+                            <Badge variant="outline" className="flex items-center">
+                              <CircleDollarSign className="h-3 w-3 mr-1" />
+                              {job.salary}
+                            </Badge>
+                          )}
+                          
+                          {job.postedDate && (
+                            <span className="text-xs text-gray-500 flex items-center">
+                              <Clock className="h-3 w-3 mr-1 inline" />
+                              Posted {new Date(job.postedDate).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="bg-gray-50 px-6 py-3 flex justify-between items-center border-t">
+                      <div className="flex items-center text-xs text-gray-600">
+                        <Users className="h-3 w-3 mr-1" />
+                        <span>{job.applicationCount || job.applicants?.length || 0} applicants</span>
+                        {job.alumni && job.alumni > 0 && (
+                          <span className="ml-2 text-orange-600">
+                            • {job.alumni} alumni work here
+                          </span>
+                        )}
+                      </div>
+                      
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="text-sm"
+                        onClick={() => openJobDetails(job)}
+                      >
+                        View Details
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
             </div>
           )}
-        </TabsContent>
+        </div>
         
-        <TabsContent value="saved">
-          {/* Saved Jobs */}
-          {savedJobsLoading ? (
-            <div className="flex justify-center py-8">
-              <LoadingSpinner />
-            </div>
-          ) : savedJobs.length === 0 ? (
-            <EmptyState
-              icon={<Bookmark className="h-12 w-12" />}
-              title="No saved jobs"
-              description="You haven't saved any jobs yet. Browse the job board and save interesting opportunities."
-            />
-          ) : (
-            <div className="grid gap-6">
-              {savedJobs.map(renderJobCard)}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Job Details Modal */}
-      <JobDetailsModal
-        job={selectedJob}
-        isOpen={isDetailsModalOpen}
-        onClose={() => {
-          setIsDetailsModalOpen(false);
-          setSelectedJob(null);
-        }}
-        onApply={handleApplyToJob}
-        onSave={handleToggleSaveJob}
-      />
-
-      {/* Post Job Modal */}
+        <div className="lg:col-span-1">
+          {/* Post Job Button */}
+          <Card className="mb-6 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300">
+            <CardContent className="p-6">
+              <Button 
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                onClick={() => setIsPostJobModalOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Post a Job
+              </Button>
+            </CardContent>
+          </Card>
+          
+          {/* Filters Sidebar */}
+          <Card className="mb-6">
+            <CardContent className="p-6">
+              <h3 className="font-medium text-lg mb-4">Filters</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Job Type</label>
+                  <div className="flex flex-wrap gap-2">
+                    {JOB_TYPES.map(type => (
+                      <Button
+                        key={type}
+                        size="sm"
+                        variant={jobTypeFilter === type ? "default" : "outline"}
+                        className={jobTypeFilter === type 
+                          ? "bg-orange-500 hover:bg-orange-600 text-white" 
+                          : "hover:bg-gray-100 text-gray-700"}
+                        onClick={() => setJobTypeFilter(jobTypeFilter === type ? null : type)}
+                      >
+                        {type}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Experience Level</label>
+                  <div className="flex flex-wrap gap-2">
+                    {EXPERIENCE_LEVELS.map(level => (
+                      <Button
+                        key={level}
+                        size="sm"
+                        variant={experienceLevelFilter === level ? "default" : "outline"}
+                        className={experienceLevelFilter === level ? "bg-orange-500" : ""}
+                        onClick={() => setExperienceLevelFilter(experienceLevelFilter === level ? null : level)}
+                      >
+                        {level}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Salary Range</label>
+                  <div className="flex flex-wrap gap-2">
+                    {SALARY_RANGES.map(range => (
+                      <Button
+                        key={range}
+                        size="sm"
+                        variant={salaryRangeFilter === range ? "default" : "outline"}
+                        className={salaryRangeFilter === range ? "bg-orange-500" : ""}
+                        onClick={() => setSalaryRangeFilter(salaryRangeFilter === range ? null : range)}
+                      >
+                        {range}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Industry / Category</label>
+                  <div className="flex flex-wrap gap-2">
+                    {JOB_CATEGORIES.map(category => (
+                      <Button
+                        key={category}
+                        size="sm"
+                        variant={jobCategoryFilter === category ? "default" : "outline"}
+                        className={jobCategoryFilter === category ? "bg-orange-500" : ""}
+                        onClick={() => setJobCategoryFilter(jobCategoryFilter === category ? null : category)}
+                      >
+                        {category}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                
+                {(jobTypeFilter || experienceLevelFilter || salaryRangeFilter || jobCategoryFilter) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="w-full text-orange-500 hover:text-orange-600"
+                  >
+                    Clear all filters
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Premium alumni job services */}
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="font-medium text-lg mb-2">Alumni Job Services</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Get personalized job recommendations and priority application reviews from alumni.
+              </p>
+              <Button variant="outline" className="w-full">
+                Learn More
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      
+      {/* Modals */}
+      {selectedJob && (
+        <JobDetailsModal
+          job={selectedJob}
+          isOpen={isJobDetailsModalOpen}
+          onClose={() => setIsJobDetailsModalOpen(false)}
+          onApply={() => handleApplyJob(selectedJob.id)}
+          onSave={() => handleToggleSaveJob(selectedJob.id)}
+          isSaved={savedJobs.includes(selectedJob.id)}
+          isApplied={appliedJobs.includes(selectedJob.id)}
+        />
+      )}
+      
       <PostJobForm
         isOpen={isPostJobModalOpen}
         onClose={() => setIsPostJobModalOpen(false)}
-        onJobCreated={handleJobCreated}
+        onSubmit={handlePostJob}
       />
     </div>
   );

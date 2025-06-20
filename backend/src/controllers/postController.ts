@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import Post from '../models/Post';
-import mongoose from 'mongoose';
 
 interface AuthRequest extends Request {
   user?: {
@@ -204,55 +203,109 @@ export const deletePost = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
-// Like/Unlike a post
+// Like a post
 export const likePost = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const postId = req.params.postId;
+    const { postId } = req.params;
     const userId = req.user?.id;
 
     if (!userId) {
-      res.status(401).json({ success: false, message: 'User not authenticated' });
+      res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
       return;
     }
 
     const post = await Post.findById(postId);
     if (!post) {
-      res.status(404).json({ success: false, message: 'Post not found' });
+      res.status(404).json({
+        success: false,
+        message: 'Post not found'
+      });
       return;
     }
 
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-    const isLiked = post.likes.includes(userObjectId);
-
-    if (isLiked) {
-      // Unlike the post
-      post.likes = post.likes.filter(like => !like.equals(userObjectId));
-    } else {
-      // Like the post
-      post.likes.push(userObjectId);
+    // Check if user already liked the post
+    if (post.likes.includes(userId as any)) {
+      res.status(400).json({
+        success: false,
+        message: 'Post already liked'
+      });
+      return;
     }
 
+    // Add user to likes array
+    post.likes.push(userId as any);
     await post.save();
 
-    // Populate author details and format response
-    const populatedPost = await Post.findById(postId).populate('author', 'name email profileImage');
-    
-    const formattedPost = {
-      ...populatedPost!.toObject(),
-      id: populatedPost!._id.toString(),
-      author: {
-        ...populatedPost!.author,
-        id: (populatedPost!.author as any)._id ? (populatedPost!.author as any)._id.toString() : undefined
+    res.json({
+      success: true,
+      message: 'Post liked successfully',
+      data: {
+        likes: post.likes.length,
+        isLiked: true
       }
-    };
-
-    res.status(200).json({ 
-      success: true, 
-      message: isLiked ? 'Post unliked' : 'Post liked', 
-      post: formattedPost 
     });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: 'Failed to like/unlike post', error: error.message });
+  } catch (error) {
+    console.error('Error liking post:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to like post'
+    });
+  }
+};
+
+// Unlike a post
+export const unlikePost = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+      return;
+    }
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      res.status(404).json({
+        success: false,
+        message: 'Post not found'
+      });
+      return;
+    }
+
+    // Check if user has liked the post
+    if (!post.likes.includes(userId as any)) {
+      res.status(400).json({
+        success: false,
+        message: 'Post not liked yet'
+      });
+      return;
+    }
+
+    // Remove user from likes array
+    post.likes = post.likes.filter(like => like.toString() !== userId);
+    await post.save();
+
+    res.json({
+      success: true,
+      message: 'Post unliked successfully',
+      data: {
+        likes: post.likes.length,
+        isLiked: false
+      }
+    });
+  } catch (error) {
+    console.error('Error unliking post:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to unlike post'
+    });
   }
 };
 

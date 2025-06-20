@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createGroup,
   getGroups,
+  getUserGroups,
   getGroup,
   joinGroup,
   leaveGroup,
@@ -15,6 +16,9 @@ const router = Router();
 router.route('/')
   .get(protect, getGroups)
   .post(protect, createGroup);
+
+router.route('/user')
+  .get(protect, getUserGroups);
 
 router.route('/:groupId') // Corrected to use a consistent parameter name
   .get(protect, getGroup);

@@ -46,6 +46,24 @@ export interface IUser extends Document {
   emailVerificationExpires?: Date;
   needsManualVerification: boolean; // Corrected: no longer optional
   verificationDetails?: string;
+  notificationSettings?: {
+    emailMessages?: boolean;
+    emailJobs?: boolean;
+    emailEvents?: boolean;
+    emailGroups?: boolean;
+    pushMessages?: boolean;
+    pushJobs?: boolean;
+    pushEvents?: boolean;
+    pushGroups?: boolean;
+  };
+  privacySettings?: {
+    profileVisibility?: 'public' | 'alumni' | 'connections';
+    showEmail?: boolean;
+    showPhone?: boolean;
+    allowMessaging?: boolean;
+    allowConnection?: boolean;
+    allowProfileSearch?: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -155,6 +173,24 @@ const userSchema = new Schema<IUser>({
   passwordResetExpires: { type: Date, default: null },
   emailVerificationToken: { type: String },
   emailVerificationExpires: { type: Date },
+  notificationSettings: {
+    emailMessages: { type: Boolean, default: true },
+    emailJobs: { type: Boolean, default: true },
+    emailEvents: { type: Boolean, default: true },
+    emailGroups: { type: Boolean, default: true },
+    pushMessages: { type: Boolean, default: true },
+    pushJobs: { type: Boolean, default: false },
+    pushEvents: { type: Boolean, default: true },
+    pushGroups: { type: Boolean, default: true }
+  },
+  privacySettings: {
+    profileVisibility: { type: String, enum: ['public', 'alumni', 'connections'], default: 'alumni' },
+    showEmail: { type: Boolean, default: false },
+    showPhone: { type: Boolean, default: false },
+    allowMessaging: { type: Boolean, default: true },
+    allowConnection: { type: Boolean, default: true },
+    allowProfileSearch: { type: Boolean, default: true }
+  }
 }, { timestamps: true });
 
 // Pre-save hook to hash password and set name parts

@@ -149,11 +149,11 @@ export default function DashboardPage() {
       
       const response = await apiService.getAllPosts({ limit: 10 });
       if (response.success && Array.isArray(response.data)) {
-        setState(prev => ({ ...prev, posts: response.data as Post[] }));
+        setState(prev => ({ ...prev, posts: response.data }));
         
         // Set initial liked posts based on current user
         const userLikedPosts = new Set<string>();
-        (response.data as Post[]).forEach((post: Post) => {
+        response.data.forEach((post: Post) => {
           if (post.likes?.includes(currentUser?.id || '')) {
             userLikedPosts.add(post.id || post._id);
           }
@@ -178,7 +178,7 @@ export default function DashboardPage() {
       
       const response = await apiService.getUpcomingEvents(3);
       if (response.success && Array.isArray(response.data)) {
-        setState(prev => ({ ...prev, events: response.data as Event[] }));
+        setState(prev => ({ ...prev, events: response.data }));
       } else {
         setState(prev => ({ ...prev, events: [] }));
       }
@@ -198,7 +198,7 @@ export default function DashboardPage() {
       
       const response = await apiService.getJobs({ limit: 3, isActive: true });
       if (response.success && Array.isArray(response.data)) {
-        setState(prev => ({ ...prev, jobs: response.data as Job[] }));
+        setState(prev => ({ ...prev, jobs: response.data }));
       } else {
         setState(prev => ({ ...prev, jobs: [] }));
       }
@@ -216,10 +216,10 @@ export default function DashboardPage() {
       updateLoading('groups', true);
       updateError('groups', null);
       
-      // Use the new getUserGroups endpoint
-      const response = await apiService.getUserGroups();
+      // Try to get user's groups, fallback to all groups if endpoint doesn't exist
+      const response = await apiService.getUserGroups?.() || await apiService.getGroups();
       if (response.success && Array.isArray(response.data)) {
-        setState(prev => ({ ...prev, groups: (response.data as Group[]).slice(0, 3) }));
+        setState(prev => ({ ...prev, groups: response.data.slice(0, 3) }));
       } else {
         setState(prev => ({ ...prev, groups: [] }));
       }
@@ -237,9 +237,9 @@ export default function DashboardPage() {
       updateLoading('suggestions', true);
       updateError('suggestions', null);
       
-      const response = await apiService.getUserSuggestions(3);
+      const response = await apiService.getUserSuggestions?.(3);
       if (response.success && Array.isArray(response.data)) {
-        setState(prev => ({ ...prev, userSuggestions: response.data as UserSuggestion[] }));
+        setState(prev => ({ ...prev, userSuggestions: response.data }));
       } else {
         setState(prev => ({ ...prev, userSuggestions: [] }));
       }
@@ -828,6 +828,351 @@ function PostCard({ post, onLike, isLiked, currentUserId }: PostCardProps) {
             onClick={() => onLike(post.id || post._id)}
           >
             <Heart className={`h-4 w-4 ${isLiked ? "fill-red-500" : ""}`} />
+            <span className="font-medium">Like</span>
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="flex-1 gap-2 text-gray-600 hover:text-blue-500 hover:bg-blue-50 transition-all duration-300"
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span className="font-medium">Comment</span>
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="flex-1 gap-2 text-gray-600 hover:text-green-500 hover:bg-green-50 transition-all duration-300"
+          >
+            <Share className="h-4 w-4" />
+            <span className="font-medium">Share</span>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+                  <CreatePostForm onPostCreated={handlePostCreated}>
+                    <Button 
+                      variant="outline" 
+                      className="flex-1 justify-start text-gray-500 hover:text-gray-700 border-gray-300 hover:border-orange-300 transition-all duration-300"
+                    >
+                      Share something with your network...
+                    </Button>
+                  </CreatePostForm>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Content tabs */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+              <Tabs defaultValue="all" onValueChange={setActiveTab} className="w-full">
+                <div className="border-b border-gray-100 px-6 pt-4">
+                  <TabsList className="bg-gray-50 p-1 rounded-lg">
+                    <TabsTrigger 
+                      value="all" 
+                      className="data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all duration-300"
+                    >
+                      All Updates
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="school"
+                      className="data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all duration-300"
+                    >
+                      School Updates
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+                
+                <TabsContent value="all" className="p-6 space-y-4">
+                  {posts.length === 0 ? (
+                    <EmptyState
+                      title="No posts yet"
+                      description="Be the first to share something with your alumni network!"
+                    />
+                  ) : (
+                    posts.map(post => (
+                      <PostCard key={post.id} post={post} />
+                    ))
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="school" className="p-6 space-y-4">
+                  {posts.filter(post => post.isSchoolUpdate).length === 0 ? (
+                    <EmptyState
+                      title="No school updates"
+                      description="Check back later for official announcements and updates."
+                    />
+                  ) : (
+                    posts.filter(post => post.isSchoolUpdate).map(post => (
+                      <PostCard key={post.id} post={post} />
+                    ))
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+          
+          {/* Right Sidebar */}
+          <div className="space-y-6">
+            {/* Your Groups */}
+            <Card className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Users className="h-5 w-5 text-orange-500" />
+                    Your Groups
+                  </h3>
+                  <Button variant="ghost" size="sm" className="text-orange-500 hover:text-orange-600">
+                    View all
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    { name: "Tech Innovators", icon: "💻", members: 234, newPosts: 3 },
+                    { name: "Career Network", icon: "💼", members: 567, newPosts: 1 },
+                    { name: "Class of 2020", icon: "🎓", members: 89, newPosts: 0 }
+                  ].map((group, index) => (
+                    <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-sm">
+                        {group.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{group.name}</p>
+                        <p className="text-xs text-gray-500">{group.members} members</p>
+                      </div>
+                      {group.newPosts > 0 && (
+                        <Badge className="bg-orange-500 text-white text-xs px-2 py-0.5">
+                          {group.newPosts}
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Upcoming Events */}
+            <Card className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-blue-500" />
+                    Upcoming Events
+                  </h3>
+                  <Button variant="ghost" size="sm" className="text-orange-500 hover:text-orange-600">
+                    View all
+                  </Button>
+                </div>
+                {upcomingEvents.length === 0 ? (
+                  <div className="space-y-3">
+                    {[
+                      { title: "Alumni Networking Night", date: "Nov 25", time: "6:00 PM", location: "Downtown" },
+                      { title: "Career Workshop", date: "Dec 2", time: "2:00 PM", location: "Virtual" }
+                    ].map((event, index) => (
+                      <div key={index} className="p-3 border border-gray-100 rounded-lg hover:border-orange-200 transition-colors">
+                        <h4 className="font-medium text-gray-900 mb-1">{event.title}</h4>
+                        <p className="text-sm text-gray-600 mb-2">{event.date} • {event.time}</p>
+                        <p className="text-xs text-gray-500">{event.location}</p>
+                        <div className="flex gap-2 mt-3">
+                          <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3 py-1">
+                            RSVP
+                          </Button>
+                          <Button variant="outline" size="sm" className="text-xs px-3 py-1">
+                            Details
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  upcomingEvents.map(event => (
+                    <div key={event.id} className="mb-3 pb-3 border-b last:border-0 last:pb-0 last:mb-0">
+                      <h4 className="font-medium">{event.title}</h4>
+                      <p className="text-sm text-gray-600">{event.date} • {event.location}</p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Job Opportunities */}
+            <Card className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-green-500" />
+                    Job Opportunities
+                  </h3>
+                  <Button variant="ghost" size="sm" className="text-orange-500 hover:text-orange-600">
+                    View all
+                  </Button>
+                </div>
+                {jobOpportunities.length === 0 ? (
+                  <div className="space-y-3">
+                    {[
+                      { title: "Software Engineer", company: "Tech Corp", location: "San Francisco", type: "Full-time" },
+                      { title: "Product Manager", company: "StartupXYZ", location: "Remote", type: "Full-time" }
+                    ].map((job, index) => (
+                      <div key={index} className="p-3 border border-gray-100 rounded-lg hover:border-orange-200 transition-colors">
+                        <h4 className="font-medium text-gray-900 mb-1">{job.title}</h4>
+                        <p className="text-sm text-gray-600 mb-1">{job.company}</p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="secondary" className="text-xs">
+                            {job.type}
+                          </Badge>
+                          <span className="text-xs text-gray-500">{job.location}</span>
+                        </div>
+                        <Button size="sm" variant="outline" className="w-full text-xs border-orange-300 text-orange-600 hover:bg-orange-50">
+                          View Details
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  jobOpportunities.map(job => (
+                    <div key={job.id} className="mb-3 pb-3 border-b last:border-0 last:pb-0 last:mb-0">
+                      <h4 className="font-medium">{job.title}</h4>
+                      <p className="text-sm text-gray-600">{job.company} • {job.location}</p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            {/* People You May Know */}
+            <Card className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <UserPlus className="h-5 w-5 text-purple-500" />
+                    People You May Know
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    { name: "Sarah Johnson", role: "Product Manager", company: "Meta", classYear: "2019" },
+                    { name: "Mike Chen", role: "Software Engineer", company: "Google", classYear: "2020" }
+                  ].map((person, index) => (
+                    <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback className="bg-gray-200 text-gray-600">
+                          {person.name.split(' ').map(n => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{person.name}</p>
+                        <p className="text-xs text-gray-500">{person.role} at {person.company}</p>
+                        <p className="text-xs text-gray-400">Class of {person.classYear}</p>
+                      </div>
+                      <Button size="sm" variant="outline" className="text-xs border-orange-300 text-orange-600 hover:bg-orange-50">
+                        Connect
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PostCard({ post }: { post: any }) {
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(post.likes || 0);
+  
+  const handleLike = () => {
+    if (liked) {
+      setLikeCount(prev => prev - 1);
+    } else {
+      setLikeCount(prev => prev + 1);
+    }
+    setLiked(!liked);
+  };
+  
+  if (!post || !post.author) {
+    return null;
+  }
+  
+  return (
+    <Card className={`
+      bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1
+      ${post.isSchoolUpdate ? "border-orange-200 bg-orange-50/30" : ""}
+    `}>
+      <CardContent className="p-6">
+        {/* Post header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-12 w-12">
+              <AvatarImage src={post.author.avatar} alt={post.author.name} />
+              <AvatarFallback className="bg-orange-100 text-orange-600 font-medium">
+                {post.author.name?.charAt(0) || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-medium text-gray-900">{post.author.name || 'Unknown User'}</p>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <span>{post.author.role || 'Alumni'}</span>
+                {post.author.classYear && (
+                  <>
+                    <span>•</span>
+                    <span>Class of {post.author.classYear}</span>
+                  </>
+                )}
+                <span>•</span>
+                <span>{post.timestamp || post.createdAt || 'Recently'}</span>
+              </div>
+            </div>
+          </div>
+          {post.isSchoolUpdate && (
+            <Badge className="bg-orange-500 text-white text-xs px-3 py-1">
+              <Bell className="h-3 w-3 mr-1" />
+              School Update
+            </Badge>
+          )}
+        </div>
+        
+        {/* Post content */}
+        <div className="mb-6">
+          <p className="text-gray-800 text-base leading-relaxed">{post.content || ''}</p>
+          {post.image && (
+            <div className="mt-4 rounded-lg overflow-hidden">
+              <img 
+                src={post.image} 
+                alt="Post image" 
+                className="w-full h-auto max-h-96 object-cover"
+              />
+            </div>
+          )}
+        </div>
+        
+        {/* Engagement stats */}
+        {(likeCount > 0 || post.comments > 0) && (
+          <div className="flex items-center justify-between mb-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              {likeCount > 0 && (
+                <span>{likeCount} {likeCount === 1 ? 'like' : 'likes'}</span>
+              )}
+              {post.comments > 0 && (
+                <span>{post.comments} {post.comments === 1 ? 'comment' : 'comments'}</span>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* Post actions */}
+        <div className="flex gap-1 pt-3 border-t border-gray-100">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={`flex-1 gap-2 transition-all duration-300 hover:bg-red-50 ${
+              liked ? "text-red-500 bg-red-50" : "text-gray-600 hover:text-red-500"
+            }`}
+            onClick={handleLike}
+          >
+            <Heart className={`h-4 w-4 ${liked ? "fill-red-500" : ""}`} />
             <span className="font-medium">Like</span>
           </Button>
           <Button 

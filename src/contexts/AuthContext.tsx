@@ -27,6 +27,24 @@ export interface ExtendedUser {
   lastLogin?: Date;
   createdAt?: Date;
   updatedAt?: Date;
+  notificationSettings?: {
+    emailMessages?: boolean;
+    emailJobs?: boolean;
+    emailEvents?: boolean;
+    emailGroups?: boolean;
+    pushMessages?: boolean;
+    pushJobs?: boolean;
+    pushEvents?: boolean;
+    pushGroups?: boolean;
+  };
+  privacySettings?: {
+    profileVisibility?: 'public' | 'alumni' | 'connections';
+    showEmail?: boolean;
+    showPhone?: boolean;
+    allowMessaging?: boolean;
+    allowConnection?: boolean;
+    allowProfileSearch?: boolean;
+  };
 }
 
 interface AuthContextType {

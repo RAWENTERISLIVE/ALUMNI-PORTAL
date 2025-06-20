@@ -98,20 +98,26 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: GroupDiscussion
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col rounded-xl">
         <DialogHeader className="border-b pb-4">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-            {group.privacy === 'private' ? <Lock className="h-5 w-5" /> : <Globe className="h-5 w-5" />}
-            {group.name}
-            <Badge variant="secondary" className="ml-2">{group.category}</Badge>
+          <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-gray-900">
+            {group?.privacy === 'private' 
+              ? <Lock className="h-5 w-5 text-orange-500" /> 
+              : <Globe className="h-5 w-5 text-orange-500" />}
+            {group?.name || 'Group Discussion'}
+            {group?.category && (
+              <Badge variant="outline" className="ml-2 border-orange-200 bg-orange-50 text-orange-700">
+                {group.category}
+              </Badge>
+            )}
           </DialogTitle>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-            <Users className="h-4 w-4" />
-            <span>{group.memberCount} members</span>
-            <span className="text-xs">•</span>
-            <span>{group.privacy === 'private' ? 'Private Group' : 'Public Group'}</span>
+          <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+            <Users className="h-4 w-4 text-orange-500" />
+            <span className="font-medium">{group?.totalMembers || group?.members?.length || 0} members</span>
+            <span className="text-xs text-gray-400">•</span>
+            <span>{group?.privacy === 'private' ? 'Private Group' : 'Public Group'}</span>
           </div>
-          <p className="text-sm mt-2">{group.description}</p>
+          <p className="text-sm mt-2 text-gray-700 leading-relaxed">{group?.description || 'No description available.'}</p>
         </DialogHeader>
         
         <div className="flex-1 overflow-y-auto py-4 space-y-4 min-h-[400px]">
@@ -126,32 +132,33 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: GroupDiscussion
             </div>
           ) : (
             messages.map((message) => (
-              <div key={message._id} className="flex gap-3">
+              <div key={message._id || message.id} className="flex gap-3 hover:bg-gray-50 p-2 rounded-md transition-colors">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={message.author?.profilePicture} />
-                  <AvatarFallback>
-                    {message.author?.firstName?.[0]}{message.author?.lastName?.[0]}
+                  <AvatarImage src={message.author?.profileImage} />
+                  <AvatarFallback className="bg-orange-100 text-orange-800 font-medium">
+                    {(message.author?.name?.[0] || message.author?.email?.[0] || '?').toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 
                 <div className="flex-1">
                   <div className="flex justify-between">
-                    <h4 className="font-medium">
-                      {message.author?.firstName} {message.author?.lastName}
-                      {message.author?._id === currentUser?.id && (
-                        <span className="text-xs text-muted-foreground ml-1">(You)</span>
+                    <h4 className="font-semibold text-gray-900">
+                      {message.author?.name || message.author?.email?.split('@')[0] || 'Unknown User'}
+                      {(message.author?._id?.toString() === currentUser?.id?.toString() || 
+                        message.author?.id?.toString() === currentUser?.id?.toString()) && (
+                        <span className="text-xs text-orange-600 font-normal ml-1">(You)</span>
                       )}
                     </h4>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-gray-500">
                       {formatTimestamp(message.createdAt)}
                     </span>
                   </div>
                   
-                  <p className="text-sm mt-1 whitespace-pre-wrap">{message.content}</p>
+                  <p className="text-sm mt-1 whitespace-pre-wrap text-gray-700 leading-relaxed">{message.content}</p>
                   
                   {message.replyTo && (
-                    <div className="bg-muted/50 rounded-lg p-2 mt-2 border-l-2 border-primary">
-                      <p className="text-xs text-muted-foreground">Replying to a message</p>
+                    <div className="bg-gray-50 rounded-lg p-2 mt-2 border-l-2 border-orange-300">
+                      <p className="text-xs text-gray-500">Replying to a message</p>
                     </div>
                   )}
                 </div>
@@ -166,7 +173,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: GroupDiscussion
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Type your message..."
-              className="flex-1 min-h-[80px]"
+              className="flex-1 min-h-[80px] focus:border-orange-300 focus:ring-orange-300 rounded-lg resize-none"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -177,12 +184,12 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: GroupDiscussion
             <Button 
               onClick={handlePostMessage} 
               disabled={!newMessage.trim() || sending}
-              className="px-4"
+              className="px-4 bg-orange-500 hover:bg-orange-600 text-white transform hover:scale-105 hover:shadow-md transition-all duration-300"
             >
               <Send className="h-4 w-4" />
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
+          <p className="text-xs text-gray-500 mt-2">
             Press Enter to send, Shift+Enter for new line
           </p>
         </div>

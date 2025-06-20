@@ -7,7 +7,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 // @route   POST /api/groups
 // @access  Private
 export const createGroup = asyncHandler(async (req: Request, res: Response) => {
-  const { name, description, privacy } = req.body;
+  const { name, description, privacy, category } = req.body;
   const creator = (req as any).user.id;
 
   const newGroup = new Group({
@@ -16,6 +16,9 @@ export const createGroup = asyncHandler(async (req: Request, res: Response) => {
     creator,
     members: [creator], // Creator is the first member
     privacy: privacy || GroupPrivacy.PUBLIC,
+    category: category || 'professional',
+    memberCount: 1, // Start with creator as member
+    lastActivity: new Date()
   });
 
   const group = await newGroup.save();
@@ -269,7 +272,57 @@ export const postGroupMessage = asyncHandler(async (req: Request, res: Response)
 
   await message.save();
 
-  const populatedMessage = await GroupMessage.findById(message._id).populate('sender', 'name email');
+  const populatedMessage = await GroupMessage.findById(message._id).populate('author', 'name email firstName lastName profileImage');
 
-  res.status(201).json({ success: true, data: populatedMessage });
+  // Format the message with consistent id fields
+  const messageObj = populatedMessage?.toObject();
+  const formattedMessage = messageObj ? {
+    ...messageObj,
+    id: messageObj._id ? messageObj._id.toString() : undefined,
+    author: messageObj.author ? {
+      ...messageObj.author,
+      id: typeof messageObj.author === 'object' && (messageObj.author as any)._id 
+        ? (messageObj.author as any)._id.toString() 
+        : undefined
+    } : null
+  } : null;
+
+  res.status(201).json({ success: true, data: formattedMessage });
+});
+
+// @desc    Get groups for current user
+// @route   GET /api/groups/user
+// @access  Private
+export const getUserGroups = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+
+  const groups = await Group.find({
+    members: userId
+  })
+    .populate('creator', 'name email profileImage')
+    .populate('members', 'name email profileImage')
+    .sort({ lastActivity: -1 })
+    .limit(10); // Limit for dashboard display
+
+  // Format groups to have consistent id field
+  const formattedGroups = groups.map(group => {
+    const groupObj = group.toObject();
+    return {
+      ...groupObj,
+      id: (groupObj._id as any).toString(),
+      creator: groupObj.creator && {
+        ...groupObj.creator,
+        id: groupObj.creator._id ? (groupObj.creator._id as any).toString() : undefined
+      },
+      members: groupObj.members ? groupObj.members.map((member: any) => ({
+        ...member,
+        id: member._id ? member._id.toString() : undefined
+      })) : []
+    };
+  });
+
+  res.json({ 
+    success: true, 
+    data: formattedGroups
+  });
 });

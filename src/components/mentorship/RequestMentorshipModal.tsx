@@ -1,4 +1,3 @@
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,18 +13,20 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-interface RequestMentorshipModalProps {
+export interface RequestMentorshipModalProps {
   mentor: any;
   isOpen: boolean;
   onClose: () => void;
+  onSubmit?: (data: any) => Promise<void>;
 }
 
-export function RequestMentorshipModal({ mentor, isOpen, onClose }: RequestMentorshipModalProps) {
+export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: RequestMentorshipModalProps) {
   const [message, setMessage] = useState("");
   const [topic, setTopic] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!message.trim() || !topic) {
       toast({
         title: "Missing Information",
@@ -35,14 +36,36 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose }: RequestMento
       return;
     }
     
-    toast({
-      title: "Mentorship Request Sent",
-      description: `Your request has been sent to ${mentor.name}. You'll be notified when they respond.`,
-    });
-    
-    onClose();
-    setMessage("");
-    setTopic("");
+    try {
+      setIsSubmitting(true);
+      
+      if (onSubmit) {
+        await onSubmit({
+          mentorId: mentor.id,
+          topic,
+          message
+        });
+      } else {
+        // Default behavior if no onSubmit provided
+        toast({
+          title: "Mentorship Request Sent",
+          description: `Your request has been sent to ${mentor.user?.name || mentor.name}. You'll be notified when they respond.`,
+        });
+      }
+      
+      onClose();
+      setMessage("");
+      setTopic("");
+    } catch (error) {
+      console.error("Error submitting mentorship request:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send mentorship request. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -104,7 +127,9 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose }: RequestMento
           
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSubmit}>Send Request</Button>
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? 'Sending...' : 'Send Request'}
+            </Button>
           </div>
         </div>
       </DialogContent>

@@ -373,3 +373,97 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response): P
     message: 'Password reset successful'
   });
 });
+
+// Change password for authenticated user
+export const changePassword = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const { currentPassword, newPassword } = req.body;
+  const userId = req.user?._id;
+
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ 
+      success: false, 
+      message: 'Please provide current and new password' 
+    });
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    res.status(400).json({ 
+      success: false, 
+      message: 'New password must be at least 8 characters long' 
+    });
+    return;
+  }
+
+  const user = await User.findById(userId).select('+password');
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  // Verify current password
+  const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+  if (!isCurrentPasswordValid) {
+    res.status(400).json({ 
+      success: false, 
+      message: 'Current password is incorrect' 
+    });
+    return;
+  }
+
+  // Update password
+  user.password = newPassword;
+  user.refreshTokens = []; // Invalidate all sessions
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Password changed successfully'
+  });
+});
+
+// Update notification settings
+export const updateNotificationSettings = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = req.user?._id;
+  const notificationSettings = req.body;
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: { notificationSettings } },
+    { new: true, runValidators: true }
+  ).select('-password -refreshTokens');
+
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Notification settings updated successfully',
+    data: user.notificationSettings
+  });
+});
+
+// Update privacy settings
+export const updatePrivacySettings = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = req.user?._id;
+  const privacySettings = req.body;
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: { privacySettings } },
+    { new: true, runValidators: true }
+  ).select('-password -refreshTokens');
+
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Privacy settings updated successfully',
+    data: user.privacySettings
+  });
+});
