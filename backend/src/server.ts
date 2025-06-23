@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 import { connectDB } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 // Import middleware
@@ -17,6 +19,11 @@ import jobRoutes from './routes/jobs';
 import eventRoutes from './routes/events';
 import groupRoutes from './routes/groups';
 import mentorshipRoutes from './routes/mentorship';
+import commentRoutes from './routes/comments';
+import uploadRoutes from './routes/uploads';
+import uploadRoutesNew from './routes/uploadsNew';
+import reportRoutes from './routes/reports';
+import statusRoutes from './routes/status';
 
 // Load environment variables
 dotenv.config();
@@ -25,10 +32,27 @@ const app = express();
 // Ensure PORT is a number
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
-// Connect to MongoDB and initialize super admins
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('📁 Created uploads directory:', uploadsDir);
+}
+
+// Phase 1 - Enhanced app initialization
 const initializeApp = async () => {
-  await connectDB();
-  await User.createSuperAdmins();
+  try {
+    console.log('🚀 Starting Alma Connect Sphere Backend...');
+    console.log('📋 Phase 1: Core Authentication & Security + Profiles');
+    
+    await connectDB();
+    await User.createSuperAdmins();
+    
+    console.log('✅ Application initialized successfully');
+  } catch (error) {
+    console.error('❌ Failed to initialize application:', error);
+    process.exit(1);
+  }
 };
 
 initializeApp();
@@ -53,7 +77,11 @@ app.use(limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // API routes
+app.use('/api/status', statusRoutes); // Phase 1 - System status endpoints
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
@@ -61,6 +89,11 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/mentorship', mentorshipRoutes);
+app.use('/api', commentRoutes); // Comments routes (includes /posts/:postId/comments)
+app.use('/api/uploads', uploadRoutes); // Added uploads routes
+app.use('/api/upload', uploadRoutesNew); // New upload route for file handling
+app.use('/api/reports', reportRoutes); // Reports routes
+app.use('/api/status', statusRoutes); // Status routes
 
 // Error handling middleware
 app.use(errorHandler);

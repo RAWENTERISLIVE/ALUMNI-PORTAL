@@ -5,14 +5,31 @@ export interface IPost extends Document {
   title?: string;
   content: string;
   author: mongoose.Types.ObjectId;
-  category?: string;
-  imageUrl?: string;
+  category: string;
   isFeatured: boolean;
   isSchoolUpdate: boolean;
-  likes: mongoose.Types.ObjectId[];
+  reactions: {
+    userId: mongoose.Types.ObjectId;
+    type: 'like' | 'love' | 'celebrate' | 'support' | 'insightful' | 'funny';
+  }[];
+  bookmarks: mongoose.Types.ObjectId[];
   comments: mongoose.Types.ObjectId[];
-  visibility: 'public' | 'alumni_only' | 'private';
+  commentCount: number;
+  shareCount: number;
+  visibility: 'public' | 'connections_only';
   tags: string[];
+  attachments: {
+    type: 'image' | 'document';
+    url: string;
+    name: string;
+    size: number;
+    extension?: string;
+  }[];
+  externalLinks: string[];
+  mentions?: mongoose.Types.ObjectId[];
+  // Fields for shared posts
+  sharedPost?: mongoose.Types.ObjectId;
+  shareType?: 'quote' | 'simple';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,15 +56,6 @@ const postSchema = new Schema<IPost>({
     enum: ['general', 'career', 'networking', 'events', 'achievements', 'announcements'],
     default: 'general'
   },
-  imageUrl: {
-    type: String,
-    validate: {
-      validator: function(url: string) {
-        return !url || url === '' || /^https?:\/\//.test(url);
-      },
-      message: 'Image URL must be a valid URL'
-    }
-  },
   isFeatured: {
     type: Boolean,
     default: false
@@ -56,7 +64,27 @@ const postSchema = new Schema<IPost>({
     type: Boolean,
     default: false
   },
-  likes: [{
+  // Shared post fields
+  sharedPost: {
+    type: Schema.Types.ObjectId,
+    ref: 'Post'
+  },
+  shareType: {
+    type: String,
+    enum: ['quote', 'simple']
+  },
+  reactions: [{
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    type: {
+      type: String,
+      enum: ['like', 'love', 'celebrate', 'support', 'insightful', 'funny'],
+      default: 'like'
+    }
+  }],
+  bookmarks: [{
     type: Schema.Types.ObjectId,
     ref: 'User'
   }],
@@ -64,37 +92,87 @@ const postSchema = new Schema<IPost>({
     type: Schema.Types.ObjectId,
     ref: 'Comment'
   }],
+  commentCount: {
+    type: Number,
+    default: 0
+  },
+  shareCount: {
+    type: Number,
+    default: 0
+  },
   visibility: {
     type: String,
-    enum: ['public', 'alumni_only', 'private'],
-    default: 'alumni_only'
+    enum: ['public', 'alumni_only', 'faculty_only', 'connections_only'],
+    default: 'public'
   },
   tags: [{
     type: String,
-    maxlength: 50,
-    trim: true
+    trim: true,
+    maxlength: 50
+  }],
+  attachments: [{
+    type: {
+      type: String,
+      enum: ['image', 'document'],
+      required: true
+    },
+    url: {
+      type: String,
+      required: true
+    },
+    name: {
+      type: String,
+      required: true
+    },
+    size: {
+      type: Number,
+      required: true
+    },
+    extension: {
+      type: String
+    }
+  }],
+  externalLinks: [{
+    type: String,
+    validate: {
+      validator: function(url: string) {
+        try {
+          new URL(url);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      message: 'External link must be a valid URL'
+    }
+  }],
+  mentions: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
   }]
 }, {
   timestamps: true,
-  toJSON: {
-    transform: function(_doc, ret) {
-      ret.id = ret._id;
-      delete ret._id;
-      delete ret.__v;
-      return ret;
-    }
-  }
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 // Indexes for better performance
-postSchema.index({ author: 1 });
-postSchema.index({ category: 1 });
-postSchema.index({ createdAt: -1 });
-postSchema.index({ isFeatured: 1 });
-postSchema.index({ isSchoolUpdate: 1 });
+postSchema.index({ author: 1, createdAt: -1 });
+postSchema.index({ category: 1, createdAt: -1 });
+postSchema.index({ visibility: 1, createdAt: -1 });
 postSchema.index({ tags: 1 });
-postSchema.index({ visibility: 1 });
+postSchema.index({ isFeatured: 1, createdAt: -1 });
+postSchema.index({ isSchoolUpdate: 1, createdAt: -1 });
 
-const Post = mongoose.model<IPost>('Post', postSchema);
+// Virtual for like count
+postSchema.virtual('likeCount').get(function() {
+  return this.reactions ? this.reactions.filter(r => r.type === 'like').length : 0;
+});
 
-export default Post;
+// Virtual for bookmark count
+postSchema.virtual('bookmarkCount').get(function() {
+  return this.bookmarks ? this.bookmarks.length : 0;
+});
+
+// Export the model, checking if it already exists to avoid overwrite errors
+export default mongoose.models.Post || mongoose.model<IPost>('Post', postSchema);

@@ -86,11 +86,22 @@ router.delete('/:userId', authMiddleware, requireSuperAdmin, deleteUser);
 // Alumni Directory
 router.get('/directory', authMiddleware, getAlumniDirectory);
 
-// Profile routes
+// User suggestions - must come before /:userId route
+router.get('/suggestions', authMiddleware, getUserSuggestions);
+
+// Current user profile endpoint
+router.get('/me', authMiddleware, async (req: any, res: any, next: any) => {
+  try {
+    // Use the current user's ID from the auth middleware
+    req.params.userId = req.user._id || req.user.id;
+    await getUserById(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Profile routes - /:userId must come after specific routes
 router.get('/:userId', authMiddleware, getUserById);
 router.patch('/:userId/profile', authMiddleware, updateProfileValidation, validate, updateUserProfile);
-
-// User suggestions
-router.get('/suggestions', authMiddleware, getUserSuggestions);
 
 export default router;

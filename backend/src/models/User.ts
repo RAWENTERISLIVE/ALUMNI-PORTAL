@@ -37,6 +37,7 @@ export interface IUser extends Document {
   company?: string;
   jobTitle?: string;
   isAvailableAsMentor: boolean;
+  connections?: mongoose.Types.ObjectId[]; // Array of user IDs that this user is connected to
   location?: string;
   lastLogin?: Date;
   refreshTokens: string[];

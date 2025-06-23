@@ -6,22 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Search, UserX, Check, X, UserCheck, Building, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw } from "lucide-react";
+import { Search, UserX, Check, X, UserCheck, Building, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import apiService from "@/services/apiService";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import Phase1Dashboard from "@/components/admin/Phase1Dashboard";
 
 interface User {
   id: string;
@@ -121,7 +111,7 @@ export default function AdminPage() {
       setLoading(true);
       
       // Load all data in parallel
-      const [usersResponse, pendingResponse, statsResponse] = await Promise.all([
+      const [usersResponse, pendingResponse, statsResponse, reportsResponse] = await Promise.all([
         apiService.getAllUsers({
           page: currentPage,
           limit: 10,
@@ -131,6 +121,7 @@ export default function AdminPage() {
         }),
         apiService.getPendingUsers(),
         apiService.getUserStats(),
+        apiService.getReports({ page: 1, limit: 50 })
       ]);
 
       if (usersResponse.success) {
@@ -148,8 +139,11 @@ export default function AdminPage() {
         setStats(statsResponse.stats || stats);
       }
 
-      // Initialize empty reports and activities arrays
-      setReports([]);
+      if (reportsResponse.success) {
+        setReports(reportsResponse.data || []);
+      }
+
+      // Initialize empty activities array
       setActivities([]);
     } catch (error: any) {
       console.error('Failed to load admin data:', error);
@@ -265,14 +259,32 @@ export default function AdminPage() {
   };
 
   const resolveReport = async (reportId: string) => {
-    // Placeholder function - would implement real report resolution
-    setReports(prev => prev.map(report => 
-      report.id === reportId ? { ...report, status: 'resolved' as const } : report
-    ));
-    toast({
-      title: "Report Resolved",
-      description: "The report has been marked as resolved.",
-    });
+    try {
+      const response = await apiService.updateReportStatus(reportId, 'resolved');
+      
+      if (response.success) {
+        setReports(prev => prev.map(report => 
+          report.id === reportId ? { ...report, status: 'resolved' as const } : report
+        ));
+        toast({
+          title: "Report Resolved",
+          description: "The report has been marked as resolved.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: response.message || "Failed to resolve report",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error resolving report:', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while resolving the report",
+        variant: "destructive"
+      });
+    }
   };
 
   const getRoleColor = (role: string) => {
@@ -380,8 +392,12 @@ export default function AdminPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="users">
+      <Tabs defaultValue="phase1">
         <TabsList className="mb-4">
+          <TabsTrigger value="phase1">
+            <Activity className="h-4 w-4 mr-2" />
+            Phase 1 Status
+          </TabsTrigger>
           <TabsTrigger value="users">All Users</TabsTrigger>
           <TabsTrigger value="pending">
             Pending Approval ({pendingUsers.length})
@@ -389,6 +405,10 @@ export default function AdminPage() {
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
         </TabsList>
+        
+        <TabsContent value="phase1">
+          <Phase1Dashboard />
+        </TabsContent>
         
         <TabsContent value="users">
           <Card>

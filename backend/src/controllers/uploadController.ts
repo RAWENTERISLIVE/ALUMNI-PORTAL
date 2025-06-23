@@ -1,0 +1,180 @@
+import { Request, Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { asyncHandler } from '../middleware/errorHandler';
+import { AuthRequest } from '../middleware/auth';
+import File from '../models/File';
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    // Generate unique filename with timestamp
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    const basename = path.basename(file.originalname, extension);
+    cb(null, `${basename}-${uniqueSuffix}${extension}`);
+  }
+});
+
+// File filter to allow specific file types
+const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedTypes = [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain'
+  ];
+
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Unsupported file type'));
+  }
+};
+
+// Configure multer
+export const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  }
+});
+
+// Upload single file
+export const uploadFile = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.file) {
+    res.status(400).json({
+      success: false,
+      message: 'No file uploaded'
+    });
+    return;
+  }
+
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+    return;
+  }
+
+  const fileUrl = `/api/uploads/${req.file.filename}`;
+  
+  // Save file metadata to database
+  const fileRecord = new File({
+    filename: req.file.filename,
+    originalName: req.file.originalname,
+    mimetype: req.file.mimetype,
+    size: req.file.size,
+    path: req.file.path,
+    url: fileUrl,
+    uploadedBy: req.user._id || req.user.id
+  });
+
+  await fileRecord.save();
+  
+  res.json({
+    success: true,
+    message: 'File uploaded successfully',
+    data: {
+      id: fileRecord._id,
+      url: fileUrl,
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    }
+  });
+});
+
+// Upload multiple files
+export const uploadMultipleFiles = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const files = req.files as Express.Multer.File[];
+  
+  if (!files || files.length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'No files uploaded'
+    });
+    return;
+  }
+
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+    return;
+  }
+
+  const uploadedFiles = [];
+
+  for (const file of files) {
+    const fileUrl = `/api/uploads/${file.filename}`;
+    
+    // Save file metadata to database
+    const fileRecord = new File({
+      filename: file.filename,
+      originalName: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path,
+      url: fileUrl,
+      uploadedBy: req.user._id || req.user.id
+    });
+
+    await fileRecord.save();
+
+    uploadedFiles.push({
+      id: fileRecord._id,
+      url: fileUrl,
+      filename: file.filename,
+      originalName: file.originalname,
+      size: file.size,
+      mimetype: file.mimetype
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Files uploaded successfully',
+    data: uploadedFiles
+  });
+});
+
+// Serve uploaded files
+export const serveFile = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { filename } = req.params;
+  
+  if (!filename) {
+    res.status(400).json({
+      success: false,
+      message: 'Filename is required'
+    });
+    return;
+  }
+
+  const filePath = path.join(__dirname, '../../uploads', filename);
+
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({
+      success: false,
+      message: 'File not found'
+    });
+    return;
+  }
+
+  res.sendFile(filePath);
+});

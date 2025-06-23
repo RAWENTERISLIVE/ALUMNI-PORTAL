@@ -1,0 +1,2 @@
+Take reference from Roadmap.md & UI.md and search codebase in detailed that what things are current fulfilled , what things are needed to start and what are in progress like post feature was in progress.
+Give me a full trackrecord in markdown format that i will keep in tracker.md to maintain record and work fast.

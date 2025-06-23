@@ -1,257 +1,190 @@
 # 🎓 Alma Connect Sphere
 
-**Professional Alumni Network Platform**
+**Alumni–Student–Faculty Collaboration Portal**  
+A secure, modular platform for students, alumni, and faculty to network, share resources, and mentor one another.
 
-Welcome to Alma Connect Sphere - the premier platform connecting alumni worldwide. A comprehensive networking solution built with modern web technologies for educational institutions and their graduates.
+![Version](https://img.shields.io/badge/version-3.1-blue.svg)  
+![Status](https://img.shields.io/badge/status-in%20development-yellow.svg)  
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-![Version](https://img.shields.io/badge/version-2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-production--ready-green.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+---
 
-## ✨ Features
+## ✨ Core Features
 
-### 🔐 Authentication & Security
-- **Secure Login/Registration** with JWT tokens
-- **Role-based Access Control** (User/Admin/Super Admin)
-- **Admission Number Verification** for authentic alumni
-- **Admin Approval Workflow** for new registrations
+- **Authentication & Security**  
+  - JWT-based login (1 h access / 7 d refresh)  
+  - Role-based access (`student`, `alumni`, `faculty`, `admin`, `super_admin`)  
+  - Admission-number verification + admin approval  
+  - Two-Factor Authentication (TOTP)  
+  - Rate-limiting & CAPTCHA on auth endpoints  
 
-### 👥 Alumni Directory
-- **Advanced Search & Filtering** by name, company, location, skills
-- **Professional Profiles** with career information
-- **LinkedIn Integration** for enhanced networking
-- **Contact Management** with privacy controls
+- **Profiles & Connections**  
+  - Rich user profiles (photo, bio, skills, “Open to Mentor”)  
+  - Privacy controls per section (public/alumni/connections)  
+  - Send/accept connection requests → “Connections-Only” feed  
 
-### 💬 Groups & Messaging
-- **Public & Private Groups** with secure messaging
-- **Real-time Discussions** for community engagement
-- **Privacy Controls** - members-only access to private groups
-- **Group Discovery** with intelligent recommendations
+- **Social Feed & Posts**  
+  - Rich-media posts (text, images, PDFs ≤ 50 MB)  
+  - Audience selector: Public ∣ Alumni ∣ Students ∣ Connections ∣ Groups  
+  - Reactions & nested comments with real-time updates  
+  - Flag & report content → admin moderation queue  
 
-### 💼 Job Board
-- **Job Posting & Browsing** by alumni and recruiters
-- **Advanced Filtering** by type, location, salary, company
-- **Application Tracking** system
-- **Save Jobs** for later review
-- **Skills & Salary Tags** for better matching
+- **Groups & Events**  
+  - Public/private groups by interest or class year  
+  - Join/leave workflows with group-admin approval  
+  - Group feed + events calendar  
+  - Category-color themes and custom icons  
 
-### 🎯 Mentorship Hub
-- **Mentor Profiles** with expertise areas
-- **Mentorship Requests** system
-- **"Become a Mentor"** application workflow
-- **Expertise-based Search** for finding the right mentor
+- **Job Board**  
+  - Post & browse listings (title, company, location, type, deadline)  
+  - Filters by keyword, location, category, alumni-employer  
+  - Apply (resume upload) & save jobs  
+  - Admin review queue  
 
-### 📱 Responsive Design
-- **Mobile-First Approach** with touch-friendly interfaces
-- **Cross-platform Compatibility** (Desktop, Tablet, Mobile)
-- **Professional UI/UX** with modern design patterns
-- **Accessibility Features** for inclusive usage
+- **Mentorship Hub**  
+  - Mentor directory (expertise, industry, location)  
+  - Request/accept workflow → private chat + scheduler  
+  - Calendar integration (Google/Outlook)  
+  - Session feedback & rating  
+
+- **File Storage (Local Server)**  
+  - **Multer** + disk-storage strategy → `/uploads/` directory on host  
+  - Automatic directory creation at startup  
+  - Secure filename sanitization and file-type validation  
+  - Dev vs. Prod config (environment variable: `UPLOADS_DIR`)  
+  - Cleanup scripts for orphaned files  
+
+- **Settings & Notifications**  
+  - Account: email, password, 2FA, data export/deletion  
+  - Notification prefs: email/push for likes, comments, jobs, mentions  
+  - Digest emails: daily/weekly activity summaries  
+
+- **Admin & Analytics**  
+  - User management: approve, suspend, delete, role assignment  
+  - Content moderation: flagged posts/groups/jobs  
+  - Site config: feature toggles, branding, email templates  
+  - Audit logs & analytics dashboard (DAU, sign-ups, posts, job apps)
+
+---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js (v16 or higher)
-- MongoDB (v4.4 or higher)
-- npm or yarn
+- Node.js ≥ 16  
+- MongoDB ≥ 4.4  
+- npm 
 
 ### Installation
 
-1. **Clone the repository**
-```bash
-git clone https://github.com/your-org/alma-connect-sphere.git
-cd alma-connect-sphere
-```
+1. **Clone repository**  
+   ```bash
+   git clone https://github.com/your-org/alma-connect-sphere.git
+   cd alma-connect-sphere
+````
 
-2. **Install frontend dependencies**
-```bash
-npm install
-```
+2. **Install dependencies**
 
-3. **Install backend dependencies**
-```bash
-cd backend
-npm install
-cd ..
-```
+   ```bash
+   npm install
+   cd backend && npm install
+   cd ../frontend && npm install
+   cd ..
+   ```
 
-4. **Environment Setup**
-Create `.env` files for both frontend and backend:
+3. **Configure environment**
 
-**Frontend (.env)**
-```env
-VITE_API_URL=http://localhost:5000/api
-```
+   * **backend/.env**
 
-**Backend (.env)**
-```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/alma_connect
-JWT_SECRET=your-super-secure-jwt-secret-key
-JWT_REFRESH_SECRET=your-super-secure-refresh-secret-key
-JWT_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-NODE_ENV=development
-```
+     ```env
+     PORT=5000
+     MONGODB_URI=your-mongo-url
+     JWT_SECRET=your-jwt-secret
+     JWT_REFRESH_SECRET=your-refresh-secret
+     UPLOADS_DIR=./uploads
+     NODE_ENV=development
+     ```
+   * **frontend/.env**
 
-5. **Start the application**
+     ```env
+     VITE_API_URL=http://localhost:5000/api
+     ```
 
-**Development Mode (Both Frontend & Backend)**
-```bash
-npm run dev:full
-```
+4. **Prepare uploads directory**
 
-**Or start separately:**
+   ```bash
+   mkdir -p ./backend/uploads
+   ```
 
-**Frontend**
-```bash
-npm run dev
-```
+5. **Run in development**
 
-**Backend**
-```bash
-cd backend && npm start
-```
+   ```bash
+   npm run dev:full
+   ```
 
-6. **Access the application**
-- Frontend: http://localhost:8082
-- Backend API: http://localhost:5000
+   * Frontend → [http://localhost:8080](http://localhost:8080)
+   * Backend API → [http://localhost:5000/api](http://localhost:5000/api)
+
+---
 
 ## 🛠️ Technology Stack
 
-### Frontend
-- **React 18** - Modern React with hooks
-- **TypeScript** - Type-safe development
-- **Vite** - Fast build tool and dev server
-- **Tailwind CSS** - Utility-first CSS framework
-- **shadcn/ui** - Beautiful UI components
-- **React Router** - Client-side routing
-- **Lucide React** - Beautiful icons
+| Layer      | Technology                               |
+| ---------- | ---------------------------------------- |
+| Frontend   | React 18, TypeScript, Vite, Tailwind CSS |
+| Backend    | Node.js, Express.js, TypeScript, MongoDB |
+| File Store | Multer (diskStorage)                     |
+| Auth       | JWT, bcryptjs, TOTP (speakeasy)          |
+| Validation | express-validator                        |
+| DevOps     | Docker, GitHub Actions, ESLint, Prettier |
 
-### Backend
-- **Node.js** - JavaScript runtime
-- **Express.js** - Web application framework
-- **MongoDB** - NoSQL database
-- **Mongoose** - MongoDB object modeling
-- **JWT** - JSON Web Tokens for authentication
-- **bcryptjs** - Password hashing
-- **Express Validator** - Input validation
+---
 
-## 🔧 Development
+## 🔧 Scripts
 
-### Available Scripts
-
-**Frontend**
 ```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run preview      # Preview production build
-npm run lint         # Run ESLint
-```
-
-**Backend**
-```bash
-npm start            # Start server
-npm run dev          # Start with nodemon
-npm run build        # Build TypeScript
-```
-
-**Full Application**
-```bash
-npm run dev:full     # Start both frontend and backend
-```
-
-### Code Quality
-
-The project includes:
-- **TypeScript** for type safety
-- **ESLint** for code linting
-- **Prettier** for code formatting
-- **Husky** for git hooks (optional)
-
-## 🚀 Deployment
-
-### Build for Production
-
-1. **Build frontend**
-```bash
-npm run build
-```
-
-2. **Build backend**
-```bash
-cd backend && npm run build
-```
-
-### Environment Variables
-
-Set these environment variables for production:
-
-```env
-# Backend
-NODE_ENV=production
-PORT=5000
-MONGODB_URI=mongodb://your-mongodb-uri
-JWT_SECRET=your-production-jwt-secret
-JWT_REFRESH_SECRET=your-production-refresh-secret
+# Start both services
+npm run dev:full
 
 # Frontend
-VITE_API_URL=https://your-api-domain.com/api
+npm run dev       # Vite
+npm run build     # Production build
+
+# Backend
+cd backend
+npm run dev       # nodemon
+npm run build     # Compile TS
+npm start         # Production server
 ```
 
-### Docker Support (Optional)
+---
 
-```dockerfile
-# Dockerfile example for backend
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-EXPOSE 5000
-CMD ["npm", "start"]
-```
+## 📦 Deployment
+
+1. **Build**
+
+   ```bash
+   cd frontend && npm run build
+   cd ../backend && npm run build
+   ```
+2. **Configure** production `.env` (point `UPLOADS_DIR` to persistent storage)
+3. **Start** via PM2, Docker, or your host’s process manager
+4. **Serve** static `/uploads` folder (e.g. with Nginx) under `/media/` endpoint
+
+---
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. Fork & clone
+2. Create branch (`feature/…`)
+3. Commit & push
+4. Open PR
+5. Ensure tests pass & docs updated
 
-### Development Guidelines
-- Write TypeScript with proper types
-- Follow the existing code style
-- Add appropriate comments
-- Test your changes thoroughly
-- Update documentation as needed
-
-### Getting Help
-- Check the [Documentation](./docs/)
-- Review [Issues](https://github.com/your-org/alma-connect-sphere/issues)
-- Contact the development team
-
-### Common Issues
-
-**Database Connection Error**
-```bash
-# Ensure MongoDB is running
-mongod --version
-```
-
-**Port Already in Use**
-```bash
-# Kill process on port 5000
-lsof -ti:5000 | xargs kill
-```
-
-**Build Errors**
-```bash
-# Clear node_modules and reinstall
-rm -rf node_modules package-lock.json
-npm install
-```
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT © Your Organization
+
+```
+```

@@ -1,28 +1,29 @@
 import { useState } from 'react';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { formatDistanceToNow } from 'date-fns';
+import { 
+  Heart, 
+  MessageCircle, 
+  Share2, 
+  Bookmark, 
+  MoreHorizontal,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
+  Paperclip
+} from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Edit, Trash2, Star } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
-import apiService from '@/services/apiService';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
+import apiService from '@/services/apiService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface PostCardProps {
   post: {
@@ -30,303 +31,391 @@ interface PostCardProps {
     title?: string;
     content: string;
     author: {
-      id?: string;
+      id: string;
       name: string;
-      email?: string;
       profileImage?: string;
+      role?: string;
+      classYear?: number;
     };
-    category?: string;
-    imageUrl?: string;
-    isFeatured: boolean;
-    isSchoolUpdate: boolean;
-    likes: string[];
-    visibility: 'public' | 'alumni_only' | 'private';
+    category: string;
+    visibility: string;
     tags?: string[];
+    attachments?: Array<{
+      type: 'image' | 'document';
+      url: string;
+      name: string;
+      size: number;
+    }>;
+    externalLinks?: string[];
+    reactions?: Array<{
+      userId: string;
+      type: string;
+    }>;
+    bookmarks?: string[];
+    commentCount?: number;
+    shareCount?: number;
+    isLiked?: boolean;
+    isBookmarked?: boolean;
     createdAt: string;
-    updatedAt?: string;
+    updatedAt: string;
   };
-  onPostUpdated?: (post: any) => void;
-  onPostDeleted?: (postId: string) => void;
+  onPostUpdate?: (updatedPost: any) => void;
+  onPostDelete?: (postId: string) => void;
 }
 
-export function PostCard({ post, onPostUpdated, onPostDeleted }: PostCardProps) {
-  const { currentUser } = useAuth();
-  const { toast } = useToast();
+export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
   const [isLiking, setIsLiking] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isToggleFeature, setIsToggleFeature] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
+  const [showFullContent, setShowFullContent] = useState(false);
+  const { toast } = useToast();
+  const { currentUser } = useAuth();
 
-  const isAuthor = currentUser?.id === post.author?.id;
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
-  const isLiked = currentUser?.id ? post.likes.includes(currentUser.id) : false;
-  const likesCount = post.likes.length;
+  const isAuthor = currentUser?.id === post.author.id;
+  const likeCount = post.reactions?.filter(r => r.type === 'like').length || 0;
+  const bookmarkCount = post.bookmarks?.length || 0;
 
   const handleLike = async () => {
+    if (isLiking) return;
+    
+    setIsLiking(true);
     try {
-      setIsLiking(true);
-      const response = await apiService.likePost(post.id);
-      if (response.success && onPostUpdated) {
-        onPostUpdated((response as any).post);
+      const response = await apiService.likePost(post.id, 'like');
+      if (response.success && response.post) {
+        onPostUpdate?.(response.post);
+        toast({
+          title: post.isLiked ? "Post unliked" : "Post liked",
+          description: "Your reaction has been updated.",
+        });
       }
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to like post',
-        variant: 'destructive',
+        title: "Error",
+        description: error.message || "Failed to update reaction",
+        variant: "destructive",
       });
     } finally {
       setIsLiking(false);
     }
   };
 
-  const handleDelete = async () => {
+  const handleBookmark = async () => {
+    if (isBookmarking) return;
+    
+    setIsBookmarking(true);
     try {
-      setIsDeleting(true);
-      const response = await apiService.deletePost(post.id);
+      const response = await apiService.bookmarkPost(post.id, !post.isBookmarked);
       if (response.success) {
+        // Update the post locally
+        const updatedPost = {
+          ...post,
+          isBookmarked: !post.isBookmarked,
+          bookmarks: post.isBookmarked 
+            ? post.bookmarks?.filter(id => id !== currentUser?.id) 
+            : [...(post.bookmarks || []), currentUser?.id]
+        };
+        onPostUpdate?.(updatedPost);
+        
         toast({
-          title: 'Post deleted',
-          description: 'Your post has been deleted successfully.',
+          title: post.isBookmarked ? "Bookmark removed" : "Post bookmarked",
+          description: post.isBookmarked ? "Post removed from bookmarks" : "Post saved to bookmarks",
         });
-        if (onPostDeleted) {
-          onPostDeleted(post.id);
-        }
       }
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to delete post',
-        variant: 'destructive',
+        title: "Error",
+        description: error.message || "Failed to update bookmark",
+        variant: "destructive",
       });
     } finally {
-      setIsDeleting(false);
+      setIsBookmarking(false);
     }
   };
 
-  const handleToggleFeature = async () => {
+  const handleShare = async () => {
     try {
-      setIsToggleFeature(true);
-      const response = await apiService.toggleFeaturePost(post.id);
-      if (response.success && onPostUpdated) {
-        onPostUpdated((response as any).post);
+      if (navigator.share) {
+        await navigator.share({
+          title: post.title || 'Check out this post',
+          text: post.content.substring(0, 100) + '...',
+          url: window.location.href,
+        });
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
         toast({
-          title: post.isFeatured ? 'Post unfeatured' : 'Post featured',
-          description: `Post has been ${post.isFeatured ? 'unfeatured' : 'featured'} successfully.`,
+          title: "Link copied",
+          description: "Post link has been copied to clipboard.",
         });
       }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to toggle feature status',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsToggleFeature(false);
+    } catch (error) {
+      console.error('Error sharing:', error);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!isAuthor) return;
+    
+    if (confirm('Are you sure you want to delete this post?')) {
+      try {
+        const response = await apiService.deletePost(post.id);
+        if (response.success) {
+          onPostDelete?.(post.id);
+          toast({
+            title: "Post deleted",
+            description: "Your post has been deleted successfully.",
+          });
+        }
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to delete post",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getFileIcon = (type: string) => {
+    return type === 'image' ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />;
   };
 
   const getCategoryColor = (category: string) => {
     const colors = {
-      general: 'bg-gray-100 text-gray-800',
-      career: 'bg-blue-100 text-blue-800',
-      networking: 'bg-green-100 text-green-800',
-      events: 'bg-purple-100 text-purple-800',
-      achievements: 'bg-yellow-100 text-yellow-800',
-      announcements: 'bg-red-100 text-red-800',
+      general: 'bg-slate-100 text-slate-800 border-slate-200',
+      career: 'bg-blue-100 text-blue-800 border-blue-200',
+      networking: 'bg-green-100 text-green-800 border-green-200',
+      events: 'bg-purple-100 text-purple-800 border-purple-200',
+      achievements: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      announcements: 'bg-red-100 text-red-800 border-red-200'
     };
     return colors[category as keyof typeof colors] || colors.general;
   };
 
-  const getVisibilityIcon = (visibility: string) => {
-    switch (visibility) {
-      case 'public':
-        return '🌐';
-      case 'alumni_only':
-        return '🎓';
-      case 'private':
-        return '🔒';
-      default:
-        return '🎓';
-    }
-  };
-
-  // Get author info safely
-  const authorName = post.author?.name || 'Anonymous User';
-  const authorProfileImage = post.author?.profileImage || '';
-  const authorInitials = authorName.split(' ').map(n => n[0]).join('').toUpperCase() || 'AU';
+  const shouldTruncateContent = post.content.length > 300;
+  const displayContent = shouldTruncateContent && !showFullContent 
+    ? post.content.substring(0, 300) + '...' 
+    : post.content;
 
   return (
-    <Card className="w-full bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
+    <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-200">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-3">
-            <Avatar className="h-10 w-10 border-2 border-orange-100 ring-1 ring-gray-200">
-              <AvatarImage src={authorProfileImage} />
-              <AvatarFallback className="bg-orange-100 text-orange-800 font-medium">
-                {authorInitials}
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={post.author.profileImage} />
+              <AvatarFallback className="bg-blue-100 text-blue-700 font-medium">
+                {post.author.name.charAt(0)}
               </AvatarFallback>
             </Avatar>
-            <div>
+            <div className="flex-1">
               <div className="flex items-center gap-2">
-                <p className="font-semibold text-gray-900">{authorName}</p>
-                {post.isFeatured && (
-                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 font-medium">
-                    <Star className="h-3 w-3 mr-1" />
-                    Featured
+                <h4 className="font-semibold text-slate-900">{post.author.name}</h4>
+                {post.author.role && (
+                  <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-600">
+                    {post.author.role}
                   </Badge>
                 )}
-                {post.isSchoolUpdate && (
-                  <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 font-medium">
-                    School Update
+                {post.author.classYear && (
+                  <Badge variant="outline" className="text-xs border-slate-300 text-slate-600">
+                    Class of {post.author.classYear}
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                <span className="text-gray-400">{getVisibilityIcon(post.visibility)}</span>
-                {post.category && (
-                  <Badge className={getCategoryColor(post.category)} variant="secondary">
-                    {post.category}
-                  </Badge>
-                )}
+              <div className="flex items-center gap-2 mt-1">
+                <Badge className={`text-xs font-medium border ${getCategoryColor(post.category)}`}>
+                  {post.category.charAt(0).toUpperCase() + post.category.slice(1)}
+                </Badge>
+                <span className="text-sm text-slate-500">
+                  {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                </span>
               </div>
             </div>
           </div>
           
-          {(isAuthor || isAdmin) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="border border-gray-200 rounded-lg shadow-lg">
-                {isAuthor && (
-                  <DropdownMenuItem className="cursor-pointer hover:bg-gray-50 transition-colors">
-                    <Edit className="h-4 w-4 mr-2 text-gray-500" />
-                    <span className="text-sm">Edit</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-700">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-white border-slate-200">
+              {isAuthor && (
+                <>
+                  <DropdownMenuItem className="text-slate-700 hover:bg-slate-50">
+                    Edit Post
                   </DropdownMenuItem>
-                )}
-                {isAdmin && (
                   <DropdownMenuItem 
-                    onClick={handleToggleFeature} 
-                    disabled={isToggleFeature}
-                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={handleDelete}
+                    className="text-red-600 hover:bg-red-50"
                   >
-                    <Star className="h-4 w-4 mr-2 text-amber-500" />
-                    <span className="text-sm">{post.isFeatured ? 'Unfeature' : 'Feature'}</span>
+                    Delete Post
                   </DropdownMenuItem>
-                )}
-                {(isAuthor || isAdmin) && (
-                  <DropdownMenuItem 
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="cursor-pointer hover:bg-gray-50 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2 text-red-500" />
-                    <span className="text-sm">Delete</span>
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                </>
+              )}
+              <DropdownMenuItem className="text-slate-700 hover:bg-slate-50">
+                Report Post
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
-
+      
       <CardContent className="pt-0">
+        {/* Title */}
         {post.title && (
-          <h3 className="font-bold text-lg text-gray-900 mb-2">{post.title}</h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-3">{post.title}</h3>
         )}
-        <p className="text-gray-700 leading-relaxed mb-3 whitespace-pre-wrap">{post.content}</p>
         
-        {post.imageUrl && (
-          <div className="mt-3 rounded-lg overflow-hidden">
-            <img
-              src={post.imageUrl}
-              alt="Post image"
-              className="w-full h-auto object-cover rounded-lg"
-              loading="lazy"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          </div>
-        )}
-
+        {/* Content */}
+        <div className="prose prose-sm max-w-none text-slate-700 mb-4">
+          <p className="whitespace-pre-wrap leading-relaxed">{displayContent}</p>
+          {shouldTruncateContent && (
+            <button
+              onClick={() => setShowFullContent(!showFullContent)}
+              className="text-blue-600 hover:text-blue-700 font-medium text-sm mt-2"
+            >
+              {showFullContent ? 'Show less' : 'Show more'}
+            </button>
+          )}
+        </div>
+        
+        {/* Tags */}
         {post.tags && post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-3">
+          <div className="flex flex-wrap gap-2 mb-4">
             {post.tags.map((tag, index) => (
               <Badge 
                 key={index} 
-                variant="outline" 
-                className="text-xs bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
+                variant="secondary" 
+                className="text-xs bg-blue-50 text-blue-700 border-blue-200"
               >
                 #{tag}
               </Badge>
             ))}
           </div>
         )}
-      </CardContent>
-
-      <CardFooter className="pt-0 border-t border-gray-100">
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center space-x-4">
+        
+        {/* Attachments */}
+        {post.attachments && post.attachments.length > 0 && (
+          <div className="space-y-2 mb-4">
+            <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+              <Paperclip className="h-4 w-4" />
+              Attachments ({post.attachments.length})
+            </h4>
+            <div className="grid gap-2">
+              {post.attachments.map((attachment, index) => (
+                <div 
+                  key={index} 
+                  className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
+                >
+                  <div className="flex items-center gap-3">
+                    {getFileIcon(attachment.type)}
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{attachment.name}</p>
+                      <p className="text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  >
+                    <a href={attachment.url} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* External Links */}
+        {post.externalLinks && post.externalLinks.length > 0 && (
+          <div className="space-y-2 mb-4">
+            <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+              <ExternalLink className="h-4 w-4" />
+              Links ({post.externalLinks.length})
+            </h4>
+            <div className="space-y-2">
+              {post.externalLinks.map((link, index) => (
+                <a
+                  key={index}
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                  <span className="text-sm text-blue-600 hover:text-blue-700 truncate">
+                    {link}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+          <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleLike}
               disabled={isLiking}
-              className={`flex items-center space-x-1 rounded-full transition-colors ${
-                isLiked ? 'text-red-500 hover:bg-red-50' : 'text-gray-500 hover:bg-gray-100'
-              }`}
+              className={`gap-2 ${
+                post.isLiked 
+                  ? 'text-red-600 hover:text-red-700' 
+                  : 'text-slate-600 hover:text-slate-700'
+              } hover:bg-slate-50`}
             >
-              <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
-              <span className="font-medium">{likesCount}</span>
+              <Heart className={`h-4 w-4 ${post.isLiked ? 'fill-current' : ''}`} />
+              {likeCount > 0 && <span className="text-sm">{likeCount}</span>}
             </Button>
             
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="flex items-center space-x-1 text-gray-500 rounded-full hover:bg-gray-100 transition-colors"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-slate-600 hover:text-slate-700 hover:bg-slate-50"
             >
               <MessageCircle className="h-4 w-4" />
-              <span className="font-medium">0</span>
+              {post.commentCount > 0 && <span className="text-sm">{post.commentCount}</span>}
             </Button>
             
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="flex items-center space-x-1 text-gray-500 rounded-full hover:bg-gray-100 transition-colors"
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleShare}
+              className="gap-2 text-slate-600 hover:text-slate-700 hover:bg-slate-50"
             >
               <Share2 className="h-4 w-4" />
+              {post.shareCount > 0 && <span className="text-sm">{post.shareCount}</span>}
             </Button>
           </div>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleBookmark}
+            disabled={isBookmarking}
+            className={`gap-2 ${
+              post.isBookmarked 
+                ? 'text-blue-600 hover:text-blue-700' 
+                : 'text-slate-600 hover:text-slate-700'
+            } hover:bg-slate-50`}
+          >
+            <Bookmark className={`h-4 w-4 ${post.isBookmarked ? 'fill-current' : ''}`} />
+          </Button>
         </div>
-      </CardFooter>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="rounded-xl border border-gray-200 shadow-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-gray-900">Delete Post</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-600">
-              Are you sure you want to delete this post? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 transition-colors rounded-lg">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="bg-red-600 text-white hover:bg-red-700 transform hover:scale-105 transition-all duration-300 rounded-lg"
-            >
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      </CardContent>
     </Card>
   );
 }

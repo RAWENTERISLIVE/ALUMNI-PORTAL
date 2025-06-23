@@ -11,20 +11,52 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
-      res.status(401).json({ message: 'No token, authorization denied' });
+      res.status(401).json({ 
+        success: false,
+        message: 'No token, authorization denied',
+        code: 'NO_TOKEN'
+      });
       return;
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { userId: string };
-    const user = await User.findById(decoded.userId).select('-password');
+    const user = await User.findById(decoded.userId)
+      .select('-password -refreshTokens -passwordResetToken -emailVerificationToken');
 
     if (!user) {
-      res.status(401).json({ message: 'Token is not valid' });
+      res.status(401).json({ 
+        success: false,
+        message: 'Token is not valid - user not found',
+        code: 'INVALID_TOKEN'
+      });
       return;
     }
 
-    if (user.status === 'suspended' || user.status === 'deleted') {
-      res.status(403).json({ message: 'Account suspended or deleted' });
+    // Enhanced status checks for Phase 1
+    if (user.status === 'suspended') {
+      res.status(403).json({ 
+        success: false,
+        message: 'Account has been suspended. Please contact administrator.',
+        code: 'ACCOUNT_SUSPENDED'
+      });
+      return;
+    }
+
+    if (user.status === 'deleted') {
+      res.status(403).json({ 
+        success: false,
+        message: 'Account no longer exists',
+        code: 'ACCOUNT_DELETED'
+      });
+      return;
+    }
+
+    if (user.status === 'pending') {
+      res.status(403).json({ 
+        success: false,
+        message: 'Account is pending approval',
+        code: 'ACCOUNT_PENDING'
+      });
       return;
     }
 
@@ -32,7 +64,30 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
-    res.status(401).json({ message: 'Token is not valid' });
+    
+    if (error instanceof jwt.TokenExpiredError) {
+      res.status(401).json({ 
+        success: false,
+        message: 'Token has expired',
+        code: 'TOKEN_EXPIRED'
+      });
+      return;
+    }
+
+    if (error instanceof jwt.JsonWebTokenError) {
+      res.status(401).json({ 
+        success: false,
+        message: 'Invalid token format',
+        code: 'INVALID_TOKEN_FORMAT'
+      });
+      return;
+    }
+
+    res.status(401).json({ 
+      success: false,
+      message: 'Token is not valid',
+      code: 'TOKEN_INVALID'
+    });
   }
 };
 
