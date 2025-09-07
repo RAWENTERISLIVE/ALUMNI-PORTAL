@@ -147,7 +147,7 @@ export const updateApplicationStatus = asyncHandler(async (req: AuthRequest, res
   }
 
   // Check if user posted this job
-  const job = application.job as IJob;
+  const job = application.job as unknown as IJob;
   if (job.postedBy.toString() !== userId) {
     return res.status(403).json({ success: false, message: 'Not authorized to update this application' });
   }

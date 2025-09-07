@@ -23,6 +23,13 @@ export interface IGroup extends Document {
   lastActivity: Date;
   createdAt: Date;
   updatedAt: Date;
+  
+  // Method signatures
+  addMember(userId: Types.ObjectId): Promise<IGroup>;
+  removeMember(userId: Types.ObjectId): Promise<IGroup>;
+  addAdmin(userId: Types.ObjectId): Promise<IGroup>;
+  isAdmin(userId: Types.ObjectId): boolean;
+  isMember(userId: Types.ObjectId): boolean;
 }
 
 const GroupSchema: Schema = new Schema<IGroup>({
