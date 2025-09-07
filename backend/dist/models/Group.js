@@ -31,12 +31,31 @@ const GroupSchema = new mongoose_1.Schema({
         enum: Object.values(GroupPrivacy),
         default: GroupPrivacy.PUBLIC,
     },
+    category: {
+        type: String,
+        default: 'professional',
+    },
+    lastActivity: {
+        type: Date,
+        default: Date.now
+    }
 }, {
     timestamps: true,
 });
+GroupSchema.virtual('totalMembers').get(function () {
+    return this.members ? this.members.length : 0;
+});
+GroupSchema.set('toJSON', {
+    virtuals: true
+});
+GroupSchema.set('toObject', {
+    virtuals: true
+});
 GroupSchema.pre('save', function (next) {
-    this.memberCount = this.members.length;
     this.lastActivity = new Date();
+    if (this.creator && !this.members.includes(this.creator)) {
+        this.members.push(this.creator);
+    }
     next();
 });
 exports.default = (0, mongoose_1.model)('Group', GroupSchema);

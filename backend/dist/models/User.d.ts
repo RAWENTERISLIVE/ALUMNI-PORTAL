@@ -13,10 +13,12 @@ export declare enum UserStatus {
 export interface IUser extends Document {
     _id: string;
     email: string;
-    password: string;
+    password?: string;
     name: string;
+    firstName?: string;
+    lastName?: string;
     admissionNumber: string;
-    graduationYear: string;
+    admissionYear: string;
     role: UserRole;
     status: UserStatus;
     isVerified: boolean;
@@ -31,12 +33,34 @@ export interface IUser extends Document {
     company?: string;
     jobTitle?: string;
     isAvailableAsMentor: boolean;
+    connections?: mongoose.Types.ObjectId[];
+    location?: string;
     lastLogin?: Date;
     refreshTokens: string[];
     passwordResetToken?: string | null;
     passwordResetExpires?: Date | null;
     emailVerificationToken?: string;
     emailVerificationExpires?: Date;
+    needsManualVerification: boolean;
+    verificationDetails?: string;
+    notificationSettings?: {
+        emailMessages?: boolean;
+        emailJobs?: boolean;
+        emailEvents?: boolean;
+        emailGroups?: boolean;
+        pushMessages?: boolean;
+        pushJobs?: boolean;
+        pushEvents?: boolean;
+        pushGroups?: boolean;
+    };
+    privacySettings?: {
+        profileVisibility?: 'public' | 'alumni' | 'connections';
+        showEmail?: boolean;
+        showPhone?: boolean;
+        allowMessaging?: boolean;
+        allowConnection?: boolean;
+        allowProfileSearch?: boolean;
+    };
     createdAt: Date;
     updatedAt: Date;
     comparePassword(candidatePassword: string): Promise<boolean>;

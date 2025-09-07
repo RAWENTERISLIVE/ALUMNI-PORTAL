@@ -1,7 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Controller handles dynamic request/response data - any types acceptable here
+
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import User, { UserStatus } from '../models/User';
-import Post from '../models/PostNew';
+import Post from '../models/Post';
 import Job from '../models/Job';
 
 /**
@@ -78,7 +81,7 @@ export const getSystemStatus = asyncHandler(async (_req: Request, res: Response)
 
     // Environment info
     const environment = {
-      nodeEnv: process.env.NODE_ENV || 'development',
+      nodeEnv: process.env.NODE_ENV ?? 'development',
       uploadsEnabled: !!process.env.UPLOADS_DIR,
       dbConnected: true, // If we reach here, DB is connected
       version: '3.1-phase1'

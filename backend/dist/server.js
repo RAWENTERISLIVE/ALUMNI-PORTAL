@@ -8,23 +8,44 @@ const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const database_1 = require("./config/database");
 const errorHandler_1 = require("./middleware/errorHandler");
-const auth_1 = require("./middleware/auth");
+require("./middleware/auth");
 const User_1 = __importDefault(require("./models/User"));
-const auth_2 = __importDefault(require("./routes/auth"));
+const auth_1 = __importDefault(require("./routes/auth"));
 const users_1 = __importDefault(require("./routes/users"));
 const posts_1 = __importDefault(require("./routes/posts"));
 const jobs_1 = __importDefault(require("./routes/jobs"));
 const events_1 = __importDefault(require("./routes/events"));
 const groups_1 = __importDefault(require("./routes/groups"));
 const mentorship_1 = __importDefault(require("./routes/mentorship"));
+const connections_1 = __importDefault(require("./routes/connections"));
+const comments_1 = __importDefault(require("./routes/comments"));
+const uploads_1 = __importDefault(require("./routes/uploads"));
+const reports_1 = __importDefault(require("./routes/reports"));
+const status_1 = __importDefault(require("./routes/status"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT ?? '5000', 10);
+const uploadsDir = path_1.default.join(__dirname, '../uploads');
+if (!fs_1.default.existsSync(uploadsDir)) {
+    fs_1.default.mkdirSync(uploadsDir, { recursive: true });
+    console.log('📁 Created uploads directory:', uploadsDir);
+}
 const initializeApp = async () => {
-    await (0, database_1.connectDB)();
-    await User_1.default.createSuperAdmins();
+    try {
+        console.log('🚀 Starting Alma Connect Sphere Backend...');
+        console.log('📋 Phase 1: Core Authentication & Security + Profiles');
+        await (0, database_1.connectDB)();
+        await User_1.default.createSuperAdmins();
+        console.log('✅ Application initialized successfully');
+    }
+    catch (error) {
+        console.error('❌ Failed to initialize application:', error);
+        process.exit(1);
+    }
 };
 initializeApp();
 app.use((0, helmet_1.default)());
@@ -39,26 +60,72 @@ const limiter = (0, express_rate_limit_1.default)({
     max: 100
 });
 app.use(limiter);
-app.use(express_1.default.json({ limit: '10mb' }));
+app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
-app.use('/api/auth', auth_2.default);
-app.use('/api/users', auth_1.authMiddleware, users_1.default);
+app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../uploads')));
+app.use('/api/status', status_1.default);
+app.use('/api/auth', auth_1.default);
+app.use('/api/users', users_1.default);
 app.use('/api/posts', posts_1.default);
 app.use('/api/jobs', jobs_1.default);
-app.use('/api/events', auth_1.authMiddleware, events_1.default);
-app.use('/api/groups', auth_1.authMiddleware, groups_1.default);
-app.use('/api/mentorship', auth_1.authMiddleware, mentorship_1.default);
+app.use('/api/events', events_1.default);
+app.use('/api/groups', groups_1.default);
+app.use('/api/mentorship', mentorship_1.default);
+app.use('/api/connections', connections_1.default);
+app.use('/api', comments_1.default);
+app.use('/api/uploads', uploads_1.default);
+app.use('/api/reports', reports_1.default);
+app.use('/api/status', status_1.default);
+app.use(errorHandler_1.errorHandler);
+app.get('/api', (_req, res) => {
+    res.send('Alumni Connect API is running');
+});
 app.get('/api/health', (_req, res) => {
     res.status(200).json({
-        status: 'OK',
+        status: 'healthy',
         timestamp: new Date().toISOString(),
-        uptime: process.uptime()
+        environment: process.env.NODE_ENV,
     });
 });
-app.use(errorHandler_1.errorHandler);
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+const startServer = (port) => {
+    try {
+        const server = app.listen(port, () => {
+            console.log(`Server running on port ${port}`);
+            console.log(`Environment: ${process.env.NODE_ENV ?? 'development'}`);
+            console.log(`API base URL: http://localhost:${port}/api`);
+        }).on('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                console.log(`Port ${port} is already in use, trying port ${port + 1}`);
+                startServer(port + 1);
+            }
+            else {
+                console.error('Server error:', err);
+            }
+        });
+        process.on('uncaughtException', (error) => {
+            console.error('Uncaught Exception:', error);
+        });
+        process.on('SIGTERM', () => {
+            console.info('SIGTERM received, shutting down server');
+            server.close(() => {
+                console.log('Server closed');
+                process.exit(0);
+            });
+        });
+    }
+    catch (error) {
+        const err = error;
+        if (err.code === 'EADDRINUSE') {
+            console.log(`Port ${port} is already in use, trying port ${port + 1}`);
+            const newPort = port + 1;
+            startServer(newPort);
+        }
+        else {
+            console.error('Server error:', err);
+            process.exit(1);
+        }
+    }
+};
+startServer(PORT);
 exports.default = app;
 //# sourceMappingURL=server.js.map

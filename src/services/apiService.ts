@@ -1,4 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// API service handles external responses with dynamic structure - any types acceptable here
+
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -24,7 +27,7 @@ export interface ApiResponse<T = any> {
 }
 
 class ApiService {
-  private baseURL: string;
+  private readonly baseURL: string;
   private accessToken: string | null = null;
 
   constructor() {
@@ -35,6 +38,53 @@ class ApiService {
   setAccessToken(token: string) {
     this.accessToken = token;
     localStorage.setItem('accessToken', token);
+  }
+
+  private async parseResponseData(response: Response): Promise<any> {
+    const contentType = response.headers.get('content-type');
+    
+    if (contentType && contentType.indexOf('application/json') !== -1) {
+      try {
+        return await response.json();
+      } catch (e) {
+        console.error('Failed to parse JSON response:', e);
+        throw new Error('Invalid response from server');
+      }
+    }
+    
+    const textData = await response.text();
+    try {
+      return JSON.parse(textData);
+    } catch (e) {
+      console.warn('Failed to parse JSON response:', e);
+      return { success: false, message: textData || 'Unknown server error' };
+    }
+  }
+
+  private async handleUnauthorizedResponse(endpoint: string, options: RequestInit): Promise<any> {
+    if (!this.accessToken) {
+      throw new Error('Session expired. Please login again.');
+    }
+    
+    console.log('Token expired, attempting refresh...');
+    const refreshed = await this.refreshToken();
+    
+    if (refreshed) {
+      return this.request(endpoint, options);
+    }
+    
+    this.handleLogout();
+    throw new Error('Session expired. Please login again.');
+  }
+
+  private handleRequestError(error: any): never {
+    console.error('API Error:', error);
+    
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error('Unable to connect to server. Please check your internet connection and try again.');
+    }
+    
+    throw error;
   }
 
   private async request<T>(
@@ -60,24 +110,7 @@ class ApiService {
       }
       
       const response = await fetch(url, config);
-      
-      let data;
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.indexOf('application/json') !== -1) {
-        try {
-          data = await response.json();
-        } catch (e) {
-          console.error('Failed to parse JSON response:', e);
-          throw new Error('Invalid response from server');
-        }
-      } else {
-        const textData = await response.text();
-        try {
-          data = JSON.parse(textData);
-        } catch (e) {
-          data = { success: false, message: textData || 'Unknown server error' };
-        }
-      }
+      const data = await this.parseResponseData(response);
       
       console.log('API Response:', { 
         status: response.status, 
@@ -87,29 +120,16 @@ class ApiService {
 
       if (!response.ok) {
         if (response.status === 401 && this.accessToken) {
-          console.log('Token expired, attempting refresh...');
-          const refreshed = await this.refreshToken();
-          if (refreshed) {
-            return this.request(endpoint, options);
-          } else {
-            this.handleLogout();
-            throw new Error('Session expired. Please login again.');
-          }
+          return await this.handleUnauthorizedResponse(endpoint, options);
         }
         
-        const error = data?.message || data?.error || `HTTP error! status: ${response.status}`;
+        const error = data?.message ?? data?.error ?? `HTTP error! status: ${response.status}`;
         throw new Error(error);
       }
 
       return data;
     } catch (error: any) {
-      console.error('API Error:', error);
-      
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Unable to connect to server. Please check your internet connection and try again.');
-      }
-      
-      throw error;
+      this.handleRequestError(error);
     }
   }
 
@@ -168,7 +188,7 @@ class ApiService {
       console.error('Login error:', error);
       return {
         success: false,
-        message: error.message || 'Login failed. Please try again.',
+        message: error.message ?? 'Login failed. Please try again.',
       };
     }
   }
@@ -182,7 +202,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Registration failed. Please try again.',
+        message: error.message ?? 'Registration failed. Please try again.',
       };
     }
   }
@@ -204,7 +224,6 @@ class ApiService {
     category?: string;
     visibility?: string;
     tags?: string[];
-    attachments?: any[];
     externalLinks?: string[];
     mentions?: string[];
   }): Promise<ApiResponse> {
@@ -223,7 +242,7 @@ class ApiService {
       console.error('Create post error:', error);
       return {
         success: false,
-        message: error.message || 'Failed to create post. Please try again.',
+        message: error.message ?? 'Failed to create post. Please try again.',
       };
     }
   }
@@ -244,13 +263,14 @@ class ApiService {
         }
       });
 
-      const endpoint = `/posts${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/posts?${queryString}` : '/posts';
       return await this.request(endpoint);
     } catch (error: any) {
       console.error('Get posts error:', error);
       return {
         success: false,
-        message: error.message || 'Failed to fetch posts.',
+        message: error.message ?? 'Failed to fetch posts.',
         data: []
       };
     }
@@ -262,7 +282,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch post.',
+        message: error.message ?? 'Failed to fetch post.',
       };
     }
   }
@@ -276,7 +296,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to update post.',
+        message: error.message ?? 'Failed to update post.',
       };
     }
   }
@@ -289,7 +309,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to delete post.',
+        message: error.message ?? 'Failed to delete post.',
       };
     }
   }
@@ -303,7 +323,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to react to post.',
+        message: error.message ?? 'Failed to react to post.',
       };
     }
   }
@@ -316,7 +336,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to bookmark post.',
+        message: error.message ?? 'Failed to bookmark post.',
       };
     }
   }
@@ -335,7 +355,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to share post.',
+        message: error.message ?? 'Failed to share post.',
       };
     }
   }
@@ -353,13 +373,14 @@ class ApiService {
         }
       });
 
-      const endpoint = `/posts/feed${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/posts/feed?${queryString}` : '/posts/feed';
       return await this.request(endpoint);
     } catch (error: any) {
       console.error('Get feed posts error:', error);
       return {
         success: false,
-        message: error.message || 'Failed to fetch feed posts.',
+        message: error.message ?? 'Failed to fetch feed posts.',
         data: []
       };
     }
@@ -377,13 +398,14 @@ class ApiService {
         }
       });
 
-      const endpoint = `/posts/bookmarked${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/posts/bookmarked?${queryString}` : '/posts/bookmarked';
       return await this.request(endpoint);
     } catch (error: any) {
       console.error('Get bookmarked posts error:', error);
       return {
         success: false,
-        message: error.message || 'Failed to fetch bookmarked posts.',
+        message: error.message ?? 'Failed to fetch bookmarked posts.',
         data: []
       };
     }
@@ -401,12 +423,13 @@ class ApiService {
         }
       });
 
-      const endpoint = `/posts/featured${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/posts/featured?${queryString}` : '/posts/featured';
       return await this.request(endpoint);
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch featured posts.',
+        message: error.message ?? 'Failed to fetch featured posts.',
         data: []
       };
     }
@@ -424,12 +447,13 @@ class ApiService {
         }
       });
 
-      const endpoint = `/posts/school-updates${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/posts/school-updates?${queryString}` : '/posts/school-updates';
       return await this.request(endpoint);
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch school updates.',
+        message: error.message ?? 'Failed to fetch school updates.',
         data: []
       };
     }
@@ -442,7 +466,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch user data.',
+        message: error.message ?? 'Failed to fetch user data.',
       };
     }
   }
@@ -456,7 +480,49 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to update profile.',
+        message: error.message ?? 'Failed to update profile.',
+      };
+    }
+  }
+
+  async updateUserSkills(userId: string, skills: string[]): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/skills`, {
+        method: 'PATCH',
+        body: JSON.stringify({ skills }),
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to update skills.',
+      };
+    }
+  }
+
+  async updateUserInterests(userId: string, interests: string[]): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/interests`, {
+        method: 'PATCH',
+        body: JSON.stringify({ interests }),
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to update interests.',
+      };
+    }
+  }
+
+  async updatePrivacySettings(userId: string, privacySettings: any): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/privacy`, {
+        method: 'PATCH',
+        body: JSON.stringify(privacySettings),
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to update privacy settings.',
       };
     }
   }
@@ -476,12 +542,13 @@ class ApiService {
         }
       });
 
-      const endpoint = `/users${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/users?${queryString}` : '/users';
       return await this.request(endpoint);
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch users.',
+        message: error.message ?? 'Failed to fetch users.',
         users: []
       };
     }
@@ -505,7 +572,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch user.',
+        message: error.message ?? 'Failed to fetch user.',
       };
     }
   }
@@ -516,7 +583,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch pending users.',
+        message: error.message ?? 'Failed to fetch pending users.',
         users: []
       };
     }
@@ -528,7 +595,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch user statistics.',
+        message: error.message ?? 'Failed to fetch user statistics.',
         data: {
           total: 0,
           approved: 0,
@@ -541,12 +608,12 @@ class ApiService {
 
   async getUserSuggestions(limit?: number): Promise<ApiResponse> {
     try {
-      const endpoint = `/users/suggestions${limit ? `?limit=${limit}` : ''}`;
+      const endpoint = limit ? `/users/suggestions?limit=${limit}` : '/users/suggestions';
       return await this.request(endpoint);
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch user suggestions.',
+        message: error.message ?? 'Failed to fetch user suggestions.',
         data: []
       };
     }
@@ -561,7 +628,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to approve user.'
+        message: error.message ?? 'Failed to approve user.'
       };
     }
   }
@@ -574,7 +641,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to reject user.'
+        message: error.message ?? 'Failed to reject user.'
       };
     }
   }
@@ -587,7 +654,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to suspend user.'
+        message: error.message ?? 'Failed to suspend user.'
       };
     }
   }
@@ -600,7 +667,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to reactivate user.'
+        message: error.message ?? 'Failed to reactivate user.'
       };
     }
   }
@@ -613,7 +680,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to promote user to admin.'
+        message: error.message ?? 'Failed to promote user to admin.'
       };
     }
   }
@@ -626,7 +693,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to demote admin.'
+        message: error.message ?? 'Failed to demote admin.'
       };
     }
   }
@@ -639,7 +706,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to delete user.'
+        message: error.message ?? 'Failed to delete user.'
       };
     }
   }
@@ -651,7 +718,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch comments.',
+        message: error.message ?? 'Failed to fetch comments.',
         data: []
       };
     }
@@ -666,12 +733,13 @@ class ApiService {
         }
       });
 
-      const endpoint = `/posts/${postId}/comments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryParamsStr = queryParams.toString();
+      const endpoint = queryParamsStr ? `/posts/${postId}/comments?${queryParamsStr}` : `/posts/${postId}/comments`;
       return await this.request(endpoint);
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch comments.',
+        message: error.message ?? 'Failed to fetch comments.',
         data: []
       };
     }
@@ -694,7 +762,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to create comment.',
+        message: error.message ?? 'Failed to create comment.',
       };
     }
   }
@@ -707,7 +775,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to like comment.',
+        message: error.message ?? 'Failed to like comment.',
       };
     }
   }
@@ -720,7 +788,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to unlike comment.',
+        message: error.message ?? 'Failed to unlike comment.',
       };
     }
   }
@@ -733,7 +801,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to delete comment.',
+        message: error.message ?? 'Failed to delete comment.',
       };
     }
   }
@@ -757,7 +825,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to create report.',
+        message: error.message ?? 'Failed to create report.',
       };
     }
   }
@@ -776,12 +844,13 @@ class ApiService {
         }
       });
 
-      const endpoint = `/reports${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryParamsStr = queryParams.toString();
+      const endpoint = queryParamsStr ? `/reports?${queryParamsStr}` : '/reports';
       return await this.request(endpoint);
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch reports.',
+        message: error.message ?? 'Failed to fetch reports.',
         data: []
       };
     }
@@ -796,7 +865,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to update report status.',
+        message: error.message ?? 'Failed to update report status.',
       };
     }
   }
@@ -809,7 +878,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to delete report.',
+        message: error.message ?? 'Failed to delete report.',
       };
     }
   }
@@ -820,7 +889,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch report statistics.',
+        message: error.message ?? 'Failed to fetch report statistics.',
         data: {
           total: 0,
           pending: 0,
@@ -849,23 +918,43 @@ class ApiService {
       try {
         data = await response.json();
       } catch (e) {
+        console.warn('Failed to parse JSON response in uploadFile:', e);
         throw new Error('Invalid response from server');
       }
 
       if (!response.ok) {
-        throw new Error(data?.message || `HTTP error! status: ${response.status}`);
+        throw new Error(data?.message ?? `HTTP error! status: ${response.status}`);
       }
 
       return data;
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to upload file.',
+        message: error.message ?? 'Failed to upload file.',
       };
     }
   }
 
   // Group methods
+  async createGroup(groupData: {
+    name: string;
+    description: string;
+    privacy?: string;
+    category?: string;
+  }): Promise<ApiResponse> {
+    try {
+      return await this.request('/groups', {
+        method: 'POST',
+        body: JSON.stringify(groupData),
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to create group.',
+      };
+    }
+  }
+
   async getGroups(params: {
     page?: number;
     limit?: number;
@@ -880,12 +969,13 @@ class ApiService {
         }
       });
 
-      const endpoint = `/groups${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryParamsStr = queryParams.toString();
+      const endpoint = queryParamsStr ? `/groups?${queryParamsStr}` : '/groups';
       return await this.request(endpoint);
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch groups.',
+        message: error.message ?? 'Failed to fetch groups.',
         data: []
       };
     }
@@ -897,7 +987,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch user groups.',
+        message: error.message ?? 'Failed to fetch user groups.',
         data: []
       };
     }
@@ -909,19 +999,183 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch group messages.',
+        message: error.message ?? 'Failed to fetch group messages.',
         data: []
       };
     }
   }
 
-  // Job methods
-  async getJobs(params: {
+  async joinGroup(groupId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}/join`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to join group.'
+      };
+    }
+  }
+
+  async leaveGroup(groupId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}/leave`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to leave group.'
+      };
+    }
+  }
+
+  async getGroupById(groupId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}`);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch group.',
+      };
+    }
+  }
+
+  async sendGroupMessage(groupId: string, content: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content })
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to send message.'
+      };
+    }
+  }
+
+  // Connection methods
+  async getUserConnections(userId?: string): Promise<ApiResponse> {
+    try {
+      const endpoint = userId ? `/users/${userId}/connections` : '/users/me/connections';
+      return await this.request(endpoint);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch connections.',
+        data: []
+      };
+    }
+  }
+
+  async sendConnectionRequest(userId: string): Promise<ApiResponse> {
+    try {
+      return await this.request('/connections/request', {
+        method: 'POST',
+        body: JSON.stringify({ userId })
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to send connection request.'
+      };
+    }
+  }
+
+  async acceptConnectionRequest(requestId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/connections/${requestId}/accept`, {
+        method: 'PATCH'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to accept connection request.'
+      };
+    }
+  }
+
+  async rejectConnectionRequest(requestId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/connections/${requestId}/reject`, {
+        method: 'PATCH'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to reject connection request.'
+      };
+    }
+  }
+
+  async removeConnection(connectionId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/connections/${connectionId}`, {
+        method: 'DELETE'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to remove connection.'
+      };
+    }
+  }
+
+  async getConnectionRequests(): Promise<ApiResponse> {
+    try {
+      return await this.request('/connections/requests');
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch connection requests.',
+        data: []
+      };
+    }
+  }
+
+  async getReceivedConnectionRequests(): Promise<ApiResponse> {
+    try {
+      return await this.request('/connections/requests/received');
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch received connection requests.',
+        data: []
+      };
+    }
+  }
+
+  async getSentConnectionRequests(): Promise<ApiResponse> {
+    try {
+      return await this.request('/connections/requests/sent');
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch sent connection requests.',
+        data: []
+      };
+    }
+  }
+
+  async getConnectionStatus(userId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/connections/${userId}/status`);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch connection status.',
+      };
+    }
+  }
+
+  // Mentorship methods
+  async getMentorshipProfiles(params: {
     page?: number;
     limit?: number;
-    search?: string;
-    location?: string;
-    isActive?: boolean;
+    expertiseArea?: string;
+    availability?: string;
   } = {}): Promise<ApiResponse> {
     try {
       const queryParams = new URLSearchParams();
@@ -931,13 +1185,224 @@ class ApiService {
         }
       });
 
-      const endpoint = `/jobs${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/mentorship?${queryString}` : '/mentorship';
       return await this.request(endpoint);
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch jobs.',
+        message: error.message ?? 'Failed to fetch mentorship profiles.',
         data: []
+      };
+    }
+  }
+
+  async createMentorshipProfile(profileData: {
+    expertiseAreas: string[];
+    bio: string;
+    availability: string;
+    preferredCommunication: string[];
+  }): Promise<ApiResponse> {
+    try {
+      return await this.request('/mentorship/profile', {
+        method: 'POST',
+        body: JSON.stringify(profileData)
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to create mentorship profile.'
+      };
+    }
+  }
+
+  async requestMentorship(mentorId: string, data: {
+    message: string;
+    topics: string[];
+    preferredSchedule?: string;
+  }): Promise<ApiResponse> {
+    try {
+      return await this.request(`/mentorship/request/${mentorId}`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to send mentorship request.'
+      };
+    }
+  }
+
+  async getMentorRequests(): Promise<ApiResponse> {
+    try {
+      return await this.request('/mentorship/requests/mentor');
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch mentor requests.'
+      };
+    }
+  }
+
+  async getMenteeRequests(): Promise<ApiResponse> {
+    try {
+      return await this.request('/mentorship/requests/mentee');
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch mentee requests.'
+      };
+    }
+  }
+
+  async respondToMentorshipRequest(requestId: string, action: 'accept' | 'reject'): Promise<ApiResponse> {
+    try {
+      return await this.request(`/mentorship/request/${requestId}/${action}`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to respond to mentorship request.'
+      };
+    }
+  }
+
+  // Event methods
+  async getEvents(params: {
+    page?: number;
+    limit?: number;
+    category?: string;
+    upcoming?: boolean;
+  } = {}): Promise<ApiResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, String(value));
+        }
+      });
+
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/events?${queryString}` : '/events';
+      return await this.request(endpoint);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch events.',
+        data: []
+      };
+    }
+  }
+
+  async createEvent(eventData: {
+    title: string;
+    description: string;
+    date: string;
+    location: string;
+    category: string;
+  }): Promise<ApiResponse> {
+    try {
+      return await this.request('/events', {
+        method: 'POST',
+        body: JSON.stringify(eventData)
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to create event.'
+      };
+    }
+  }
+
+  async registerForEvent(eventId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/events/${eventId}/register`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to register for event.'
+      };
+    }
+  }
+
+  async rsvpEvent(eventId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/events/${eventId}/rsvp`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to RSVP for event.'
+      };
+    }
+  }
+
+  async saveJob(jobId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/jobs/${jobId}/save`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to save job.'
+      };
+    }
+  }
+
+  async unsaveJob(jobId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/jobs/${jobId}/save`, {
+        method: 'DELETE'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to unsave job.'
+      };
+    }
+  }
+
+  // Job API methods
+  async getJobs(params?: { limit?: number; page?: number; isActive?: boolean }): Promise<ApiResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            queryParams.append(key, String(value));
+          }
+        });
+      }
+
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/jobs?${queryString}` : '/jobs';
+      return await this.request(endpoint);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to fetch jobs.',
+        data: []
+      };
+    }
+  }
+
+  async createJob(jobData: any): Promise<ApiResponse> {
+    try {
+      return await this.request('/jobs', {
+        method: 'POST',
+        body: JSON.stringify(jobData)
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message ?? 'Failed to create job.'
       };
     }
   }
@@ -948,7 +1413,7 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch saved jobs.',
+        message: error.message ?? 'Failed to fetch saved jobs.',
         data: []
       };
     }
@@ -960,29 +1425,24 @@ class ApiService {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch applied jobs.',
+        message: error.message ?? 'Failed to fetch applied jobs.',
         data: []
       };
     }
   }
 
-  async getJobStats(): Promise<ApiResponse> {
+  async applyToJob(jobId: string): Promise<ApiResponse> {
     try {
-      return await this.request('/jobs/stats');
+      return await this.request(`/jobs/${jobId}/apply`, {
+        method: 'POST'
+      });
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch job statistics.',
-        data: {
-          total: 0,
-          active: 0,
-          applications: 0,
-          posted: 0
-        }
+        message: error.message ?? 'Failed to apply to job.'
       };
     }
   }
 }
 
-const apiService = new ApiService();
-export default apiService;
+export default new ApiService();

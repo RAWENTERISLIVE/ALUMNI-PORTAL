@@ -6,10 +6,7 @@ import {
   Share2, 
   Bookmark, 
   MoreHorizontal,
-  ExternalLink,
-  FileText,
-  Image as ImageIcon,
-  Paperclip
+  ExternalLink
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -41,12 +38,7 @@ interface PostCardProps {
     category: string;
     visibility: string;
     tags?: string[];
-    attachments?: Array<{
-      type: 'image' | 'document';
-      url: string;
-      name: string;
-      size: number;
-    }>;
+
     externalLinks?: string[];
     reactions?: Array<{
       userId: string;
@@ -60,11 +52,11 @@ interface PostCardProps {
     createdAt: string;
     updatedAt: string;
   };
-  onPostUpdate?: (updatedPost: any) => void;
+  onPostUpdate?: (updatedPost: unknown) => void;
   onPostDelete?: (postId: string) => void;
 }
 
-export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
+export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCardProps>) {
   const [isLiking, setIsLiking] = useState(false);
   const [isBookmarking, setIsBookmarking] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
@@ -73,7 +65,6 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
 
   const isAuthor = currentUser?.id === post.author.id;
   const likeCount = post.reactions?.filter(r => r.type === 'like').length || 0;
-  const bookmarkCount = post.bookmarks?.length || 0;
 
   const handleLike = async () => {
     if (isLiking) return;
@@ -88,10 +79,10 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
           description: "Your reaction has been updated.",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update reaction",
+        description: error instanceof Error ? error.message : "Failed to update reaction",
         variant: "destructive",
       });
     } finally {
@@ -121,10 +112,10 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
           description: post.isBookmarked ? "Post removed from bookmarks" : "Post saved to bookmarks",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update bookmark",
+        description: error instanceof Error ? error.message : "Failed to update bookmark",
         variant: "destructive",
       });
     } finally {
@@ -165,35 +156,23 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
             description: "Your post has been deleted successfully.",
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         toast({
           title: "Error",
-          description: error.message || "Failed to delete post",
+          description: error instanceof Error ? error.message : "Failed to delete post",
           variant: "destructive",
         });
       }
     }
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const getFileIcon = (type: string) => {
-    return type === 'image' ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />;
-  };
-
   const getCategoryColor = (category: string) => {
     const colors = {
-      general: 'bg-slate-100 text-slate-800 border-slate-200',
+      general: 'bg-gray-100 text-gray-800 border-gray-200',
       career: 'bg-blue-100 text-blue-800 border-blue-200',
       networking: 'bg-green-100 text-green-800 border-green-200',
       events: 'bg-purple-100 text-purple-800 border-purple-200',
-      achievements: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      achievements: 'bg-amber-100 text-amber-800 border-amber-200',
       announcements: 'bg-red-100 text-red-800 border-red-200'
     };
     return colors[category as keyof typeof colors] || colors.general;
@@ -205,26 +184,26 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
     : post.content;
 
   return (
-    <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-200">
-      <CardHeader className="pb-3">
+    <Card className="bg-white border border-gray-300 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-lg">
+      <CardHeader className="pb-3 p-4">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
               <AvatarImage src={post.author.profileImage} />
-              <AvatarFallback className="bg-blue-100 text-blue-700 font-medium">
+              <AvatarFallback className="bg-orange-100 text-orange-700 font-medium">
                 {post.author.name.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h4 className="font-semibold text-slate-900">{post.author.name}</h4>
+                <h4 className="font-semibold text-gray-900">{post.author.name}</h4>
                 {post.author.role && (
-                  <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-600">
+                  <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-600">
                     {post.author.role}
                   </Badge>
                 )}
-                {post.author.classYear && (
-                  <Badge variant="outline" className="text-xs border-slate-300 text-slate-600">
+                {Boolean(post.author.classYear) && (
+                  <Badge variant="outline" className="text-xs border-gray-300 text-gray-600">
                     Class of {post.author.classYear}
                   </Badge>
                 )}
@@ -233,7 +212,7 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
                 <Badge className={`text-xs font-medium border ${getCategoryColor(post.category)}`}>
                   {post.category.charAt(0).toUpperCase() + post.category.slice(1)}
                 </Badge>
-                <span className="text-sm text-slate-500">
+                <span className="text-sm text-gray-500">
                   {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
                 </span>
               </div>
@@ -242,14 +221,14 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-700">
+              <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-700">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-white border-slate-200">
+            <DropdownMenuContent align="end" className="bg-white border-gray-200">
               {isAuthor && (
                 <>
-                  <DropdownMenuItem className="text-slate-700 hover:bg-slate-50">
+                  <DropdownMenuItem className="text-gray-700 hover:bg-gray-50">
                     Edit Post
                   </DropdownMenuItem>
                   <DropdownMenuItem 
@@ -260,7 +239,7 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
                   </DropdownMenuItem>
                 </>
               )}
-              <DropdownMenuItem className="text-slate-700 hover:bg-slate-50">
+              <DropdownMenuItem className="text-gray-700 hover:bg-gray-50">
                 Report Post
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -268,19 +247,19 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
         </div>
       </CardHeader>
       
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 px-4 pb-4">
         {/* Title */}
         {post.title && (
-          <h3 className="text-lg font-semibold text-slate-900 mb-3">{post.title}</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">{post.title}</h3>
         )}
         
         {/* Content */}
-        <div className="prose prose-sm max-w-none text-slate-700 mb-4">
+        <div className="prose prose-sm max-w-none text-gray-700 mb-4">
           <p className="whitespace-pre-wrap leading-relaxed">{displayContent}</p>
           {shouldTruncateContent && (
             <button
               onClick={() => setShowFullContent(!showFullContent)}
-              className="text-blue-600 hover:text-blue-700 font-medium text-sm mt-2"
+              className="text-orange-500 hover:text-orange-600 font-medium text-sm mt-2"
             >
               {showFullContent ? 'Show less' : 'Show more'}
             </button>
@@ -290,11 +269,11 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
         {/* Tags */}
         {post.tags && post.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
-            {post.tags.map((tag, index) => (
+            {post.tags.map((tag) => (
               <Badge 
-                key={index} 
+                key={tag} 
                 variant="secondary" 
-                className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                className="text-xs bg-orange-100 text-orange-700 border-orange-200"
               >
                 #{tag}
               </Badge>
@@ -302,60 +281,25 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
           </div>
         )}
         
-        {/* Attachments */}
-        {post.attachments && post.attachments.length > 0 && (
-          <div className="space-y-2 mb-4">
-            <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2">
-              <Paperclip className="h-4 w-4" />
-              Attachments ({post.attachments.length})
-            </h4>
-            <div className="grid gap-2">
-              {post.attachments.map((attachment, index) => (
-                <div 
-                  key={index} 
-                  className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
-                >
-                  <div className="flex items-center gap-3">
-                    {getFileIcon(attachment.type)}
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{attachment.name}</p>
-                      <p className="text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    asChild
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                  >
-                    <a href={attachment.url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
         
         {/* External Links */}
         {post.externalLinks && post.externalLinks.length > 0 && (
           <div className="space-y-2 mb-4">
-            <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+            <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
               <ExternalLink className="h-4 w-4" />
               Links ({post.externalLinks.length})
             </h4>
             <div className="space-y-2">
-              {post.externalLinks.map((link, index) => (
+              {post.externalLinks.map((link) => (
                 <a
-                  key={index}
+                  key={link}
                   href={link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
+                  className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
                 >
-                  <ExternalLink className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                  <span className="text-sm text-blue-600 hover:text-blue-700 truncate">
+                  <ExternalLink className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                  <span className="text-sm text-orange-500 hover:text-orange-600 truncate">
                     {link}
                   </span>
                 </a>
@@ -365,7 +309,7 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
         )}
         
         {/* Actions */}
-        <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+        <div className="flex items-center justify-between pt-3 border-t border-gray-200">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -375,8 +319,8 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
               className={`gap-2 ${
                 post.isLiked 
                   ? 'text-red-600 hover:text-red-700' 
-                  : 'text-slate-600 hover:text-slate-700'
-              } hover:bg-slate-50`}
+                  : 'text-gray-600 hover:text-gray-700'
+              } hover:bg-gray-50`}
             >
               <Heart className={`h-4 w-4 ${post.isLiked ? 'fill-current' : ''}`} />
               {likeCount > 0 && <span className="text-sm">{likeCount}</span>}
@@ -385,7 +329,7 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="gap-2 text-slate-600 hover:text-slate-700 hover:bg-slate-50"
+              className="gap-2 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
             >
               <MessageCircle className="h-4 w-4" />
               {post.commentCount > 0 && <span className="text-sm">{post.commentCount}</span>}
@@ -395,7 +339,7 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
               variant="ghost"
               size="sm"
               onClick={handleShare}
-              className="gap-2 text-slate-600 hover:text-slate-700 hover:bg-slate-50"
+              className="gap-2 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
             >
               <Share2 className="h-4 w-4" />
               {post.shareCount > 0 && <span className="text-sm">{post.shareCount}</span>}
@@ -409,9 +353,9 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
             disabled={isBookmarking}
             className={`gap-2 ${
               post.isBookmarked 
-                ? 'text-blue-600 hover:text-blue-700' 
-                : 'text-slate-600 hover:text-slate-700'
-            } hover:bg-slate-50`}
+                ? 'text-orange-500 hover:text-orange-600' 
+                : 'text-gray-600 hover:text-gray-700'
+            } hover:bg-gray-50`}
           >
             <Bookmark className={`h-4 w-4 ${post.isBookmarked ? 'fill-current' : ''}`} />
           </Button>

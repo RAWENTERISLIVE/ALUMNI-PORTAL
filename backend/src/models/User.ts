@@ -37,6 +37,8 @@ export interface IUser extends Document {
   company?: string;
   jobTitle?: string;
   isAvailableAsMentor: boolean;
+  skills?: string[]; // Array of skills
+  interests?: string[]; // Array of interests
   connections?: mongoose.Types.ObjectId[]; // Array of user IDs that this user is connected to
   location?: string;
   lastLogin?: Date;
@@ -61,6 +63,10 @@ export interface IUser extends Document {
     profileVisibility?: 'public' | 'alumni' | 'connections';
     showEmail?: boolean;
     showPhone?: boolean;
+    showBio?: boolean;
+    showSkills?: boolean;
+    showInterests?: boolean;
+    showConnections?: boolean;
     allowMessaging?: boolean;
     allowConnection?: boolean;
     allowProfileSearch?: boolean;
@@ -85,7 +91,7 @@ const userSchema = new Schema<IUser>({
     trim: true,
     validate: {
       validator: function(email: string) {
-        return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
+        return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email);
       },
       message: 'Please enter a valid email address'
     }
@@ -127,7 +133,7 @@ const userSchema = new Schema<IUser>({
       validator: function(this: IUser, v: string) {
         if (this.needsManualVerification && v === 'MANUAL_VERIFICATION') return true;
         // Allow alphanumeric, slashes, and hyphens. Min length 3.
-        return /^[a-zA-Z0-9\/\-]{3,20}$/.test(v);
+        return /^[a-zA-Z0-9/-]{3,20}$/.test(v);
       },
       message: 'Admission number is not valid.'
     }
@@ -168,6 +174,9 @@ const userSchema = new Schema<IUser>({
   company: { type: String, maxlength: 100 },
   jobTitle: { type: String, trim: true, maxlength: 100 },
   isAvailableAsMentor: { type: Boolean, default: false },
+  skills: [{ type: String, trim: true, maxlength: 50 }],
+  interests: [{ type: String, trim: true, maxlength: 50 }],
+  connections: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   lastLogin: { type: Date },
   refreshTokens: [{ type: String }],
   passwordResetToken: { type: String, default: null },
@@ -188,6 +197,10 @@ const userSchema = new Schema<IUser>({
     profileVisibility: { type: String, enum: ['public', 'alumni', 'connections'], default: 'alumni' },
     showEmail: { type: Boolean, default: false },
     showPhone: { type: Boolean, default: false },
+    showBio: { type: Boolean, default: true },
+    showSkills: { type: Boolean, default: true },
+    showInterests: { type: Boolean, default: true },
+    showConnections: { type: Boolean, default: true },
     allowMessaging: { type: Boolean, default: true },
     allowConnection: { type: Boolean, default: true },
     allowProfileSearch: { type: Boolean, default: true }
@@ -201,8 +214,8 @@ userSchema.pre<IUser>('save', async function (this: IUser, next) {
     try {
       const salt = await bcrypt.genSalt(10);
       this.password = await bcrypt.hash(this.password, salt);
-    } catch (error: any) {
-      return next(error);
+    } catch (error: unknown) {
+      return next(error instanceof Error ? error : new Error('Password hashing failed'));
     }
   }
 
@@ -210,8 +223,8 @@ userSchema.pre<IUser>('save', async function (this: IUser, next) {
   if (this.isModified('name') || this.isNew) {
     if (this.name && !this.firstName && !this.lastName) {
       const nameParts = this.name.split(' ').filter(part => part);
-      this.firstName = nameParts[0] || '';
-      this.lastName = nameParts.slice(1).join(' ') || '';
+      this.firstName = nameParts[0] ?? '';
+      this.lastName = nameParts.slice(1).join(' ') ?? '';
     }
   }
 

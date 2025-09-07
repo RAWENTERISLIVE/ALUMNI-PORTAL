@@ -10,6 +10,7 @@ export interface IGroup extends Document {
     members: Types.ObjectId[];
     privacy: GroupPrivacy;
     memberCount: number;
+    category?: string;
     lastActivity: Date;
     createdAt: Date;
     updatedAt: Date;

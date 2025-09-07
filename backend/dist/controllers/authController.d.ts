@@ -6,4 +6,7 @@ export declare const logout: (req: Request, res: Response, next: import("express
 export declare const getMe: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const forgotPassword: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const resetPassword: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const changePassword: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const updateNotificationSettings: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const updatePrivacySettings: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 //# sourceMappingURL=authController.d.ts.map

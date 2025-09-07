@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,12 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { 
   PlusCircle, 
-  Image, 
-  Upload, 
-  FileText, 
   Link2, 
   X,
-  Tag,
   Hash
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,26 +41,34 @@ const postSchema = z.object({
   category: z.enum(['general', 'career', 'networking', 'events', 'achievements', 'announcements']).default('general'),
   tags: z.array(z.string()).optional(),
   visibility: z.enum(['everyone', 'alumni_only', 'faculty_only']).default('everyone'),
-  attachments: z.array(z.any()).optional(),
   externalLinks: z.array(z.string().url('Please enter a valid URL')).optional()
 });
 
 type PostFormData = z.infer<typeof postSchema>;
 
+interface Post {
+  id: string;
+  title?: string;
+  content: string;
+  category: string;
+  tags?: string[];
+  externalLinks?: string[];
+  visibility: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 type CreatePostFormProps = {
-  onPostCreated?: (post: any) => void;
+  onPostCreated?: (post: Post) => void;
   trigger?: React.ReactNode;
   className?: string;
 };
 
-export function CreatePostForm({ onPostCreated, trigger, className = "" }: CreatePostFormProps) {
+export function CreatePostForm({ onPostCreated, trigger, className = "" }: Readonly<CreatePostFormProps>) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [linkInput, setLinkInput] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { currentUser } = useAuth();
 
@@ -76,7 +80,6 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
       category: 'general',
       tags: [],
       visibility: 'everyone',
-      attachments: [],
       externalLinks: []
     }
   });
@@ -95,53 +98,6 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
     { value: 'alumni_only', label: 'Alumni Only', description: 'Visible to alumni only' },
     { value: 'faculty_only', label: 'Faculty Only', description: 'Visible to faculty only' }
   ];
-
-  // File upload handler
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    const validFiles: File[] = [];
-    
-    for (const file of files) {
-      // Check file size (50MB limit)
-      if (file.size > 50 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: `${file.name} exceeds 50MB limit`,
-          variant: "destructive",
-        });
-        continue;
-      }
-      
-      // Check file type
-      const allowedTypes = [
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'text/plain'
-      ];
-      
-      if (!allowedTypes.includes(file.type)) {
-        toast({
-          title: "Unsupported file type",
-          description: `${file.name} is not a supported file type`,
-          variant: "destructive",
-        });
-        continue;
-      }
-      
-      validFiles.push(file);
-    }
-    
-    setSelectedFiles(prev => [...prev, ...validFiles]);
-  };
-
-  // Remove file
-  const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
 
   // Add tag
   const addTag = () => {
@@ -184,45 +140,9 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
     form.setValue('externalLinks', currentLinks.filter(link => link !== linkToRemove));
   };
 
-  // File upload function using the real API
-  const uploadFile = async (file: File): Promise<string> => {
-    try {
-      setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
-      
-      const response = await apiService.uploadFile(file);
-      
-      if (response.success && response.data) {
-        setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
-        return response.data.url;
-      } else {
-        throw new Error(response.message || 'Upload failed');
-      }
-    } catch (error: any) {
-      console.error('File upload error:', error);
-      setUploadProgress(prev => {
-        const newProgress = { ...prev };
-        delete newProgress[file.name];
-        return newProgress;
-      });
-      throw error;
-    }
-  };
-
   const onSubmit = async (data: PostFormData) => {
     setIsSubmitting(true);
     try {
-      // Upload files first
-      const uploadedAttachments = [];
-      for (const file of selectedFiles) {
-        const uploadedUrl = await uploadFile(file);
-        uploadedAttachments.push({
-          type: file.type.startsWith('image/') ? 'image' : 'document',
-          url: uploadedUrl,
-          name: file.name,
-          size: file.size
-        });
-      }
-
       // Prepare post data, ensuring content is provided
       if (!data.content || data.content.trim() === '') {
         toast({
@@ -239,7 +159,6 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
         category: data.category,
         tags: data.tags,
         externalLinks: data.externalLinks,
-        attachments: uploadedAttachments,
         visibility: data.visibility === 'everyone' ? 'public' : data.visibility
       };
 
@@ -253,20 +172,18 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
         });
         
         form.reset();
-        setSelectedFiles([]);
-        setUploadProgress({});
         setOpen(false);
         
-        if (onPostCreated) {
+        if (onPostCreated && response.post) {
           onPostCreated(response.post);
         }
       } else {
         throw new Error(response.message || 'Failed to create post');
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Failed to create post",
-        description: error.message || "Please try again later.",
+        description: error instanceof Error ? error.message : "Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -274,47 +191,33 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
     }
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const getFileIcon = (file: File) => {
-    if (file.type.startsWith('image/')) return <Image className="h-4 w-4" />;
-    return <FileText className="h-4 w-4" />;
-  };
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
           <Button 
-            variant="outline" 
-            className={`bg-white border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 ${className}`}
+            className={`bg-orange-500 text-white hover:bg-orange-600 rounded-lg px-4 py-2 transition-colors ${className}`}
           >
             <PlusCircle className="h-4 w-4 mr-2" />
             Create Post
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white shadow-lg rounded-lg">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-slate-900">Create New Post</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-gray-800">Create New Post</DialogTitle>
         </DialogHeader>
         
-        <div className="flex items-center gap-3 py-4 border-b border-slate-200">
+        <div className="flex items-center gap-3 py-4 border-b border-gray-200">
           <Avatar className="h-10 w-10">
             <AvatarImage src={currentUser?.profileImage} />
-            <AvatarFallback className="bg-blue-100 text-blue-700">
+            <AvatarFallback className="bg-orange-100 text-orange-700">
               {currentUser?.name?.charAt(0) || 'U'}
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium text-slate-900">{currentUser?.name}</p>
-            <p className="text-sm text-slate-600">{currentUser?.email}</p>
+            <p className="font-medium text-gray-900">{currentUser?.name}</p>
+            <p className="text-sm text-gray-600">{currentUser?.email}</p>
           </div>
         </div>
 
@@ -326,11 +229,11 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-slate-700 font-medium">Title (Optional)</FormLabel>
+                  <FormLabel className="text-gray-700 font-medium">Title (Optional)</FormLabel>
                   <FormControl>
                     <Input 
                       placeholder="Give your post a title..."
-                      className="border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                      className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-orange-300 focus:border-orange-500"
                       {...field} 
                     />
                   </FormControl>
@@ -345,17 +248,17 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
               name="content"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-slate-700 font-medium">What's on your mind?</FormLabel>
+                  <FormLabel className="text-gray-700 font-medium">What's on your mind?</FormLabel>
                   <FormControl>
                     <Textarea 
                       placeholder="Share your thoughts, updates, or insights with the community..."
-                      className="min-h-[120px] border-slate-300 focus:border-blue-500 focus:ring-blue-500 resize-none"
+                      className="min-h-[120px] w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-orange-300 focus:border-orange-500 resize-none"
                       {...field} 
                     />
                   </FormControl>
                   <div className="flex justify-between items-center">
                     <FormMessage />
-                    <span className="text-sm text-slate-500">
+                    <span className="text-sm text-gray-500">
                       {field.value.length}/2000
                     </span>
                   </div>
@@ -370,19 +273,19 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
                 name="category"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 font-medium">Category</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Category</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger className="border-slate-300 focus:border-blue-500">
+                        <SelectTrigger className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-orange-300">
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent className="bg-white border-slate-200">
+                      <SelectContent className="bg-white border border-gray-200 rounded-lg shadow-lg">
                         {categories.map((category) => (
                           <SelectItem 
                             key={category.value} 
                             value={category.value}
-                            className="hover:bg-blue-50 focus:bg-blue-50"
+                            className="hover:bg-orange-50 focus:bg-orange-50"
                           >
                             {category.label}
                           </SelectItem>
@@ -399,23 +302,23 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
                 name="visibility"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700 font-medium">Visibility</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Visibility</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger className="border-slate-300 focus:border-blue-500">
+                        <SelectTrigger className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-orange-300">
                           <SelectValue placeholder="Select visibility" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent className="bg-white border-slate-200">
+                      <SelectContent className="bg-white border border-gray-200 rounded-lg shadow-lg">
                         {visibilityOptions.map((option) => (
                           <SelectItem 
                             key={option.value} 
                             value={option.value}
-                            className="hover:bg-blue-50 focus:bg-blue-50"
+                            className="hover:bg-orange-50 focus:bg-orange-50"
                           >
                             <div>
                               <div className="font-medium">{option.label}</div>
-                              <div className="text-xs text-slate-500">{option.description}</div>
+                              <div className="text-xs text-gray-500">{option.description}</div>
                             </div>
                           </SelectItem>
                         ))}
@@ -429,37 +332,42 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
 
             {/* Tags Section */}
             <div className="space-y-3">
-              <FormLabel className="text-slate-700 font-medium">Tags</FormLabel>
+              <FormLabel className="text-gray-700 font-medium">Tags</FormLabel>
               <div className="flex gap-2">
                 <Input
                   placeholder="Add a tag..."
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                  className="border-slate-300 focus:border-blue-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTag();
+                    }
+                  }}
+                  className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-orange-300"
                 />
                 <Button 
                   type="button" 
                   variant="outline" 
                   onClick={addTag}
-                  className="border-slate-300 hover:bg-blue-50"
+                  className="border border-orange-500 text-orange-500 px-3 py-1.5 hover:bg-orange-50"
                 >
                   <Hash className="h-4 w-4" />
                 </Button>
               </div>
               {form.getValues('tags')?.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {form.getValues('tags')?.map((tag, index) => (
+                  {form.getValues('tags')?.map((tag) => (
                     <Badge 
-                      key={index} 
+                      key={tag} 
                       variant="secondary" 
-                      className="bg-blue-100 text-blue-800 hover:bg-blue-200"
+                      className="bg-orange-100 text-orange-800 hover:bg-orange-200"
                     >
                       #{tag}
                       <button
                         type="button"
                         onClick={() => removeTag(tag)}
-                        className="ml-1 hover:text-blue-900"
+                        className="ml-1 hover:text-orange-900"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -469,101 +377,42 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
               )}
             </div>
 
-            {/* File Upload Section */}
-            <div className="space-y-3">
-              <FormLabel className="text-slate-700 font-medium">Attachments</FormLabel>
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                <p className="text-slate-600 mb-2">
-                  Drag files here or <button 
-                    type="button" 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-blue-600 hover:text-blue-700 underline"
-                  >
-                    browse
-                  </button>
-                </p>
-                <p className="text-xs text-slate-500">
-                  Supports images, PDFs, documents up to 50MB each
-                </p>
-              </div>
-              
-              {selectedFiles.length > 0 && (
-                <div className="space-y-2">
-                  {selectedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {getFileIcon(file)}
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{file.name}</p>
-                          <p className="text-xs text-slate-500">{formatFileSize(file.size)}</p>
-                        </div>
-                      </div>
-                      {uploadProgress[file.name] && (
-                        <div className="flex items-center gap-2">
-                          <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-blue-500 transition-all duration-300"
-                              style={{ width: `${uploadProgress[file.name]}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-slate-500">{uploadProgress[file.name]}%</span>
-                        </div>
-                      )}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeFile(index)}
-                        className="text-slate-500 hover:text-red-600"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* External Links Section */}
             <div className="space-y-3">
-              <FormLabel className="text-slate-700 font-medium">External Links</FormLabel>
+              <FormLabel className="text-gray-700 font-medium">External Links</FormLabel>
               <div className="flex gap-2">
                 <Input
                   placeholder="Add a link (https://...)"
                   value={linkInput}
                   onChange={(e) => setLinkInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addExternalLink())}
-                  className="border-slate-300 focus:border-blue-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addExternalLink();
+                    }
+                  }}
+                  className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-orange-300"
                 />
                 <Button 
                   type="button" 
                   variant="outline" 
                   onClick={addExternalLink}
-                  className="border-slate-300 hover:bg-blue-50"
+                  className="border border-orange-500 text-orange-500 px-3 py-1.5 hover:bg-orange-50"
                 >
                   <Link2 className="h-4 w-4" />
                 </Button>
               </div>
               {form.getValues('externalLinks')?.length > 0 && (
                 <div className="space-y-2">
-                  {form.getValues('externalLinks')?.map((link, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  {form.getValues('externalLinks')?.map((link) => (
+                    <div key={link} className="flex items-center justify-between p-3 bg-gray-100 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <Link2 className="h-4 w-4 text-blue-600" />
+                        <Link2 className="h-4 w-4 text-orange-500" />
                         <a 
                           href={link} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-700 underline text-sm truncate max-w-xs"
+                          className="text-orange-500 hover:text-orange-700 underline text-sm truncate max-w-xs"
                         >
                           {link}
                         </a>
@@ -573,7 +422,7 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
                         variant="ghost"
                         size="sm"
                         onClick={() => removeExternalLink(link)}
-                        className="text-slate-500 hover:text-red-600"
+                        className="text-gray-500 hover:text-red-600"
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -584,19 +433,19 @@ export function CreatePostForm({ onPostCreated, trigger, className = "" }: Creat
             </div>
 
             {/* Submit Button */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
               <Button 
                 type="button" 
                 variant="outline" 
                 onClick={() => setOpen(false)}
-                className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                className="bg-gray-100 text-gray-700 rounded-lg px-4 py-2 hover:bg-gray-200"
               >
                 Cancel
               </Button>
               <Button 
                 type="submit" 
                 disabled={isSubmitting || !form.getValues('content').trim()}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6"
+                className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 font-medium"
               >
                 {isSubmitting ? (
                   <>

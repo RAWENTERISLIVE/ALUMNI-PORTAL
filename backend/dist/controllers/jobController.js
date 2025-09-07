@@ -42,16 +42,22 @@ const getJobs = async (req, res, next) => {
             .limit(limitNum)
             .lean();
         const total = await Job_1.default.countDocuments(filter);
+        const formattedJobs = jobs.map(job => ({
+            ...job,
+            id: job._id.toString(),
+            postedBy: job.postedBy ? {
+                ...job.postedBy,
+                id: job.postedBy._id ? job.postedBy._id.toString() : undefined
+            } : job.postedBy
+        }));
         res.status(200).json({
             success: true,
-            data: {
-                jobs,
-                pagination: {
-                    page: pageNum,
-                    limit: limitNum,
-                    total,
-                    pages: Math.ceil(total / limitNum)
-                }
+            data: formattedJobs,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                pages: Math.ceil(total / limitNum)
             }
         });
     }

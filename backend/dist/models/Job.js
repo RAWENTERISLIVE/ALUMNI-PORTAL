@@ -111,7 +111,7 @@ const jobSchema = new mongoose_1.Schema({
         type: String,
         validate: {
             validator: function (email) {
-                return !email || /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
+                return !email || /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email);
             },
             message: 'Please enter a valid contact email address'
         }

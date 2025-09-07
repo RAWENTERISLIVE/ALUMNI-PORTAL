@@ -2,8 +2,8 @@ import rateLimit from 'express-rate-limit';
 
 // Phase 1 - Enhanced rate limiting for authentication security
 export const authLimiter = rateLimit({
-  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes default
-  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '5'), // 5 attempts default
+  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '60000'), // 1 minute for development
+  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '1000'), // 1000 attempts for development
   message: {
     success: false,
     error: 'Too many authentication attempts from this IP. Please try again in 15 minutes.',
@@ -22,8 +22,8 @@ export const authLimiter = rateLimit({
 });
 
 export const generalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes default
-  max: parseInt(process.env.RATE_LIMIT_MAX || '100'), // 100 requests default
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'), // 1 minute window for development
+  max: parseInt(process.env.RATE_LIMIT_MAX || '10000'), // 10000 requests for development
   message: {
     success: false,
     error: 'Too many requests from this IP. Please try again later.',

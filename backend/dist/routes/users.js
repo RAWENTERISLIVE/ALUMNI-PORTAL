@@ -64,6 +64,16 @@ router.patch('/:userId/promote', auth_1.authMiddleware, auth_1.requireSuperAdmin
 router.patch('/:userId/demote', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.demoteAdmin);
 router.delete('/:userId', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.deleteUser);
 router.get('/directory', auth_1.authMiddleware, userController_1.getAlumniDirectory);
+router.get('/suggestions', auth_1.authMiddleware, userController_1.getUserSuggestions);
+router.get('/me', auth_1.authMiddleware, async (req, res, next) => {
+    try {
+        req.params.userId = req.user._id || req.user.id;
+        await (0, userController_1.getUserById)(req, res, next);
+    }
+    catch (error) {
+        next(error);
+    }
+});
 router.get('/:userId', auth_1.authMiddleware, userController_1.getUserById);
 router.patch('/:userId/profile', auth_1.authMiddleware, updateProfileValidation, validation_1.validate, userController_1.updateUserProfile);
 exports.default = router;

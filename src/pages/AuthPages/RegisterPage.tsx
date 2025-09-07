@@ -44,7 +44,7 @@ const registerSchema = z
           message: "Admission number is required.",
           path: ["admissionNumber"],
         });
-      } else if (!/^[a-zA-Z0-9\/\-]{3,20}$/.test(data.admissionNumber)) {
+      } else if (!/^[a-zA-Z0-9/-]{3,20}$/.test(data.admissionNumber)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Admission number is not valid.",
@@ -130,8 +130,9 @@ export default function RegisterPage() {
       } else {
         setAuthError(result?.message || "Registration failed.");
       }
-    } catch (error: any) {
-      setAuthError(error.message || "An unexpected error occurred.");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+      setAuthError(errorMessage);
       console.error("Registration error:", error);
     }
   }

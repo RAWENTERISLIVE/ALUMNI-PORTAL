@@ -19,9 +19,9 @@ import jobRoutes from './routes/jobs';
 import eventRoutes from './routes/events';
 import groupRoutes from './routes/groups';
 import mentorshipRoutes from './routes/mentorship';
+import connectionRoutes from './routes/connections';
 import commentRoutes from './routes/comments';
 import uploadRoutes from './routes/uploads';
-import uploadRoutesNew from './routes/uploadsNew';
 import reportRoutes from './routes/reports';
 import statusRoutes from './routes/status';
 
@@ -30,7 +30,7 @@ dotenv.config();
 
 const app = express();
 // Ensure PORT is a number
-const PORT = parseInt(process.env.PORT || '5000', 10);
+const PORT = parseInt(process.env.PORT ?? '5000', 10);
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -62,14 +62,14 @@ app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? process.env.FRONTEND_URL 
-    : ['http://localhost:8080', 'http://localhost:8081'],
+    : ['http://localhost:8080', 'http://localhost:8082'],
   credentials: true
 }));
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 1000 // limit each IP to 1000 requests per windowMs for development
 });
 app.use(limiter);
 
@@ -89,9 +89,9 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/mentorship', mentorshipRoutes);
+app.use('/api/connections', connectionRoutes); // Phase 2 - Connection system
 app.use('/api', commentRoutes); // Comments routes (includes /posts/:postId/comments)
 app.use('/api/uploads', uploadRoutes); // Added uploads routes
-app.use('/api/upload', uploadRoutesNew); // New upload route for file handling
 app.use('/api/reports', reportRoutes); // Reports routes
 app.use('/api/status', statusRoutes); // Status routes
 
@@ -117,9 +117,9 @@ const startServer = (port: number) => {
   try {
     const server = app.listen(port, () => {
       console.log(`Server running on port ${port}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`Environment: ${process.env.NODE_ENV ?? 'development'}`);
       console.log(`API base URL: http://localhost:${port}/api`);
-    }).on('error', (err: any) => {
+    }).on('error', (err: Error & { code?: string }) => {
       if (err.code === 'EADDRINUSE') {
         console.log(`Port ${port} is already in use, trying port ${port + 1}`);
         startServer(port + 1);
@@ -141,13 +141,14 @@ const startServer = (port: number) => {
       });
     });
 
-  } catch (error: any) {
-    if (error.code === 'EADDRINUSE') {
+  } catch (error: unknown) {
+    const err = error as Error & { code?: string };
+    if (err.code === 'EADDRINUSE') {
       console.log(`Port ${port} is already in use, trying port ${port + 1}`);
       const newPort = port + 1;
       startServer(newPort);
     } else {
-      console.error('Server error:', error);
+      console.error('Server error:', err);
       process.exit(1);
     }
   }

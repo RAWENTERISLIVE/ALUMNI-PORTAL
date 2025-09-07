@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPassword = exports.forgotPassword = exports.getMe = exports.logout = exports.refreshToken = exports.login = exports.register = void 0;
+exports.updatePrivacySettings = exports.updateNotificationSettings = exports.changePassword = exports.resetPassword = exports.forgotPassword = exports.getMe = exports.logout = exports.refreshToken = exports.login = exports.register = void 0;
 const jwt = __importStar(require("jsonwebtoken"));
 const User_1 = __importStar(require("../models/User"));
 const errorHandler_1 = require("../middleware/errorHandler");
@@ -45,56 +45,125 @@ const generateTokens = (userId) => {
     return { accessToken, refreshToken };
 };
 exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const { email, password, name, admissionNumber } = req.body;
-    if (!email || !password || !name || !admissionNumber) {
-        res.status(400).json({ message: 'Please provide all required fields' });
+    const { email, password, name, admissionNumber, needsManualVerification, verificationDetails, admissionYear: manualAdmissionYear } = req.body;
+    console.log('Registration request body:', req.body);
+    if (!email || !password || !name) {
+        res.status(400).json({ success: false, message: 'Please provide name, email, and password' });
         return;
     }
     const existingUser = await User_1.default.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-        res.status(400).json({ message: 'User already exists with this email' });
+        res.status(400).json({ success: false, message: 'User already exists with this email' });
         return;
     }
-    const existingAdmission = await User_1.default.findOne({ admissionNumber });
-    if (existingAdmission) {
-        res.status(400).json({ message: 'Admission number already registered' });
-        return;
-    }
-    const graduationYear = admissionNumber.split('/')[1];
-    if (!graduationYear) {
-        res.status(400).json({ message: 'Invalid admission number format' });
-        return;
-    }
-    const superAdminEmails = ['mpsajmer123@gmail.com', 'futurist.raghav@gmail.com'];
-    const isSuperAdmin = superAdminEmails.includes(email.toLowerCase());
-    const user = await User_1.default.create({
+    let userToCreate = {
         email: email.toLowerCase(),
         password,
         name,
-        admissionNumber,
-        graduationYear: `20${graduationYear}`,
-        role: isSuperAdmin ? User_1.UserRole.SUPER_ADMIN : User_1.UserRole.USER,
-        status: isSuperAdmin ? User_1.UserStatus.ACTIVE : User_1.UserStatus.PENDING,
-        isVerified: isSuperAdmin
-    });
-    const { accessToken, refreshToken } = generateTokens(user._id);
-    user.refreshTokens.push(refreshToken);
-    await user.save();
-    res.status(201).json({
-        success: true,
-        message: isSuperAdmin
-            ? 'Super admin account created successfully'
-            : 'Registration successful. Your account is pending approval.',
-        user: {
-            id: user._id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            status: user.status,
-            isVerified: user.isVerified
-        },
-        ...(isSuperAdmin && { accessToken, refreshToken })
-    });
+        needsManualVerification: needsManualVerification || false,
+    };
+    const superAdminEmails = ['mpsajmer123@gmail.com', 'futurist.raghav@gmail.com'];
+    const isSuperAdmin = superAdminEmails.includes(email.toLowerCase());
+    if (needsManualVerification) {
+        if (!verificationDetails || verificationDetails.length < 10) {
+            res.status(400).json({ success: false, message: 'Please provide sufficient details for manual verification.' });
+            return;
+        }
+        if (!manualAdmissionYear) {
+            res.status(400).json({ success: false, message: 'Admission year is required for manual verification.' });
+            return;
+        }
+        const year = parseInt(manualAdmissionYear, 10);
+        const currentYear = new Date().getFullYear();
+        if (isNaN(year) || year < 1989 || year > currentYear + 1) {
+            res.status(400).json({ success: false, message: `Admission year must be between 1989 and ${currentYear + 1}.` });
+            return;
+        }
+        userToCreate = {
+            ...userToCreate,
+            admissionNumber: `501/MV${Math.floor(Math.random() * 1e6)}`,
+            admissionYear: manualAdmissionYear,
+            verificationDetails,
+            status: User_1.UserStatus.PENDING,
+            isVerified: false,
+        };
+    }
+    else {
+        if (!admissionNumber) {
+            res.status(400).json({ success: false, message: 'Admission number is required.' });
+            return;
+        }
+        const existingAdmission = await User_1.default.findOne({ admissionNumber });
+        if (existingAdmission) {
+            res.status(400).json({ success: false, message: 'Admission number already registered' });
+            return;
+        }
+        const parts = admissionNumber.split('/');
+        if (parts.length < 2) {
+            res.status(400).json({ success: false, message: 'Invalid admission number format. Expected format: number/year.' });
+            return;
+        }
+        const yearPart = parts[parts.length - 1];
+        const year = parseInt(yearPart, 10);
+        const currentYear = new Date().getFullYear();
+        let admissionYear;
+        if (yearPart.length === 2) {
+            if (year >= 89 && year <= 99) {
+                admissionYear = `19${year}`;
+            }
+            else {
+                admissionYear = `20${year.toString().padStart(2, '0')}`;
+            }
+        }
+        else {
+            admissionYear = year.toString();
+        }
+        const numericAdmissionYear = parseInt(admissionYear, 10);
+        if (isNaN(numericAdmissionYear) || numericAdmissionYear < 1989 || numericAdmissionYear > currentYear + 1) {
+            res.status(400).json({ success: false, message: `Invalid admission year. Must be between 1989 and ${currentYear + 1}.` });
+            return;
+        }
+        userToCreate = {
+            ...userToCreate,
+            admissionNumber,
+            admissionYear,
+            status: isSuperAdmin ? User_1.UserStatus.ACTIVE : User_1.UserStatus.PENDING,
+            isVerified: isSuperAdmin,
+        };
+    }
+    userToCreate.role = isSuperAdmin ? User_1.UserRole.SUPER_ADMIN : User_1.UserRole.USER;
+    try {
+        const user = await User_1.default.create(userToCreate);
+        if (!isSuperAdmin) {
+            res.status(201).json({
+                success: true,
+                message: 'Registration successful. Your account is pending approval.',
+                needsManualVerification: !!needsManualVerification,
+            });
+            return;
+        }
+        const { accessToken, refreshToken } = generateTokens(user._id);
+        user.refreshTokens.push(refreshToken);
+        await user.save();
+        res.status(201).json({
+            success: true,
+            message: 'Super admin account created successfully',
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                status: user.status,
+                isVerified: user.isVerified
+            },
+            accessToken,
+            refreshToken
+        });
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+        res.status(500).json({ success: false, message: errorMessage });
+    }
 });
 exports.login = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { email, password } = req.body;
@@ -139,7 +208,6 @@ exports.login = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             status: user.status,
             isVerified: user.isVerified,
             admissionNumber: user.admissionNumber,
-            graduationYear: user.graduationYear,
             profileImage: user.profileImage,
             bio: user.bio,
             headline: user.headline,
@@ -241,6 +309,72 @@ exports.resetPassword = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     res.status(200).json({
         success: true,
         message: 'Password reset successful'
+    });
+});
+exports.changePassword = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user?._id;
+    if (!currentPassword || !newPassword) {
+        res.status(400).json({
+            success: false,
+            message: 'Please provide current and new password'
+        });
+        return;
+    }
+    if (newPassword.length < 8) {
+        res.status(400).json({
+            success: false,
+            message: 'New password must be at least 8 characters long'
+        });
+        return;
+    }
+    const user = await User_1.default.findById(userId).select('+password');
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+        res.status(400).json({
+            success: false,
+            message: 'Current password is incorrect'
+        });
+        return;
+    }
+    user.password = newPassword;
+    user.refreshTokens = [];
+    await user.save();
+    res.status(200).json({
+        success: true,
+        message: 'Password changed successfully'
+    });
+});
+exports.updateNotificationSettings = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const userId = req.user?._id;
+    const notificationSettings = req.body;
+    const user = await User_1.default.findByIdAndUpdate(userId, { $set: { notificationSettings } }, { new: true, runValidators: true }).select('-password -refreshTokens');
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    res.status(200).json({
+        success: true,
+        message: 'Notification settings updated successfully',
+        data: user.notificationSettings
+    });
+});
+exports.updatePrivacySettings = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const userId = req.user?._id;
+    const privacySettings = req.body;
+    const user = await User_1.default.findByIdAndUpdate(userId, { $set: { privacySettings } }, { new: true, runValidators: true }).select('-password -refreshTokens');
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    res.status(200).json({
+        success: true,
+        message: 'Privacy settings updated successfully',
+        data: user.privacySettings
     });
 });
 //# sourceMappingURL=authController.js.map

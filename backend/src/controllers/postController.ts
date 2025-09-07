@@ -1,12 +1,19 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Mongoose 8.x has complex union types causing TypeScript issues
+// Using any for Mongoose methods until types are resolved
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import Post from '../models/PostNew';
+import Post from '../models/Post';
 import User from '../models/User';
 import { AuthRequest } from '../middleware/auth';
 
+// Type assertion to work around mongoose type issues
+const PostModel = Post as any;
+const UserModel = User as any;
+
 // Helper function to safely check if an ID is in an array
 const isIdInArray = (idArray: mongoose.Types.ObjectId[], idToCheck: string | mongoose.Types.ObjectId): boolean => {
-  if (!idArray || !idArray.length) return false;
+  if (!idArray?.length) return false;
   const idToCheckStr = idToCheck.toString();
   return idArray.some(id => id && id.toString() === idToCheckStr);
 };
@@ -26,12 +33,11 @@ export const createPost = async (req: AuthRequest, res: Response): Promise<any> 
       visibility, 
       tags,
       isSchoolUpdate, 
-      attachments, 
       externalLinks,
       mentions 
     } = req.body;
     
-    if (!req.user || !req.user._id) {
+    if (!req.user?._id) {
       return res.status(400).json({ success: false, message: 'Author ID is missing.' });
     }
     
@@ -39,24 +45,23 @@ export const createPost = async (req: AuthRequest, res: Response): Promise<any> 
 
     // Build post object
     const postData: any = {
-      title: title?.trim() || undefined,
+      title: title?.trim(),
       content: content.trim(),
       author,
-      category: category || 'general',
-      visibility: visibility || 'public',
-      tags: tags || [],
-      isSchoolUpdate: isSchoolUpdate || false,
+      category: category ?? 'general',
+      visibility: visibility ?? 'public',
+      tags: tags ?? [],
+      isSchoolUpdate: isSchoolUpdate ?? false,
       isFeatured: false,
-      attachments: attachments || [],
-      externalLinks: externalLinks || [],
-      mentions: mentions || []
+      externalLinks: externalLinks ?? [],
+      mentions: mentions ?? []
     };
 
     const post = new Post(postData);
     await post.save();
     
     // Populate the post for response
-    const populatedPost = await Post.findById(post._id)
+    const populatedPost = await PostModel.findById(post._id)
       .populate('author', 'name email profileImage role classYear')
       .populate('mentions', 'name email profileImage')
       .lean();
@@ -67,7 +72,7 @@ export const createPost = async (req: AuthRequest, res: Response): Promise<any> 
       id: populatedPost?._id.toString(),
       author: populatedPost?.author ? {
         ...populatedPost.author,
-        id: (populatedPost.author as any)._id?.toString()
+        id: populatedPost.author._id.toString()
       } : undefined
     };
     
@@ -98,8 +103,7 @@ export const getAllPosts = async (req: Request, res: Response): Promise<any> => 
       tag, 
       sortBy = 'createdAt', 
       sortOrder = 'desc',
-      isSchoolUpdate,
-      withAttachments
+      isSchoolUpdate
     } = req.query;
 
     const query: any = {};
@@ -108,9 +112,8 @@ export const getAllPosts = async (req: Request, res: Response): Promise<any> => 
     if (visibility) query.visibility = visibility as string;
     if (tag) query.tags = { $in: [tag as string] };
     if (isSchoolUpdate !== undefined) query.isSchoolUpdate = isSchoolUpdate === 'true';
-    if (withAttachments) query.attachments = { $exists: true, $ne: [] };
 
-    const posts = await Post.find(query)
+    const posts = await PostModel.find(query)
       .populate('author', 'name email profileImage role classYear')
       .populate('mentions', 'name email profileImage')
       .populate({
@@ -125,7 +128,7 @@ export const getAllPosts = async (req: Request, res: Response): Promise<any> => 
       .limit(Number(limit))
       .lean();
 
-    const totalPosts = await Post.countDocuments(query);
+    const totalPosts = await PostModel.countDocuments(query);
 
     // Format the response to match expected frontend structure
     const formattedPosts = posts.map(post => ({
@@ -133,11 +136,11 @@ export const getAllPosts = async (req: Request, res: Response): Promise<any> => 
       id: post._id.toString(),
       author: post.author ? {
         ...post.author,
-        id: (post.author as any)._id?.toString()
+        id: post.author._id.toString()
       } : undefined,
       mentions: post.mentions ? (post.mentions as any[]).map((user: any) => ({
         ...user,
-        id: user._id?.toString()
+        id: user._id.toString()
       })) : []
     }));
 
@@ -164,7 +167,7 @@ export const getAllPosts = async (req: Request, res: Response): Promise<any> => 
 // Get a single post by ID
 export const getPostById = async (req: Request, res: Response): Promise<any> => {
   try {
-    const post = await Post.findById(req.params.postId)
+    const post = await (Post.findById as any)(req.params.postId)
       .populate('author', 'name email profileImage role classYear')
       .populate({
         path: 'sharedPost',
@@ -186,7 +189,7 @@ export const getPostById = async (req: Request, res: Response): Promise<any> => 
       id: post._id.toString(),
       author: post.author ? {
         ...post.author,
-        id: (post.author as any)._id?.toString()
+        id: post.author._id.toString()
       } : undefined
     };
     
@@ -205,15 +208,15 @@ export const getPostById = async (req: Request, res: Response): Promise<any> => 
 export const updatePost = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
+    if (!req.user?._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     
     const userId = req.user._id;
-    const { title, content, category, visibility, tags, attachments, externalLinks } = req.body;
+    const { title, content, category, visibility, tags, externalLinks } = req.body;
 
     // Find the post first
-    const post = await Post.findById(postId);
+    const post = await (Post.findById as any)(postId);
     
     if (!post) {
       return res.status(404).json({ success: false, message: 'Post not found' });
@@ -225,16 +228,15 @@ export const updatePost = async (req: AuthRequest, res: Response): Promise<any> 
     }
 
     // Update the post with new values
-    const updatedPost = await Post.findByIdAndUpdate(
+    const updatedPost = await (Post.findByIdAndUpdate as any)(
       postId,
       { 
-        title: title?.trim() || undefined, 
+        title: title?.trim() ?? undefined, 
         content: content.trim(), 
         category, 
         visibility, 
-        tags: tags || [],
-        attachments: attachments || [],
-        externalLinks: externalLinks || []
+        tags: tags ?? [],
+        externalLinks: externalLinks ?? []
       },
       { new: true, runValidators: true }
     )
@@ -252,20 +254,17 @@ export const updatePost = async (req: AuthRequest, res: Response): Promise<any> 
       return res.status(404).json({ success: false, message: 'Post not found after update' });
     }
 
-    // Format the response with consistent id field
-    const formattedPost = {
-      ...updatedPost,
-      id: updatedPost._id.toString(),
-      author: updatedPost.author ? {
-        ...updatedPost.author,
-        id: (updatedPost.author as any)._id?.toString()
-      } : undefined
-    };
-    
     return res.status(200).json({ 
       success: true, 
       message: 'Post updated successfully', 
-      post: formattedPost 
+      post: {
+        ...updatedPost,
+        id: updatedPost._id.toString(),
+        author: updatedPost.author ? {
+          ...updatedPost.author,
+          id: updatedPost.author._id?.toString()
+        } : undefined
+      }
     });
   } catch (error: any) {
     console.error('Update post error:', error);
@@ -281,14 +280,14 @@ export const updatePost = async (req: AuthRequest, res: Response): Promise<any> 
 export const deletePost = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
+    if (!req.user?._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     
     const userId = req.user._id;
 
     // Find the post
-    const post = await Post.findById(postId);
+    const post = await (Post.findById as any)(postId);
     
     if (!post) {
       return res.status(404).json({ success: false, message: 'Post not found' });
@@ -299,7 +298,7 @@ export const deletePost = async (req: AuthRequest, res: Response): Promise<any> 
       return res.status(403).json({ success: false, message: 'Not authorized to delete this post' });
     }
 
-    await Post.findByIdAndDelete(postId);
+    await (Post.findByIdAndDelete as any)(postId);
     
     return res.status(200).json({ success: true, message: 'Post deleted successfully' });
   } catch (error: any) {
@@ -316,7 +315,7 @@ export const deletePost = async (req: AuthRequest, res: Response): Promise<any> 
 export const likePost = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
+    if (!req.user?._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     
@@ -324,16 +323,14 @@ export const likePost = async (req: AuthRequest, res: Response): Promise<any> =>
     const { reactionType = 'like' } = req.body;
 
     // Find the post
-    const post = await Post.findById(postId);
+    const post = await (Post.findById as any)(postId);
     
     if (!post) {
       return res.status(404).json({ success: false, message: 'Post not found' });
     }
 
     // Initialize reactions array if it doesn't exist
-    if (!post.reactions) {
-      post.reactions = [];
-    }
+    post.reactions ??= [];
 
     // Check if the user has already reacted
     const existingReactionIndex = post.reactions.findIndex(
@@ -345,24 +342,22 @@ export const likePost = async (req: AuthRequest, res: Response): Promise<any> =>
       const existingReaction = post.reactions[existingReactionIndex];
       if (existingReaction?.type === reactionType) {
         post.reactions.splice(existingReactionIndex, 1);
-      } else {
+      } else if (existingReaction) {
         // Otherwise, update the reaction type
-        if (existingReaction) {
-          existingReaction.type = reactionType as any;
-        }
+        existingReaction.type = reactionType;
       }
     } else {
       // Add new reaction
       post.reactions.push({ 
         userId: toObjectId(userId), 
-        type: reactionType as any
+        type: reactionType
       });
     }
 
     await post.save();
 
     // Get updated post with populated fields
-    const updatedPost = await Post.findById(postId)
+    const updatedPost = await (Post.findById as any)(postId)
       .populate('author', 'name email profileImage role classYear')
       .populate({
         path: 'sharedPost',
@@ -377,20 +372,17 @@ export const likePost = async (req: AuthRequest, res: Response): Promise<any> =>
       return res.status(404).json({ success: false, message: 'Post not found after update' });
     }
 
-    // Format the response with consistent id field
-    const formattedPost = {
-      ...updatedPost,
-      id: updatedPost._id.toString(),
-      author: updatedPost.author ? {
-        ...updatedPost.author,
-        id: (updatedPost.author as any)._id?.toString()
-      } : undefined
-    };
-
     return res.status(200).json({ 
       success: true, 
       message: 'Reaction updated successfully', 
-      post: formattedPost 
+      post: {
+        ...updatedPost,
+        id: updatedPost._id.toString(),
+        author: updatedPost.author ? {
+          ...updatedPost.author,
+          id: updatedPost.author._id?.toString()
+        } : undefined
+      }
     });
   } catch (error: any) {
     console.error('Like post error:', error);
@@ -406,23 +398,21 @@ export const likePost = async (req: AuthRequest, res: Response): Promise<any> =>
 export const bookmarkPost = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
+    if (!req.user?._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     
     const userId = req.user._id;
 
     // Find the post
-    const post = await Post.findById(postId);
+    const post = await (Post.findById as any)(postId);
     
     if (!post) {
       return res.status(404).json({ success: false, message: 'Post not found' });
     }
 
     // Initialize bookmarks array if it doesn't exist
-    if (!post.bookmarks) {
-      post.bookmarks = [];
-    }
+    post.bookmarks ??= [];
 
     // Check if the post is already bookmarked by this user
     const alreadyBookmarked = isIdInArray(post.bookmarks, userId);
@@ -462,14 +452,14 @@ export const bookmarkPost = async (req: AuthRequest, res: Response): Promise<any
 export const sharePost = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { originalPostId, content, visibility, shareType = 'simple' } = req.body;
-    if (!req.user || !req.user._id) {
+    if (!req.user?._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     
     const userId = req.user._id;
 
     // Find the original post
-    const originalPost = await Post.findById(originalPostId);
+    const originalPost = await (Post.findById as any)(originalPostId);
     
     if (!originalPost) {
       return res.status(404).json({ success: false, message: 'Original post not found' });
@@ -478,8 +468,8 @@ export const sharePost = async (req: AuthRequest, res: Response): Promise<any> =
     // Create a new post that shares the original
     const sharedPost = new Post({
       author: userId,
-      content: content || '',
-      visibility: visibility || 'public',
+      content: content ?? '',
+      visibility: visibility ?? 'public',
       sharedPost: originalPostId,
       shareType,
       category: 'general'
@@ -488,7 +478,7 @@ export const sharePost = async (req: AuthRequest, res: Response): Promise<any> =
     await sharedPost.save();
 
     // Increment the share count of the original post
-    originalPost.shareCount = (originalPost.shareCount || 0) + 1;
+    originalPost.shareCount = (originalPost.shareCount ?? 0) + 1;
     await originalPost.save();
     
     // Format the response with consistent id field
@@ -516,7 +506,7 @@ export const sharePost = async (req: AuthRequest, res: Response): Promise<any> =
 export const getFeedPosts = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { page = 1, limit = 10, filter } = req.query;
-    if (!req.user || !req.user._id) {
+    if (!req.user?._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     
@@ -554,7 +544,7 @@ export const getFeedPosts = async (req: AuthRequest, res: Response): Promise<any
       };
     }
 
-    const posts = await Post.find(query)
+    const posts = await (Post.find as any)(query)
       .populate('author', 'name email profileImage role classYear')
       .populate('mentions', 'name email profileImage')
       .populate({
@@ -577,7 +567,7 @@ export const getFeedPosts = async (req: AuthRequest, res: Response): Promise<any
       id: post._id.toString(),
       author: post.author ? {
         ...post.author,
-        id: (post.author as any)._id?.toString()
+        id: post.author._id?.toString()
       } : undefined,
       mentions: post.mentions ? (post.mentions as any[]).map((user: any) => ({
         ...user,
@@ -612,7 +602,7 @@ export const getFeedPosts = async (req: AuthRequest, res: Response): Promise<any
 // Get bookmarked posts
 export const getBookmarkedPosts = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    if (!req.user || !req.user._id) {
+    if (!req.user?._id) {
       return res.status(401).json({
         success: false,
         message: 'Unauthorized'
@@ -625,7 +615,7 @@ export const getBookmarkedPosts = async (req: AuthRequest, res: Response): Promi
     const skip = (page - 1) * limit;
 
     // Find posts that the current user has bookmarked
-    const posts = await Post.find({
+    const posts = await (Post.find as any)({
       bookmarks: { $elemMatch: { $eq: userId } }
     })
       .populate('author', 'name profileImage role classYear email')
@@ -651,7 +641,7 @@ export const getBookmarkedPosts = async (req: AuthRequest, res: Response): Promi
       id: post._id.toString(),
       author: post.author ? {
         ...post.author,
-        id: (post.author as any)._id?.toString()
+        id: post.author._id?.toString()
       } : undefined,
       isLiked: post.reactions ? post.reactions.some((reaction: any) =>
         reaction.userId && reaction.userId.toString() === userId.toString() && reaction.type === 'like'
@@ -685,7 +675,7 @@ export const getBookmarkedPosts = async (req: AuthRequest, res: Response): Promi
 export const getFeaturedPosts = async (req: Request, res: Response): Promise<any> => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    const posts = await Post.find({ isFeatured: true })
+    const posts = await (Post.find as any)({ isFeatured: true })
       .populate('author', 'name email profileImage role classYear')
       .populate({
         path: 'sharedPost',
@@ -705,7 +695,7 @@ export const getFeaturedPosts = async (req: Request, res: Response): Promise<any
       id: post._id.toString(),
       author: post.author ? {
         ...post.author,
-        id: (post.author as any)._id?.toString()
+        id: post.author._id?.toString()
       } : undefined
     }));
 
@@ -724,7 +714,7 @@ export const getFeaturedPosts = async (req: Request, res: Response): Promise<any
 export const getSchoolUpdates = async (req: Request, res: Response): Promise<any> => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    const posts = await Post.find({ isSchoolUpdate: true })
+    const posts = await (Post.find as any)({ isSchoolUpdate: true })
       .populate('author', 'name email profileImage role classYear')
       .populate({
         path: 'sharedPost',
@@ -744,7 +734,7 @@ export const getSchoolUpdates = async (req: Request, res: Response): Promise<any
       id: post._id.toString(),
       author: post.author ? {
         ...post.author,
-        id: (post.author as any)._id?.toString()
+        id: post.author._id?.toString()
       } : undefined
     }));
 
@@ -774,7 +764,7 @@ export const getSchoolUpdates = async (req: Request, res: Response): Promise<any
 export const toggleFeaturePost = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
+    if (!req.user?._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
@@ -784,7 +774,7 @@ export const toggleFeaturePost = async (req: AuthRequest, res: Response): Promis
     }
 
     // Find the post
-    const post = await Post.findById(postId);
+    const post = await (Post.findById as any)(postId);
     
     if (!post) {
       return res.status(404).json({ success: false, message: 'Post not found' });
@@ -795,7 +785,7 @@ export const toggleFeaturePost = async (req: AuthRequest, res: Response): Promis
     await post.save();
 
     // Get updated post with populated fields
-    const updatedPost = await Post.findById(postId)
+    const updatedPost = await (Post.findById as any)(postId)
       .populate('author', 'name email profileImage role classYear')
       .populate({
         path: 'sharedPost',
@@ -816,7 +806,7 @@ export const toggleFeaturePost = async (req: AuthRequest, res: Response): Promis
       id: updatedPost._id.toString(),
       author: updatedPost.author ? {
         ...updatedPost.author,
-        id: (updatedPost.author as any)._id?.toString()
+        id: updatedPost.author._id?.toString()
       } : undefined
     };
 

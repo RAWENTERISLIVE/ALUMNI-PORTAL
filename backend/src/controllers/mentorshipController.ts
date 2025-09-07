@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import MentorshipProfile from '../models/MentorshipProfile';
+import MentorshipRequest from '../models/MentorshipRequest';
 import User from '../models/User';
 
 // Get all available mentors
@@ -151,23 +152,138 @@ export const getMentorshipProfile = async (req: Request, res: Response): Promise
 };
 
 // Request mentorship from a mentor
-export const requestMentorship = async (req: Request, res: Response) => {
-  // This is a placeholder. In a real application, you would create a MentorshipRequest model
-  // and handle the request lifecycle (pending, accepted, rejected).
-  const { mentorId } = req.params;
-  const menteeId = (req as any).user.id;
+export const requestMentorship = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { mentorId } = req.params;
+    const { message, topics, preferredSchedule } = req.body;
+    const menteeId = (req as any).user.id;
 
-  console.log(`Mentorship request from ${menteeId} to ${mentorId}`);
+    // Validate input
+    if (!topics || !Array.isArray(topics) || topics.length === 0) {
+      res.status(400).json({ success: false, message: 'At least one topic is required' });
+      return;
+    }
 
-  res.json({ success: true, message: 'Mentorship request sent' });
+    // Check if mentor exists and is active
+    const mentor = await MentorshipProfile.findOne({ 
+      userId: mentorId, 
+      isMentor: true, 
+      isActive: true 
+    });
+    
+    if (!mentor) {
+      res.status(404).json({ success: false, message: 'Mentor not found or not active' });
+      return;
+    }
+
+    // Check if there's already a pending request
+    const existingRequest = await MentorshipRequest.findOne({
+      mentorId,
+      menteeId,
+      status: 'pending'
+    });
+
+    if (existingRequest) {
+      res.status(400).json({ success: false, message: 'You already have a pending request to this mentor' });
+      return;
+    }
+
+    // Create the mentorship request
+    const request = new MentorshipRequest({
+      mentorId,
+      menteeId,
+      message: message || '',
+      topics,
+      preferredSchedule: preferredSchedule || ''
+    });
+
+    await request.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Mentorship request sent successfully',
+      data: request
+    });
+  } catch (error) {
+    console.error('Error in requestMentorship:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
 };
 
 // Respond to a mentorship request
-export const respondToRequest = async (req: Request, res: Response) => {
-  // This is a placeholder.
-  const { requestId, action } = req.params; // action can be 'accept' or 'reject'
+export const respondToRequest = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { requestId, action } = req.params;
+    const mentorId = (req as any).user.id;
 
-  console.log(`Responding to request ${requestId} with action ${action}`);
+    if (!['accept', 'reject'].includes(action)) {
+      res.status(400).json({ success: false, message: 'Invalid action. Use accept or reject' });
+      return;
+    }
 
-  res.json({ success: true, message: 'Responded to request' });
+    const request = await MentorshipRequest.findById(requestId);
+    
+    if (!request) {
+      res.status(404).json({ success: false, message: 'Request not found' });
+      return;
+    }
+
+    // Verify the current user is the mentor for this request
+    if (request.mentorId.toString() !== mentorId) {
+      res.status(403).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    if (request.status !== 'pending') {
+      res.status(400).json({ success: false, message: 'Request has already been responded to' });
+      return;
+    }
+
+    // Update the request status
+    request.status = action === 'accept' ? 'accepted' : 'rejected';
+    request.respondedAt = new Date();
+    
+    await request.save();
+
+    res.json({ 
+      success: true, 
+      message: `Request ${action}ed successfully`,
+      data: request
+    });
+  } catch (error) {
+    console.error('Error in respondToRequest:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Get mentorship requests for a mentor (received requests)
+export const getMentorRequests = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const mentorId = (req as any).user.id;
+    
+    const requests = await MentorshipRequest.find({ mentorId })
+      .populate('menteeId', 'name firstName lastName email profileImage')
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error('Error in getMentorRequests:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Get mentorship requests for a mentee (sent requests)
+export const getMenteeRequests = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const menteeId = (req as any).user.id;
+    
+    const requests = await MentorshipRequest.find({ menteeId })
+      .populate('mentorId', 'name firstName lastName email profileImage')
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error('Error in getMenteeRequests:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
 };

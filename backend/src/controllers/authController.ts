@@ -7,6 +7,23 @@ interface AuthRequest extends Request {
   user?: IUser;
 }
 
+interface UserCreationData {
+  email: string;
+  password: string;
+  name: string;
+  needsManualVerification: boolean;
+  role?: UserRole;
+  status?: UserStatus;
+  verificationDetails?: string;
+  graduationYear?: number;
+  major?: string;
+  linkedInProfile?: string;
+  professionalTitle?: string;
+  admissionNumber?: string;
+  admissionYear?: number | string;
+  isVerified?: boolean;
+}
+
 // Generate JWT tokens
 const generateTokens = (userId: string) => {
   const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
@@ -54,7 +71,7 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
     return;
   }
 
-  let userToCreate: any = {
+  let userToCreate: UserCreationData = {
     email: email.toLowerCase(),
     password,
     name,
@@ -167,8 +184,9 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
       accessToken,
       refreshToken
     });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+    res.status(500).json({ success: false, message: errorMessage });
   }
 });
 

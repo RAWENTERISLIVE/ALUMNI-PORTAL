@@ -205,7 +205,7 @@ const mentorshipProfileSchema = new Schema<IMentorshipProfile>({
 });
 
 // Indexes for better performance
-mentorshipProfileSchema.index({ userId: 1 });
+// Note: userId already has unique index from schema definition
 mentorshipProfileSchema.index({ isMentor: 1, isActive: 1 });
 mentorshipProfileSchema.index({ isSeekingMentor: 1, isActive: 1 });
 mentorshipProfileSchema.index({ expertise: 1 });

@@ -13,6 +13,9 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LinkedInImporter } from "@/components/profile/LinkedInImporter";
+import { SkillsManager } from "@/components/profile/SkillsManager";
+import { InterestsManager } from "@/components/profile/InterestsManager";
+import { PrivacySettingsManager } from "@/components/profile/PrivacySettingsManager";
 import apiService from "@/services/apiService";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
@@ -499,6 +502,12 @@ export default function ProfilePage() {
               >
                 Skills & Interests
               </TabsTrigger>
+              <TabsTrigger 
+                value="privacy"
+                className="flex-1 data-[state=active]:bg-orange-500 data-[state=active]:text-white hover:text-orange-500"
+              >
+                Privacy
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="profile" className="mt-4">
               <Card>
@@ -813,110 +822,36 @@ export default function ProfilePage() {
             </TabsContent>
             
             <TabsContent value="skills" className="mt-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="space-y-8">
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-medium">Skills</h3>
-                        {isOwnProfile && (
-                          <Button
-                            className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
-                            onClick={() => setIsSkillsModalOpen(true)}
-                          >
-                            + Add Skills
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-2">
-                        {skills.map((skill) => (
-                          <div key={skill} className="relative group">
-                            <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-200 px-3 py-1 rounded-lg">
-                              {skill}
-                              {isOwnProfile && (
-                                <button 
-                                  className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleRemoveSkill(skill);
-                                  }}
-                                >
-                                  ×
-                                </button>
-                              )}
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-medium">Interests</h3>
-                        {isOwnProfile && (
-                          <Button
-                            className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
-                            onClick={() => setIsSkillsModalOpen(true)}
-                          >
-                            + Add Interests
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-2">
-                        {interests.map((interest) => (
-                          <div key={interest} className="relative group">
-                            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 px-3 py-1 rounded-lg">
-                              {interest}
-                              {isOwnProfile && (
-                                <button 
-                                  className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleRemoveInterest(interest);
-                                  }}
-                                >
-                                  ×
-                                </button>
-                              )}
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-medium">Languages</h3>
-                        {isOwnProfile && (
-                          <Button
-                            className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
-                            onClick={() => setIsSkillsModalOpen(true)}
-                          >
-                            + Add Languages
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">English</span>
-                          <span className="text-sm text-gray-500">Native or Bilingual</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">Spanish</span>
-                          <span className="text-sm text-gray-500">Professional Working</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">French</span>
-                          <span className="text-sm text-gray-500">Elementary</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="space-y-6">
+                <SkillsManager
+                  userId={profile?._id || profile?.id || ''}
+                  initialSkills={profile?.skills || []}
+                  isOwnProfile={isOwnProfile}
+                  onSkillsUpdate={(skills) => {
+                    setProfile(prev => ({ ...prev, skills }));
+                  }}
+                />
+                
+                <InterestsManager
+                  userId={profile?._id || profile?.id || ''}
+                  initialInterests={profile?.interests || []}
+                  isOwnProfile={isOwnProfile}
+                  onInterestsUpdate={(interests) => {
+                    setProfile(prev => ({ ...prev, interests }));
+                  }}
+                />
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="privacy" className="mt-4">
+              <PrivacySettingsManager
+                userId={profile?._id || profile?.id || ''}
+                initialSettings={profile?.privacySettings || {}}
+                isOwnProfile={isOwnProfile}
+                onSettingsUpdate={(privacySettings) => {
+                  setProfile(prev => ({ ...prev, privacySettings }));
+                }}
+              />
             </TabsContent>
           </Tabs>
         </div>

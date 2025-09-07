@@ -14,7 +14,10 @@ import {
   updateUserProfile,
   getUserById,
   getAlumniDirectory,
-  getUserSuggestions
+  getUserSuggestions,
+  updateUserSkills,
+  updateUserInterests,
+  updatePrivacySettings
 } from '../controllers/userController';
 import { authMiddleware, requireAdmin, requireSuperAdmin } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -103,5 +106,8 @@ router.get('/me', authMiddleware, async (req: any, res: any, next: any) => {
 // Profile routes - /:userId must come after specific routes
 router.get('/:userId', authMiddleware, getUserById);
 router.patch('/:userId/profile', authMiddleware, updateProfileValidation, validate, updateUserProfile);
+router.patch('/:userId/skills', authMiddleware, updateUserSkills);
+router.patch('/:userId/interests', authMiddleware, updateUserInterests);
+router.patch('/:userId/privacy', authMiddleware, updatePrivacySettings);
 
 export default router;
