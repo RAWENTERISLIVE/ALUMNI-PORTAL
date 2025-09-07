@@ -52,12 +52,12 @@ app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({
     origin: process.env.NODE_ENV === 'production'
         ? process.env.FRONTEND_URL
-        : ['http://localhost:8080', 'http://localhost:8081'],
+        : ['http://localhost:8080', 'http://localhost:8082'],
     credentials: true
 }));
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000,
-    max: 100
+    max: 1000
 });
 app.use(limiter);
 app.use(express_1.default.json());

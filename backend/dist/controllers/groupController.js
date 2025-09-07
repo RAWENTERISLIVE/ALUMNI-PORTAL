@@ -36,10 +36,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserGroups = exports.postGroupMessage = exports.getGroupMessages = exports.leaveGroup = exports.joinGroup = exports.getGroup = exports.getGroups = exports.createGroup = void 0;
+exports.getGroupStats = exports.deleteGroup = exports.updateGroup = exports.removeMember = exports.makeAdmin = exports.rejectJoinRequest = exports.approveJoinRequest = exports.getGroupRequests = exports.getUserGroups = exports.postGroupMessage = exports.getGroupMessages = exports.leaveGroup = exports.joinGroup = exports.getGroup = exports.getGroups = exports.createGroup = void 0;
 const Group_1 = __importStar(require("../models/Group"));
 const GroupMessage_1 = __importDefault(require("../models/GroupMessage"));
 const errorHandler_1 = require("../middleware/errorHandler");
+const mongoose_1 = require("mongoose");
 const isPopulatedUser = (obj) => {
     return typeof obj === 'object' && obj !== null && '_id' in obj && 'name' in obj && 'email' in obj;
 };
@@ -289,6 +290,170 @@ exports.getUserGroups = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     res.json({
         success: true,
         data: formattedGroups
+    });
+});
+exports.getGroupRequests = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { groupId } = req.params;
+    const userId = req.user?.id;
+    const group = await Group_1.default.findById(groupId)
+        .populate('pendingRequests', 'name email profileImage firstName lastName');
+    if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.isAdmin(new mongoose_1.Types.ObjectId(userId))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view requests' });
+    }
+    res.json({
+        success: true,
+        data: group.pendingRequests
+    });
+});
+exports.approveJoinRequest = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { groupId, userId: targetUserId } = req.params;
+    const userId = req.user?.id;
+    const group = await Group_1.default.findById(groupId);
+    if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.isAdmin(new mongoose_1.Types.ObjectId(userId))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to approve requests' });
+    }
+    await group.addMember(new mongoose_1.Types.ObjectId(targetUserId));
+    res.json({
+        success: true,
+        message: 'Join request approved'
+    });
+});
+exports.rejectJoinRequest = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { groupId, userId: targetUserId } = req.params;
+    const userId = req.user?.id;
+    const group = await Group_1.default.findById(groupId);
+    if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.isAdmin(new mongoose_1.Types.ObjectId(userId))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to reject requests' });
+    }
+    group.pendingRequests = group.pendingRequests.filter((id) => !id.equals(new mongoose_1.Types.ObjectId(targetUserId)));
+    await group.save();
+    res.json({
+        success: true,
+        message: 'Join request rejected'
+    });
+});
+exports.makeAdmin = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { groupId, userId: targetUserId } = req.params;
+    const userId = req.user?.id;
+    const group = await Group_1.default.findById(groupId);
+    if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.isAdmin(new mongoose_1.Types.ObjectId(userId))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to make admins' });
+    }
+    try {
+        await group.addAdmin(new mongoose_1.Types.ObjectId(targetUserId));
+        res.json({
+            success: true,
+            message: 'User promoted to admin'
+        });
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        res.status(400).json({ success: false, message: errorMessage });
+    }
+});
+exports.removeMember = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { groupId, userId: targetUserId } = req.params;
+    const userId = req.user?.id;
+    const group = await Group_1.default.findById(groupId);
+    if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.isAdmin(new mongoose_1.Types.ObjectId(userId))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to remove members' });
+    }
+    if (group.creator.equals(new mongoose_1.Types.ObjectId(targetUserId))) {
+        return res.status(400).json({ success: false, message: 'Cannot remove group creator' });
+    }
+    await group.removeMember(new mongoose_1.Types.ObjectId(targetUserId));
+    res.json({
+        success: true,
+        message: 'Member removed from group'
+    });
+});
+exports.updateGroup = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { groupId } = req.params;
+    const userId = req.user?.id;
+    const { name, description, privacy, category, rules, tags } = req.body;
+    const group = await Group_1.default.findById(groupId);
+    if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.isAdmin(new mongoose_1.Types.ObjectId(userId))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to update group' });
+    }
+    if (name)
+        group.name = name;
+    if (description)
+        group.description = description;
+    if (privacy)
+        group.privacy = privacy;
+    if (category)
+        group.category = category;
+    if (rules)
+        group.rules = rules;
+    if (tags)
+        group.tags = tags;
+    await group.save();
+    res.json({
+        success: true,
+        data: group,
+        message: 'Group updated successfully'
+    });
+});
+exports.deleteGroup = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { groupId } = req.params;
+    const userId = req.user?.id;
+    const group = await Group_1.default.findById(groupId);
+    if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.creator.equals(new mongoose_1.Types.ObjectId(userId))) {
+        return res.status(403).json({ success: false, message: 'Only group creator can delete group' });
+    }
+    await GroupMessage_1.default.deleteMany({ group: groupId });
+    await Group_1.default.findByIdAndDelete(groupId);
+    res.json({
+        success: true,
+        message: 'Group deleted successfully'
+    });
+});
+exports.getGroupStats = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { groupId } = req.params;
+    const userId = req.user?.id;
+    const group = await Group_1.default.findById(groupId);
+    if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.isAdmin(new mongoose_1.Types.ObjectId(userId))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view stats' });
+    }
+    const messageCount = await GroupMessage_1.default.countDocuments({ group: groupId });
+    const recentMessages = await GroupMessage_1.default.find({ group: groupId })
+        .sort({ createdAt: -1 })
+        .limit(1);
+    const stats = {
+        memberCount: group.members.length,
+        adminCount: group.admins.length,
+        pendingRequestsCount: group.pendingRequests.length,
+        messageCount,
+        lastActivity: recentMessages[0]?.createdAt || group.lastActivity,
+        createdAt: group.createdAt
+    };
+    res.json({
+        success: true,
+        data: stats
     });
 });
 //# sourceMappingURL=groupController.js.map

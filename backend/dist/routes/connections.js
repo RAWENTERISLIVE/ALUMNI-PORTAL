@@ -10,6 +10,7 @@ const auth_1 = require("../middleware/auth");
 const validation_1 = require("../middleware/validation");
 const router = express_1.default.Router();
 const sendRequestValidation = [
+    (0, express_validator_1.body)('userId').isMongoId().withMessage('Valid user ID is required'),
     (0, express_validator_1.body)('message')
         .optional()
         .isLength({ max: 500 })
@@ -19,10 +20,10 @@ const sendRequestValidation = [
 router.get('/', auth_1.authMiddleware, connectionController_1.getUserConnections);
 router.get('/requests/received', auth_1.authMiddleware, connectionController_1.getReceivedConnectionRequests);
 router.get('/requests/sent', auth_1.authMiddleware, connectionController_1.getSentConnectionRequests);
-router.get('/status/:userId', auth_1.authMiddleware, connectionController_1.getConnectionStatus);
-router.post('/request/:userId', auth_1.authMiddleware, sendRequestValidation, validation_1.validate, connectionController_1.sendConnectionRequest);
-router.post('/accept/:requestId', auth_1.authMiddleware, connectionController_1.acceptConnectionRequest);
-router.post('/reject/:requestId', auth_1.authMiddleware, connectionController_1.rejectConnectionRequest);
-router.delete('/:userId', auth_1.authMiddleware, connectionController_1.removeConnection);
+router.get('/:userId/status', auth_1.authMiddleware, connectionController_1.getConnectionStatus);
+router.post('/request', auth_1.authMiddleware, sendRequestValidation, validation_1.validate, connectionController_1.sendConnectionRequest);
+router.patch('/accept/:requestId', auth_1.authMiddleware, connectionController_1.acceptConnectionRequest);
+router.patch('/reject/:requestId', auth_1.authMiddleware, connectionController_1.rejectConnectionRequest);
+router.delete('/:connectionId', auth_1.authMiddleware, connectionController_1.removeConnection);
 exports.default = router;
 //# sourceMappingURL=connections.js.map

@@ -33,6 +33,8 @@ export interface IUser extends Document {
     company?: string;
     jobTitle?: string;
     isAvailableAsMentor: boolean;
+    skills?: string[];
+    interests?: string[];
     connections?: mongoose.Types.ObjectId[];
     location?: string;
     lastLogin?: Date;
@@ -57,6 +59,10 @@ export interface IUser extends Document {
         profileVisibility?: 'public' | 'alumni' | 'connections';
         showEmail?: boolean;
         showPhone?: boolean;
+        showBio?: boolean;
+        showSkills?: boolean;
+        showInterests?: boolean;
+        showConnections?: boolean;
         allowMessaging?: boolean;
         allowConnection?: boolean;
         allowProfileSearch?: boolean;

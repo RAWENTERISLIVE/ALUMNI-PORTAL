@@ -8,9 +8,16 @@ export interface IGroup extends Document {
     description: string;
     creator: Types.ObjectId;
     members: Types.ObjectId[];
+    admins: Types.ObjectId[];
+    pendingRequests: Types.ObjectId[];
     privacy: GroupPrivacy;
     memberCount: number;
     category?: string;
+    tags: string[];
+    avatar?: string;
+    coverImage?: string;
+    rules?: string;
+    isActive: boolean;
     lastActivity: Date;
     createdAt: Date;
     updatedAt: Date;

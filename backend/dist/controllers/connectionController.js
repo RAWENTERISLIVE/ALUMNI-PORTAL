@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getConnectionStatus = exports.removeConnection = exports.getUserConnections = exports.getSentConnectionRequests = exports.getReceivedConnectionRequests = exports.rejectConnectionRequest = exports.acceptConnectionRequest = exports.sendConnectionRequest = void 0;
+exports.removeConnection = exports.getConnectionStatus = exports.getUserConnections = exports.getSentConnectionRequests = exports.getReceivedConnectionRequests = exports.rejectConnectionRequest = exports.acceptConnectionRequest = exports.sendConnectionRequest = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const User_1 = __importDefault(require("../models/User"));
 const ConnectionRequest_1 = __importStar(require("../models/ConnectionRequest"));
@@ -237,6 +237,43 @@ exports.getUserConnections = (0, errorHandler_1.asyncHandler)(async (req, res) =
         }
     });
 });
+exports.getConnectionStatus = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { userId: otherUserId } = req.params;
+    const currentUserId = req.user?.id || req.user?._id;
+    if (!currentUserId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+    }
+    if (currentUserId === otherUserId) {
+        res.json({ success: true, data: { status: 'self' } });
+        return;
+    }
+    const currentUser = await User_1.default.findById(currentUserId).select('connections');
+    if (currentUser?.connections?.includes(new mongoose_1.default.Types.ObjectId(otherUserId))) {
+        res.json({ success: true, data: { status: 'connected' } });
+        return;
+    }
+    const existingRequest = await ConnectionRequest_1.default.findOne({
+        $or: [
+            { sender: currentUserId, receiver: otherUserId },
+            { sender: otherUserId, receiver: currentUserId }
+        ],
+        status: ConnectionRequest_1.ConnectionRequestStatus.PENDING
+    });
+    if (existingRequest) {
+        const requestType = existingRequest.sender.toString() === currentUserId ? 'sent' : 'received';
+        res.json({
+            success: true,
+            data: {
+                status: 'pending',
+                requestType: requestType,
+                requestId: existingRequest._id
+            }
+        });
+        return;
+    }
+    res.json({ success: true, data: { status: 'none' } });
+});
 exports.removeConnection = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { userId } = req.params;
     const currentUserId = req.user?.id || req.user?._id;
@@ -263,52 +300,6 @@ exports.removeConnection = (0, errorHandler_1.asyncHandler)(async (req, res) => 
     res.json({
         success: true,
         message: 'Connection removed successfully'
-    });
-});
-exports.getConnectionStatus = (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const { userId } = req.params;
-    const currentUserId = req.user?.id || req.user?._id;
-    if (!currentUserId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-    }
-    if (currentUserId === userId) {
-        res.json({
-            success: true,
-            data: { status: 'self' }
-        });
-        return;
-    }
-    const currentUser = await User_1.default.findById(currentUserId);
-    if (currentUser && currentUser.connections?.includes(new mongoose_1.default.Types.ObjectId(userId))) {
-        res.json({
-            success: true,
-            data: { status: 'connected' }
-        });
-        return;
-    }
-    const pendingRequest = await ConnectionRequest_1.default.findOne({
-        $or: [
-            { sender: currentUserId, receiver: userId },
-            { sender: userId, receiver: currentUserId }
-        ],
-        status: ConnectionRequest_1.ConnectionRequestStatus.PENDING
-    });
-    if (pendingRequest) {
-        const status = pendingRequest.sender.toString() === currentUserId ? 'sent' : 'received';
-        res.json({
-            success: true,
-            data: {
-                status: 'pending',
-                requestType: status,
-                requestId: pendingRequest._id
-            }
-        });
-        return;
-    }
-    res.json({
-        success: true,
-        data: { status: 'none' }
     });
 });
 //# sourceMappingURL=connectionController.js.map

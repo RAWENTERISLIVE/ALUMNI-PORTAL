@@ -13,4 +13,7 @@ export declare const getUserStats: (req: Request, res: Response, next: import("e
 export declare const updateUserProfile: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getUserById: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getUserSuggestions: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const updateUserSkills: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const updateUserInterests: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const updatePrivacySettings: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 //# sourceMappingURL=userController.d.ts.map

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserSuggestions = exports.getUserById = exports.updateUserProfile = exports.getUserStats = exports.getAlumniDirectory = exports.deleteUser = exports.demoteAdmin = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.rejectUser = exports.approveUser = exports.getPendingUsers = exports.getAllUsers = void 0;
+exports.updatePrivacySettings = exports.updateUserInterests = exports.updateUserSkills = exports.getUserSuggestions = exports.getUserById = exports.updateUserProfile = exports.getUserStats = exports.getAlumniDirectory = exports.deleteUser = exports.demoteAdmin = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.rejectUser = exports.approveUser = exports.getPendingUsers = exports.getAllUsers = void 0;
 const User_1 = __importStar(require("../models/User"));
 const errorHandler_1 = require("../middleware/errorHandler");
 exports.getAllUsers = (0, errorHandler_1.asyncHandler)(async (req, res) => {
@@ -436,6 +436,64 @@ exports.getUserSuggestions = (0, errorHandler_1.asyncHandler)(async (req, res) =
                                 1,
                                 0
                             ]
+                        },
+                        {
+                            $min: [
+                                3,
+                                {
+                                    $multiply: [
+                                        0.5,
+                                        {
+                                            $size: {
+                                                $ifNull: [
+                                                    {
+                                                        $setIntersection: [
+                                                            { $ifNull: ['$skills', []] },
+                                                            { $ifNull: [currentUser.skills || [], []] }
+                                                        ]
+                                                    },
+                                                    []
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            $min: [
+                                2,
+                                {
+                                    $multiply: [
+                                        0.3,
+                                        {
+                                            $size: {
+                                                $ifNull: [
+                                                    {
+                                                        $setIntersection: [
+                                                            { $ifNull: ['$interests', []] },
+                                                            { $ifNull: [currentUser.interests || [], []] }
+                                                        ]
+                                                    },
+                                                    []
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ['$isAvailableAsMentor', true] },
+                                        { $ne: [currentUser.isAvailableAsMentor, true] }
+                                    ]
+                                },
+                                1,
+                                0
+                            ]
                         }
                     ]
                 }
@@ -459,6 +517,9 @@ exports.getUserSuggestions = (0, errorHandler_1.asyncHandler)(async (req, res) =
                 city: 1,
                 admissionYear: 1,
                 headline: 1,
+                skills: 1,
+                interests: 1,
+                isAvailableAsMentor: 1,
                 similarityScore: 1
             }
         }
@@ -467,6 +528,97 @@ exports.getUserSuggestions = (0, errorHandler_1.asyncHandler)(async (req, res) =
     res.json({
         success: true,
         data: suggestions
+    });
+});
+exports.updateUserSkills = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { userId } = req.params;
+    const { skills } = req.body;
+    if (req.user?._id.toString() !== userId &&
+        req.user?.role !== User_1.UserRole.ADMIN &&
+        req.user?.role !== User_1.UserRole.SUPER_ADMIN) {
+        res.status(403).json({ success: false, message: 'Not authorized to update this profile' });
+        return;
+    }
+    if (!Array.isArray(skills)) {
+        res.status(400).json({ success: false, message: 'Skills must be an array' });
+        return;
+    }
+    const validSkills = skills
+        .filter(skill => typeof skill === 'string' && skill.trim().length > 0)
+        .map(skill => skill.trim())
+        .slice(0, 20);
+    const user = await User_1.default.findByIdAndUpdate(userId, { $set: { skills: validSkills } }, { new: true, runValidators: true }).select('-password -refreshTokens');
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    res.status(200).json({
+        success: true,
+        message: 'Skills updated successfully',
+        skills: user.skills
+    });
+});
+exports.updateUserInterests = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { userId } = req.params;
+    const { interests } = req.body;
+    if (req.user?._id.toString() !== userId &&
+        req.user?.role !== User_1.UserRole.ADMIN &&
+        req.user?.role !== User_1.UserRole.SUPER_ADMIN) {
+        res.status(403).json({ success: false, message: 'Not authorized to update this profile' });
+        return;
+    }
+    if (!Array.isArray(interests)) {
+        res.status(400).json({ success: false, message: 'Interests must be an array' });
+        return;
+    }
+    const validInterests = interests
+        .filter(interest => typeof interest === 'string' && interest.trim().length > 0)
+        .map(interest => interest.trim())
+        .slice(0, 15);
+    const user = await User_1.default.findByIdAndUpdate(userId, { $set: { interests: validInterests } }, { new: true, runValidators: true }).select('-password -refreshTokens');
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    res.status(200).json({
+        success: true,
+        message: 'Interests updated successfully',
+        interests: user.interests
+    });
+});
+exports.updatePrivacySettings = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { userId } = req.params;
+    const privacyUpdates = req.body;
+    if (req.user?._id.toString() !== userId) {
+        res.status(403).json({ success: false, message: 'Not authorized to update these settings' });
+        return;
+    }
+    const allowedFields = [
+        'profileVisibility', 'showEmail', 'showPhone', 'showBio', 'showSkills',
+        'showInterests', 'showConnections', 'allowMessaging', 'allowConnection', 'allowProfileSearch'
+    ];
+    const validUpdates = {};
+    for (const [key, value] of Object.entries(privacyUpdates)) {
+        if (allowedFields.includes(key)) {
+            if (key === 'profileVisibility') {
+                if (['public', 'alumni', 'connections'].includes(value)) {
+                    validUpdates[`privacySettings.${key}`] = value;
+                }
+            }
+            else if (typeof value === 'boolean') {
+                validUpdates[`privacySettings.${key}`] = value;
+            }
+        }
+    }
+    const user = await User_1.default.findByIdAndUpdate(userId, { $set: validUpdates }, { new: true, runValidators: true }).select('-password -refreshTokens');
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    res.status(200).json({
+        success: true,
+        message: 'Privacy settings updated successfully',
+        privacySettings: user.privacySettings
     });
 });
 //# sourceMappingURL=userController.js.map

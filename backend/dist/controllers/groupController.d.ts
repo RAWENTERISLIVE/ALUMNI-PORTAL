@@ -7,4 +7,12 @@ export declare const leaveGroup: (req: import("express").Request, res: Response,
 export declare const getGroupMessages: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const postGroupMessage: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getUserGroups: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const getGroupRequests: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const approveJoinRequest: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const rejectJoinRequest: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const makeAdmin: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const removeMember: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const updateGroup: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const deleteGroup: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const getGroupStats: (req: import("express").Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 //# sourceMappingURL=groupController.d.ts.map

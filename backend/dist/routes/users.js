@@ -76,5 +76,8 @@ router.get('/me', auth_1.authMiddleware, async (req, res, next) => {
 });
 router.get('/:userId', auth_1.authMiddleware, userController_1.getUserById);
 router.patch('/:userId/profile', auth_1.authMiddleware, updateProfileValidation, validation_1.validate, userController_1.updateUserProfile);
+router.patch('/:userId/skills', auth_1.authMiddleware, userController_1.updateUserSkills);
+router.patch('/:userId/interests', auth_1.authMiddleware, userController_1.updateUserInterests);
+router.patch('/:userId/privacy', auth_1.authMiddleware, userController_1.updatePrivacySettings);
 exports.default = router;
 //# sourceMappingURL=users.js.map

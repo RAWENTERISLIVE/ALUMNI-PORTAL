@@ -3,8 +3,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.respondToRequest = exports.requestMentorship = exports.getMentorshipProfile = exports.becomeMentor = exports.getMentors = void 0;
+exports.getMenteeRequests = exports.getMentorRequests = exports.respondToRequest = exports.requestMentorship = exports.getMentorshipProfile = exports.becomeMentor = exports.getMentors = void 0;
 const MentorshipProfile_1 = __importDefault(require("../models/MentorshipProfile"));
+const MentorshipRequest_1 = __importDefault(require("../models/MentorshipRequest"));
 const User_1 = __importDefault(require("../models/User"));
 const getMentors = async (_req, res) => {
     try {
@@ -133,16 +134,114 @@ const getMentorshipProfile = async (req, res) => {
 };
 exports.getMentorshipProfile = getMentorshipProfile;
 const requestMentorship = async (req, res) => {
-    const { mentorId } = req.params;
-    const menteeId = req.user.id;
-    console.log(`Mentorship request from ${menteeId} to ${mentorId}`);
-    res.json({ success: true, message: 'Mentorship request sent' });
+    try {
+        const { mentorId } = req.params;
+        const { message, topics, preferredSchedule } = req.body;
+        const menteeId = req.user.id;
+        if (!topics || !Array.isArray(topics) || topics.length === 0) {
+            res.status(400).json({ success: false, message: 'At least one topic is required' });
+            return;
+        }
+        const mentor = await MentorshipProfile_1.default.findOne({
+            userId: mentorId,
+            isMentor: true,
+            isActive: true
+        });
+        if (!mentor) {
+            res.status(404).json({ success: false, message: 'Mentor not found or not active' });
+            return;
+        }
+        const existingRequest = await MentorshipRequest_1.default.findOne({
+            mentorId,
+            menteeId,
+            status: 'pending'
+        });
+        if (existingRequest) {
+            res.status(400).json({ success: false, message: 'You already have a pending request to this mentor' });
+            return;
+        }
+        const request = new MentorshipRequest_1.default({
+            mentorId,
+            menteeId,
+            message: message || '',
+            topics,
+            preferredSchedule: preferredSchedule || ''
+        });
+        await request.save();
+        res.json({
+            success: true,
+            message: 'Mentorship request sent successfully',
+            data: request
+        });
+    }
+    catch (error) {
+        console.error('Error in requestMentorship:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
 };
 exports.requestMentorship = requestMentorship;
 const respondToRequest = async (req, res) => {
-    const { requestId, action } = req.params;
-    console.log(`Responding to request ${requestId} with action ${action}`);
-    res.json({ success: true, message: 'Responded to request' });
+    try {
+        const { requestId, action } = req.params;
+        const mentorId = req.user.id;
+        if (!['accept', 'reject'].includes(action)) {
+            res.status(400).json({ success: false, message: 'Invalid action. Use accept or reject' });
+            return;
+        }
+        const request = await MentorshipRequest_1.default.findById(requestId);
+        if (!request) {
+            res.status(404).json({ success: false, message: 'Request not found' });
+            return;
+        }
+        if (request.mentorId.toString() !== mentorId) {
+            res.status(403).json({ success: false, message: 'Unauthorized' });
+            return;
+        }
+        if (request.status !== 'pending') {
+            res.status(400).json({ success: false, message: 'Request has already been responded to' });
+            return;
+        }
+        request.status = action === 'accept' ? 'accepted' : 'rejected';
+        request.respondedAt = new Date();
+        await request.save();
+        res.json({
+            success: true,
+            message: `Request ${action}ed successfully`,
+            data: request
+        });
+    }
+    catch (error) {
+        console.error('Error in respondToRequest:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
 };
 exports.respondToRequest = respondToRequest;
+const getMentorRequests = async (req, res) => {
+    try {
+        const mentorId = req.user.id;
+        const requests = await MentorshipRequest_1.default.find({ mentorId })
+            .populate('menteeId', 'name firstName lastName email profileImage')
+            .sort({ createdAt: -1 });
+        res.json({ success: true, data: requests });
+    }
+    catch (error) {
+        console.error('Error in getMentorRequests:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+};
+exports.getMentorRequests = getMentorRequests;
+const getMenteeRequests = async (req, res) => {
+    try {
+        const menteeId = req.user.id;
+        const requests = await MentorshipRequest_1.default.find({ menteeId })
+            .populate('mentorId', 'name firstName lastName email profileImage')
+            .sort({ createdAt: -1 });
+        res.json({ success: true, data: requests });
+    }
+    catch (error) {
+        console.error('Error in getMenteeRequests:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+};
+exports.getMenteeRequests = getMenteeRequests;
 //# sourceMappingURL=mentorshipController.js.map
