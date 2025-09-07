@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getUserEvents = exports.cancelRsvp = exports.rsvpEvent = exports.deleteEvent = exports.updateEvent = exports.createEvent = exports.getEvent = exports.getUpcomingEvents = exports.getEvents = void 0;
 const Event_1 = __importDefault(require("../models/Event"));
+const mongoose_1 = require("mongoose");
 const getEvents = async (req, res) => {
     try {
         const { page = 1, limit = 10, category, status = 'upcoming', isSchoolEvent, search, startDate, endDate } = req.query;
@@ -235,14 +236,14 @@ const rsvpEvent = async (req, res) => {
             });
             return;
         }
-        if (event.attendees.includes(userId)) {
+        if (event.attendees.includes(new mongoose_1.Types.ObjectId(userId))) {
             res.status(400).json({
                 success: false,
                 message: 'You have already RSVP\'d to this event'
             });
             return;
         }
-        event.attendees.push(userId);
+        event.attendees.push(new mongoose_1.Types.ObjectId(userId));
         await event.save();
         const updatedEvent = await Event_1.default.findById(eventId)
             .populate('organizer', 'name email profileImage role')
@@ -281,7 +282,7 @@ const cancelRsvp = async (req, res) => {
             });
             return;
         }
-        if (!event.attendees.includes(userId)) {
+        if (!event.attendees.includes(new mongoose_1.Types.ObjectId(userId))) {
             res.status(400).json({
                 success: false,
                 message: 'You have not RSVP\'d to this event'
