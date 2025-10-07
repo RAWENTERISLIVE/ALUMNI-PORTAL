@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { RequestMentorshipModal } from "@/components/mentorship/RequestMentorshi
 import { Search, Calendar, MessageSquare, Filter, GraduationCap, Users, Briefcase, Tag, Star, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import apiService from "@/services/apiService";
-import { ApiResponse } from "@/types";
+import { ApiResponse, MentorshipProfile, MentorshipRelationship, MentorshipFormData, MentorshipRequestData } from "@/types";
 
 // Mock data for mentors until we can fetch from API
 const CATEGORIES = ["Career Guidance", "Industry Insights", "Technical Skills", "Entrepreneurship", "Leadership", "Graduate Studies"];
@@ -25,82 +25,26 @@ function MentorshipPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedExperience, setSelectedExperience] = useState<string | null>(null);
-  const [mentors, setMentors] = useState<any[]>([]);
+  const [mentors, setMentors] = useState<MentorshipProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMentorModalOpen, setIsMentorModalOpen] = useState(false);
-  const [selectedMentor, setSelectedMentor] = useState<any>(null);
+  const [selectedMentor, setSelectedMentor] = useState<MentorshipProfile | null>(null);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const [myMentorships, setMyMentorships] = useState<any[]>([]);
+  const [myMentorships, setMyMentorships] = useState<MentorshipRelationship[]>([]);
 
-  useEffect(() => {
-    loadMentors();
-    loadMyMentorships();
-  }, []);
-
-  const loadMentors = async () => {
+  const loadMentors = useCallback(async () => {
     try {
       setLoading(true);
-      // In a real implementation, we'd call the API
-      const response = await new Promise<ApiResponse>(resolve => {
-        setTimeout(() => {
-          resolve({
-            success: true,
-            data: [
-              {
-                id: "1",
-                user: {
-                  id: "u1",
-                  name: "Alex Johnson",
-                  profileImage: "",
-                  title: "Senior Software Engineer at TechCorp",
-                  graduationYear: 2018,
-                },
-                expertise: ["Career Guidance", "Technical Skills"],
-                experience: "5-10 years",
-                bio: "Experienced software engineer specializing in cloud architecture and distributed systems. Happy to help recent grads navigate the tech industry.",
-                availability: "Weekday evenings",
-                rating: 4.8,
-                reviewCount: 24
-              },
-              {
-                id: "2",
-                user: {
-                  id: "u2",
-                  name: "Priya Patel",
-                  profileImage: "",
-                  title: "Product Manager at Innovation Inc",
-                  graduationYear: 2016,
-                },
-                expertise: ["Leadership", "Industry Insights"],
-                experience: "3-5 years",
-                bio: "Product leader with experience in taking products from concept to market. Can provide guidance on transitioning from engineering to product roles.",
-                availability: "Weekend mornings",
-                rating: 4.9,
-                reviewCount: 32
-              },
-              {
-                id: "3",
-                user: {
-                  id: "u3",
-                  name: "Marcus Williams",
-                  profileImage: "",
-                  title: "Founder & CEO at StartUp",
-                  graduationYear: 2012,
-                },
-                expertise: ["Entrepreneurship", "Leadership"],
-                experience: "10+ years",
-                bio: "Serial entrepreneur with multiple successful exits. Passionate about helping the next generation of business leaders.",
-                availability: "Flexible scheduling",
-                rating: 4.7,
-                reviewCount: 18
-              }
-            ]
-          });
-        }, 1000);
-      });
+      // Call real API instead of mock data
+      const response = await apiService.getMentorshipProfiles({});
       
       if (response.success) {
         setMentors(response.data || []);
+      } else {
+        toast({ 
+          description: response.message || "Failed to load mentors", 
+          variant: "destructive" 
+        });
       }
     } catch (error) {
       console.error("Error loading mentors:", error);
@@ -108,55 +52,49 @@ function MentorshipPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const loadMyMentorships = async () => {
+  const loadMyMentorships = useCallback(async () => {
     try {
-      // In a real implementation, we'd call the API
-      const response = await new Promise<ApiResponse>(resolve => {
-        setTimeout(() => {
-          resolve({
-            success: true,
-            data: [
-              {
-                id: "m1",
-                mentor: {
-                  id: "2",
-                  user: {
-                    id: "u2",
-                    name: "Priya Patel",
-                    profileImage: "",
-                    title: "Product Manager at Innovation Inc",
-                  },
-                },
-                mentee: {
-                  id: currentUser?.id || "current-user",
-                  name: currentUser?.name || "Current User",
-                },
-                status: "active",
-                topics: ["Product Management", "Career Transition"],
-                nextSession: "2025-06-22T15:00:00Z",
-                createdAt: "2025-05-01T10:30:00Z"
-              }
-            ]
-          });
-        }, 1000);
-      });
+      // Load both sent and received mentorship requests
+      const [menteeRequestsResponse, mentorRequestsResponse] = await Promise.all([
+        apiService.getMenteeRequests(),
+        apiService.getMentorRequests()
+      ]);
       
-      if (response.success) {
-        setMyMentorships(response.data || []);
+      const allRequests = [];
+      
+      if (menteeRequestsResponse.success) {
+        allRequests.push(...(menteeRequestsResponse.data || []).map((req: any) => ({
+          ...req,
+          type: 'sent'
+        })));
       }
+      
+      if (mentorRequestsResponse.success) {
+        allRequests.push(...(mentorRequestsResponse.data || []).map((req: any) => ({
+          ...req,
+          type: 'received'
+        })));
+      }
+      
+      setMyMentorships(allRequests);
     } catch (error) {
       console.error("Error loading mentorships:", error);
       toast({ description: "Failed to load your mentorships", variant: "destructive" });
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadMentors();
+    loadMyMentorships();
+  }, [loadMentors, loadMyMentorships]);
 
   const filteredMentors = mentors.filter(mentor => {
     const matchesQuery = !searchQuery || 
-      mentor.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      mentor.userId.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       mentor.bio.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      mentor.user.title.toLowerCase().includes(searchQuery.toLowerCase());
+      (mentor.userId.title && mentor.userId.title.toLowerCase().includes(searchQuery.toLowerCase()));
       
     const matchesCategory = !selectedCategory || 
       mentor.expertise.some((expertise: string) => expertise === selectedCategory);
@@ -166,38 +104,57 @@ function MentorshipPage() {
     return matchesQuery && matchesCategory && matchesExperience;
   });
 
-  const handleBecomeMentor = async (data: any) => {
+  const handleBecomeMentor = async (data: MentorshipFormData) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiService.createMentorshipProfile(data);
       
-      toast({ 
-        title: "Success", 
-        description: "Your mentor profile has been created. It will be reviewed shortly." 
-      });
-      setIsMentorModalOpen(false);
-      
-      // Refresh the list
-      loadMentors();
+      if (response.success) {
+        toast({ 
+          title: "Success", 
+          description: "Your mentor profile has been created successfully." 
+        });
+        setIsMentorModalOpen(false);
+        // Refresh the list
+        loadMentors();
+      } else {
+        toast({ 
+          description: response.message || "Failed to create mentor profile", 
+          variant: "destructive" 
+        });
+      }
     } catch (error) {
       console.error("Error creating mentor profile:", error);
       toast({ description: "Failed to create mentor profile", variant: "destructive" });
     }
   };
 
-  const handleRequestMentorship = async (data: any) => {
+  const handleRequestMentorship = async (data: MentorshipRequestData) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast({ 
-        title: "Request Sent", 
-        description: "Your mentorship request has been sent. You will be notified when they respond." 
+      if (!selectedMentor?.id) {
+        toast({ description: "Please select a mentor", variant: "destructive" });
+        return;
+      }
+
+      const response = await apiService.requestMentorship(selectedMentor.id, {
+        message: data.message || "",
+        topics: data.topic ? [data.topic] : [],
+        preferredSchedule: data.preferredSchedule
       });
-      setIsRequestModalOpen(false);
       
-      // Refresh the list
-      loadMyMentorships();
+      if (response.success) {
+        toast({ 
+          title: "Request Sent", 
+          description: "Your mentorship request has been sent. You will be notified when they respond." 
+        });
+        setIsRequestModalOpen(false);
+        // Refresh the list
+        loadMyMentorships();
+      } else {
+        toast({ 
+          description: response.message || "Failed to send mentorship request", 
+          variant: "destructive" 
+        });
+      }
     } catch (error) {
       console.error("Error requesting mentorship:", error);
       toast({ description: "Failed to send mentorship request", variant: "destructive" });
@@ -269,23 +226,27 @@ function MentorshipPage() {
                         <div className="md:flex md:justify-between">
                           <div className="flex gap-4 mb-4 md:mb-0">
                             <Avatar className="h-16 w-16">
-                              <AvatarImage src={mentor.user.profileImage} />
+                              <AvatarImage src={mentor.userId.profileImage} />
                               <AvatarFallback className="bg-orange-100 text-orange-800 text-xl font-medium">
-                                {mentor.user.name.charAt(0)}
+                                {mentor.userId.name.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <h3 className="font-semibold text-lg text-gray-900">{mentor.user.name}</h3>
-                              <p className="text-gray-600">{mentor.user.title}</p>
-                              <div className="flex items-center text-sm text-gray-500 mt-1">
-                                <GraduationCap className="h-3 w-3 mr-1" />
-                                <span>Class of {mentor.user.graduationYear}</span>
-                              </div>
-                              <div className="flex items-center mt-1">
-                                <Star className="h-3 w-3 text-yellow-400" />
-                                <span className="text-sm font-medium ml-1">{mentor.rating}</span>
-                                <span className="text-xs text-gray-500 ml-1">({mentor.reviewCount} reviews)</span>
-                              </div>
+                              <h3 className="font-semibold text-lg text-gray-900">{mentor.userId.name}</h3>
+                              <p className="text-gray-600">{mentor.userId.title || 'Alumni'}</p>
+                              {mentor.userId.graduationYear && (
+                                <div className="flex items-center text-sm text-gray-500 mt-1">
+                                  <GraduationCap className="h-3 w-3 mr-1" />
+                                  <span>Class of {mentor.userId.graduationYear}</span>
+                                </div>
+                              )}
+                              {mentor.rating && (
+                                <div className="flex items-center mt-1">
+                                  <Star className="h-3 w-3 text-yellow-400" />
+                                  <span className="text-sm font-medium ml-1">{mentor.rating}</span>
+                                  <span className="text-xs text-gray-500 ml-1">({mentor.reviewCount || 0} reviews)</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                           
@@ -468,7 +429,7 @@ function MentorshipPage() {
                       
                       <div className="text-sm text-gray-600 flex items-center mt-4">
                         <Calendar className="h-4 w-4 mr-1" />
-                        <span>Next Session: {new Date(mentorship.nextSession).toLocaleDateString()} at {new Date(mentorship.nextSession).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        <span>Next Session: {mentorship.nextSession ? new Date(mentorship.nextSession).toLocaleDateString() + ' at ' + new Date(mentorship.nextSession).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Not scheduled'}</span>
                       </div>
                     </div>
                   </CardContent>

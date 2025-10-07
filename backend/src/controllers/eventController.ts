@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import Event from '../models/Event';
 import { AuthRequest } from '../middleware/auth';
+import { Types } from 'mongoose';
 
 // Get all events with pagination and filtering
 export const getEvents = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -21,10 +22,10 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<void> 
     const skip = (pageNum - 1) * limitNum;
 
     // Build query
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     
-    if (category) query.category = category;
-    if (status) query.status = status;
+    if (category) query.category = category as string;
+    if (status) query.status = status as string;
     if (isSchoolEvent !== undefined) query.isSchoolEvent = isSchoolEvent === 'true';
     
     if (search) {
@@ -36,9 +37,9 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<void> 
     }
 
     if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate as string);
-      if (endDate) query.date.$lte = new Date(endDate as string);
+      query.date = {} as { $gte?: Date; $lte?: Date };
+      if (startDate) (query.date as any).$gte = new Date(startDate as string);
+      if (endDate) (query.date as any).$lte = new Date(endDate as string);
     }
 
     const events = await Event.find(query)
@@ -275,7 +276,7 @@ export const rsvpEvent = async (req: AuthRequest, res: Response): Promise<void> 
     }
 
     // Check if user already RSVP'd
-    if (event.attendees.includes(userId as any)) {
+    if (event.attendees.includes(new Types.ObjectId(userId))) {
       res.status(400).json({
         success: false,
         message: 'You have already RSVP\'d to this event'
@@ -283,7 +284,7 @@ export const rsvpEvent = async (req: AuthRequest, res: Response): Promise<void> 
       return;
     }
 
-    event.attendees.push(userId as any);
+    event.attendees.push(new Types.ObjectId(userId));
     await event.save();
 
     const updatedEvent = await Event.findById(eventId)
@@ -328,7 +329,7 @@ export const cancelRsvp = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     // Check if user has RSVP'd
-    if (!event.attendees.includes(userId as any)) {
+    if (!event.attendees.includes(new Types.ObjectId(userId))) {
       res.status(400).json({
         success: false,
         message: 'You have not RSVP\'d to this event'

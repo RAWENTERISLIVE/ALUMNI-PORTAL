@@ -2,7 +2,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { 
   Home, User, Users, MessageSquare, 
-  Briefcase, Menu, GraduationCap, Shield, BarChart3, Settings
+  Briefcase, Menu, GraduationCap, Shield, BarChart3, Settings, Network
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -28,14 +28,15 @@ export const MobileNavbar = () => {
   
   const navigation = [
     { name: "Home", href: "/dashboard", icon: Home },
+    { name: "Connections", href: "/connections", icon: Network },
     { name: "Directory", href: "/directory", icon: Users },
     { name: "Groups", href: "/groups", icon: MessageSquare },
     { name: "Jobs", href: "/jobs", icon: Briefcase },
-    { name: "Mentors", href: "/mentorship", icon: GraduationCap },
   ];
   
   const allLinks = [
     ...navigation,
+    { name: "Mentors", href: "/mentorship", icon: GraduationCap },
     { name: "Profile", href: "/profile", icon: User },
     { name: "Settings", href: "/settings", icon: Settings },
   ];

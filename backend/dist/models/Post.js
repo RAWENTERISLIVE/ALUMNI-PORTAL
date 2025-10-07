@@ -56,15 +56,6 @@ const postSchema = new mongoose_1.Schema({
         enum: ['general', 'career', 'networking', 'events', 'achievements', 'announcements'],
         default: 'general'
     },
-    imageUrl: {
-        type: String,
-        validate: {
-            validator: function (url) {
-                return !url || url === '' || /^https?:\/\//.test(url);
-            },
-            message: 'Image URL must be a valid URL'
-        }
-    },
     isFeatured: {
         type: Boolean,
         default: false
@@ -73,7 +64,26 @@ const postSchema = new mongoose_1.Schema({
         type: Boolean,
         default: false
     },
-    likes: [{
+    sharedPost: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'Post'
+    },
+    shareType: {
+        type: String,
+        enum: ['quote', 'simple']
+    },
+    reactions: [{
+            userId: {
+                type: mongoose_1.Schema.Types.ObjectId,
+                ref: 'User'
+            },
+            type: {
+                type: String,
+                enum: ['like', 'love', 'celebrate', 'support', 'insightful', 'funny'],
+                default: 'like'
+            }
+        }],
+    bookmarks: [{
             type: mongoose_1.Schema.Types.ObjectId,
             ref: 'User'
         }],
@@ -81,34 +91,59 @@ const postSchema = new mongoose_1.Schema({
             type: mongoose_1.Schema.Types.ObjectId,
             ref: 'Comment'
         }],
+    commentCount: {
+        type: Number,
+        default: 0
+    },
+    shareCount: {
+        type: Number,
+        default: 0
+    },
     visibility: {
         type: String,
-        enum: ['public', 'alumni_only', 'private'],
-        default: 'alumni_only'
+        enum: ['public', 'alumni_only', 'faculty_only', 'connections_only'],
+        default: 'public'
     },
     tags: [{
             type: String,
-            maxlength: 50,
-            trim: true
+            trim: true,
+            maxlength: 50
+        }],
+    externalLinks: [{
+            type: String,
+            validate: {
+                validator: function (url) {
+                    try {
+                        new URL(url);
+                        return true;
+                    }
+                    catch {
+                        return false;
+                    }
+                },
+                message: 'External link must be a valid URL'
+            }
+        }],
+    mentions: [{
+            type: mongoose_1.Schema.Types.ObjectId,
+            ref: 'User'
         }]
 }, {
     timestamps: true,
-    toJSON: {
-        transform: function (_doc, ret) {
-            ret.id = ret._id;
-            delete ret._id;
-            delete ret.__v;
-            return ret;
-        }
-    }
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
-postSchema.index({ author: 1 });
-postSchema.index({ category: 1 });
-postSchema.index({ createdAt: -1 });
-postSchema.index({ isFeatured: 1 });
-postSchema.index({ isSchoolUpdate: 1 });
+postSchema.index({ author: 1, createdAt: -1 });
+postSchema.index({ category: 1, createdAt: -1 });
+postSchema.index({ visibility: 1, createdAt: -1 });
 postSchema.index({ tags: 1 });
-postSchema.index({ visibility: 1 });
-const Post = mongoose_1.default.model('Post', postSchema);
-exports.default = Post;
+postSchema.index({ isFeatured: 1, createdAt: -1 });
+postSchema.index({ isSchoolUpdate: 1, createdAt: -1 });
+postSchema.virtual('likeCount').get(function () {
+    return this.reactions ? this.reactions.filter(r => r.type === 'like').length : 0;
+});
+postSchema.virtual('bookmarkCount').get(function () {
+    return this.bookmarks ? this.bookmarks.length : 0;
+});
+exports.default = mongoose_1.default.models.Post || mongoose_1.default.model('Post', postSchema);
 //# sourceMappingURL=Post.js.map

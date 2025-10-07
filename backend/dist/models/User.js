@@ -61,7 +61,7 @@ const userSchema = new mongoose_1.Schema({
         trim: true,
         validate: {
             validator: function (email) {
-                return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
+                return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email);
             },
             message: 'Please enter a valid email address'
         }
@@ -69,7 +69,7 @@ const userSchema = new mongoose_1.Schema({
     password: {
         type: String,
         required: true,
-        minlength: 6,
+        minlength: 8,
         select: false
     },
     name: {
@@ -78,28 +78,49 @@ const userSchema = new mongoose_1.Schema({
         trim: true,
         maxlength: 100
     },
+    firstName: {
+        type: String,
+        trim: true,
+        maxlength: 50
+    },
+    lastName: {
+        type: String,
+        trim: true,
+        maxlength: 50
+    },
+    location: {
+        type: String,
+        maxlength: 100
+    },
     admissionNumber: {
         type: String,
-        required: true,
-        unique: true,
+        required: function () {
+            return !this.needsManualVerification;
+        },
+        trim: true,
+        maxlength: 20,
         validate: {
-            validator: function (admissionNumber) {
-                return /^\d+\/\d{2}$/.test(admissionNumber);
+            validator: function (v) {
+                if (this.needsManualVerification && v === 'MANUAL_VERIFICATION')
+                    return true;
+                return /^[a-zA-Z0-9/-]{3,20}$/.test(v);
             },
-            message: 'Admission number must be in format: 12345/23'
+            message: 'Admission number is not valid.'
         }
     },
-    graduationYear: {
+    admissionYear: {
         type: String,
         required: true,
-        validate: {
-            validator: function (year) {
-                const yearNum = parseInt(year);
-                const currentYear = new Date().getFullYear();
-                return yearNum >= 1900 && yearNum <= currentYear + 10;
-            },
-            message: 'Invalid graduation year'
-        }
+        trim: true
+    },
+    needsManualVerification: {
+        type: Boolean,
+        default: false
+    },
+    verificationDetails: {
+        type: String,
+        trim: true,
+        maxlength: 500
     },
     role: {
         type: String,
@@ -111,130 +132,73 @@ const userSchema = new mongoose_1.Schema({
         enum: Object.values(UserStatus),
         default: UserStatus.PENDING
     },
-    isVerified: {
-        type: Boolean,
-        default: false
+    isVerified: { type: Boolean, default: false },
+    profileImage: { type: String },
+    bio: { type: String, maxlength: 500 },
+    headline: { type: String, maxlength: 150 },
+    city: { type: String, maxlength: 100 },
+    country: { type: String, maxlength: 100 },
+    contactEmail: { type: String },
+    contactPhone: { type: String },
+    linkedInProfile: { type: String },
+    company: { type: String, maxlength: 100 },
+    jobTitle: { type: String, trim: true, maxlength: 100 },
+    isAvailableAsMentor: { type: Boolean, default: false },
+    skills: [{ type: String, trim: true, maxlength: 50 }],
+    interests: [{ type: String, trim: true, maxlength: 50 }],
+    connections: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'User' }],
+    lastLogin: { type: Date },
+    refreshTokens: [{ type: String }],
+    passwordResetToken: { type: String, default: null },
+    passwordResetExpires: { type: Date, default: null },
+    emailVerificationToken: { type: String },
+    emailVerificationExpires: { type: Date },
+    notificationSettings: {
+        emailMessages: { type: Boolean, default: true },
+        emailJobs: { type: Boolean, default: true },
+        emailEvents: { type: Boolean, default: true },
+        emailGroups: { type: Boolean, default: true },
+        pushMessages: { type: Boolean, default: true },
+        pushJobs: { type: Boolean, default: false },
+        pushEvents: { type: Boolean, default: true },
+        pushGroups: { type: Boolean, default: true }
     },
-    profileImage: {
-        type: String,
-        validate: {
-            validator: function (url) {
-                return !url || /^https?:\/\//.test(url);
-            },
-            message: 'Profile image must be a valid URL'
-        }
-    },
-    bio: {
-        type: String,
-        maxlength: 500
-    },
-    headline: {
-        type: String,
-        maxlength: 100
-    },
-    city: {
-        type: String,
-        maxlength: 50
-    },
-    country: {
-        type: String,
-        maxlength: 50
-    },
-    contactEmail: {
-        type: String,
-        validate: {
-            validator: function (email) {
-                return !email || /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
-            },
-            message: 'Please enter a valid contact email address'
-        }
-    },
-    contactPhone: {
-        type: String,
-        validate: {
-            validator: function (phone) {
-                return !phone || /^[\+]?[1-9][\d]{0,15}$/.test(phone);
-            },
-            message: 'Please enter a valid phone number'
-        }
-    },
-    linkedInProfile: {
-        type: String,
-        validate: {
-            validator: function (url) {
-                return !url || /^https?:\/\/(www\.)?linkedin\.com\//.test(url);
-            },
-            message: 'LinkedIn profile must be a valid LinkedIn URL'
-        }
-    },
-    company: {
-        type: String,
-        maxlength: 100
-    },
-    jobTitle: {
-        type: String,
-        maxlength: 100
-    },
-    isAvailableAsMentor: {
-        type: Boolean,
-        default: false
-    },
-    lastLogin: {
-        type: Date
-    },
-    refreshTokens: [{
-            type: String
-        }],
-    passwordResetToken: {
-        type: String,
-        select: false
-    },
-    passwordResetExpires: {
-        type: Date,
-        select: false
-    },
-    emailVerificationToken: {
-        type: String,
-        select: false
-    },
-    emailVerificationExpires: {
-        type: Date,
-        select: false
+    privacySettings: {
+        profileVisibility: { type: String, enum: ['public', 'alumni', 'connections'], default: 'alumni' },
+        showEmail: { type: Boolean, default: false },
+        showPhone: { type: Boolean, default: false },
+        showBio: { type: Boolean, default: true },
+        showSkills: { type: Boolean, default: true },
+        showInterests: { type: Boolean, default: true },
+        showConnections: { type: Boolean, default: true },
+        allowMessaging: { type: Boolean, default: true },
+        allowConnection: { type: Boolean, default: true },
+        allowProfileSearch: { type: Boolean, default: true }
     }
-}, {
-    timestamps: true,
-    toJSON: {
-        transform: function (_doc, ret) {
-            ret.id = ret._id;
-            delete ret._id;
-            delete ret.__v;
-            delete ret.password;
-            delete ret.refreshTokens;
-            delete ret.passwordResetToken;
-            delete ret.passwordResetExpires;
-            delete ret.emailVerificationToken;
-            delete ret.emailVerificationExpires;
-            return ret;
-        }
-    }
-});
-userSchema.index({ role: 1 });
-userSchema.index({ status: 1 });
-userSchema.index({ graduationYear: 1 });
-userSchema.index({ createdAt: -1 });
+}, { timestamps: true });
 userSchema.pre('save', async function (next) {
-    if (!this.isModified('password'))
-        return next();
-    try {
-        const salt = await bcryptjs_1.default.genSalt(12);
-        this.password = await bcryptjs_1.default.hash(this.password, salt);
-        next();
+    if (this.isModified('password') && this.password) {
+        try {
+            const salt = await bcryptjs_1.default.genSalt(10);
+            this.password = await bcryptjs_1.default.hash(this.password, salt);
+        }
+        catch (error) {
+            return next(error instanceof Error ? error : new Error('Password hashing failed'));
+        }
     }
-    catch (error) {
-        next(error);
+    if (this.isModified('name') || this.isNew) {
+        if (this.name && !this.firstName && !this.lastName) {
+            const nameParts = this.name.split(' ').filter(part => part);
+            this.firstName = nameParts[0] ?? '';
+            this.lastName = nameParts.slice(1).join(' ') ?? '';
+        }
     }
+    next();
 });
 userSchema.methods.comparePassword = async function (candidatePassword) {
+    if (!this.password) {
+        return false;
+    }
     return bcryptjs_1.default.compare(candidatePassword, this.password);
 };
 userSchema.methods.generatePasswordResetToken = function () {
@@ -251,30 +215,21 @@ userSchema.methods.generateEmailVerificationToken = function () {
     this.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     return verificationToken;
 };
-userSchema.pre('save', function (next) {
-    if (this.isModified('admissionNumber') && this.admissionNumber) {
-        const yearMatch = this.admissionNumber.match(/\/(\d{2})$/);
-        if (yearMatch && yearMatch[1]) {
-            const shortYear = parseInt(yearMatch[1]);
-            const fullYear = shortYear < 50 ? 2000 + shortYear : 1900 + shortYear;
-            this.graduationYear = fullYear.toString();
-        }
-    }
-    next();
-});
 userSchema.statics.createSuperAdmins = async function () {
     const superAdminCredentials = [
         {
             email: 'mpsajmer123@gmail.com',
             password: 'bajmav-1qojmu-qoKkod',
             name: 'Super Admin 1',
-            admissionNumber: '00001/24'
+            admissionNumber: '00001/24',
+            admissionYear: '2024',
         },
         {
             email: 'futurist.raghav@gmail.com',
             password: 'bajmav-1qojmu-qoKkod',
             name: 'Super Admin 2',
-            admissionNumber: '00002/24'
+            admissionNumber: '00002/24',
+            admissionYear: '2024',
         }
     ];
     for (const admin of superAdminCredentials) {
@@ -282,7 +237,6 @@ userSchema.statics.createSuperAdmins = async function () {
         if (!existingAdmin) {
             await this.create({
                 ...admin,
-                graduationYear: '2024',
                 role: UserRole.SUPER_ADMIN,
                 status: UserStatus.ACTIVE,
                 isVerified: true

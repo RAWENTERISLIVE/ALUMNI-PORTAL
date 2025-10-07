@@ -2,14 +2,12 @@
 import { Link, useLocation } from "react-router-dom";
 import { 
   User, Users, Briefcase, GraduationCap, Home, MessageSquare, 
-  BookOpen, Settings
+  BookOpen, Settings, Network, Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
 
 export const Sidebar = () => {
   const location = useLocation();
-  const { currentUser } = useAuth();
   
   const navigation = [
     { 
@@ -29,6 +27,11 @@ export const Sidebar = () => {
       icon: MessageSquare
     },
     { 
+      name: "Connections", 
+      href: "/connections", 
+      icon: Network
+    },
+    { 
       name: "Groups", 
       href: "/groups", 
       icon: Users 
@@ -37,6 +40,11 @@ export const Sidebar = () => {
       name: "Jobs", 
       href: "/jobs", 
       icon: Briefcase 
+    },
+    { 
+      name: "Events", 
+      href: "/events", 
+      icon: Calendar 
     },
     { 
       name: "Mentorship", 

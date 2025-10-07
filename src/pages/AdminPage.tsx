@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Search, UserX, Check, X, UserCheck, Building, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw, Activity } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Search, UserX, Check, X, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -101,17 +102,12 @@ export default function AdminPage() {
     }
   }, [isAdmin, loading, toast]);
 
-  // Load initial data
-  useEffect(() => {
-    loadData();
-  }, [currentPage, statusFilter, roleFilter, searchTerm]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       
-      // Load all data in parallel
-      const [usersResponse, pendingResponse, statsResponse, reportsResponse] = await Promise.all([
+      // Load all data in parallel using Promise.allSettled for better error handling
+      const results = await Promise.allSettled([
         apiService.getAllUsers({
           page: currentPage,
           limit: 10,
@@ -124,49 +120,55 @@ export default function AdminPage() {
         apiService.getReports({ page: 1, limit: 50 })
       ]);
 
-      if (usersResponse.success) {
-        setUsers(usersResponse.users || []);
-        if (usersResponse.pagination) {
-          setTotalPages(usersResponse.pagination.pages);
+      // Handle successful responses
+      if (results[0].status === 'fulfilled' && results[0].value.success) {
+        setUsers(results[0].value.users || []);
+        if (results[0].value.pagination) {
+          setTotalPages(results[0].value.pagination.pages);
         }
       }
 
-      if (pendingResponse.success) {
-        setPendingUsers(pendingResponse.users || []);
+      if (results[1].status === 'fulfilled' && results[1].value.success) {
+        setPendingUsers(results[1].value.users || []);
       }
 
-      if (statsResponse.success) {
-        setStats(statsResponse.stats || stats);
+      if (results[2].status === 'fulfilled' && results[2].value.success) {
+        setStats(results[2].value.stats ?? stats);
       }
 
-      if (reportsResponse.success) {
-        setReports(reportsResponse.data || []);
+      if (results[3].status === 'fulfilled' && results[3].value.success) {
+        setReports(results[3].value.data ?? []);
       }
 
       // Initialize empty activities array
       setActivities([]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to load admin data:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to load admin data.",
+        description: error instanceof Error ? error.message : "Failed to load admin data.",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, statusFilter, roleFilter, searchTerm, stats, toast]);
+
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleAction = async (action: () => Promise<void>, loadingKey: string) => {
     try {
       setActionLoading(loadingKey);
       await action();
       await loadData(); // Refresh data
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Action failed:', error);
       toast({
         title: "Action Failed",
-        description: error.message || "An error occurred.",
+        description: error instanceof Error ? error.message : "An error occurred.",
         variant: "destructive"
       });
     } finally {

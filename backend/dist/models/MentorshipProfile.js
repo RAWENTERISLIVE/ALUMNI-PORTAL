@@ -189,7 +189,6 @@ const mentorshipProfileSchema = new mongoose_1.Schema({
         }
     }
 });
-mentorshipProfileSchema.index({ userId: 1 });
 mentorshipProfileSchema.index({ isMentor: 1, isActive: 1 });
 mentorshipProfileSchema.index({ isSeekingMentor: 1, isActive: 1 });
 mentorshipProfileSchema.index({ expertise: 1 });

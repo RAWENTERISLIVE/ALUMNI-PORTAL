@@ -4,21 +4,30 @@ export interface IPost extends Document {
     title?: string;
     content: string;
     author: mongoose.Types.ObjectId;
-    category?: string;
-    imageUrl?: string;
+    category: string;
     isFeatured: boolean;
     isSchoolUpdate: boolean;
-    likes: mongoose.Types.ObjectId[];
+    reactions: {
+        userId: mongoose.Types.ObjectId;
+        type: 'like' | 'love' | 'celebrate' | 'support' | 'insightful' | 'funny';
+    }[];
+    bookmarks: mongoose.Types.ObjectId[];
     comments: mongoose.Types.ObjectId[];
-    visibility: 'public' | 'alumni_only' | 'private';
+    commentCount: number;
+    shareCount: number;
+    visibility: 'public' | 'connections_only';
     tags: string[];
+    externalLinks: string[];
+    mentions?: mongoose.Types.ObjectId[];
+    sharedPost?: mongoose.Types.ObjectId;
+    shareType?: 'quote' | 'simple';
     createdAt: Date;
     updatedAt: Date;
 }
-declare const Post: mongoose.Model<IPost, {}, {}, {}, mongoose.Document<unknown, {}, IPost, {}> & IPost & Required<{
+declare const _default: mongoose.Model<any, {}, {}, {}, any, any> | mongoose.Model<IPost, {}, {}, {}, mongoose.Document<unknown, {}, IPost, {}> & IPost & Required<{
     _id: string;
 }> & {
     __v: number;
 }, any>;
-export default Post;
+export default _default;
 //# sourceMappingURL=Post.d.ts.map

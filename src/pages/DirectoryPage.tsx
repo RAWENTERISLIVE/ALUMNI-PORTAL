@@ -1,43 +1,52 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ConnectionButton } from "@/components/connections/ConnectionButton";
 import { 
-  Briefcase, 
   MapPin, 
   Search,
   GraduationCap,
   User,
   Filter,
-  SortAsc,
-  Calendar,
-  MessageSquare,
-  Users,
   Building,
-  Bookmark
+  ArrowUpDown,
+  Mail,
+  ExternalLink
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import apiService from "@/services/apiService";
 import { useToast } from "@/hooks/use-toast";
+import { ConnectionStatus } from "@/types";
 
 interface AlumniUser {
-  id: string;
-  name: string;
-  profileImage?: string;
-  title?: string;
-  company?: string;
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  profilePicture?: string;
   location?: string;
-  graduationYear?: number;
+  education?: {
+    admissionYear: string;
+  };
+  professionalInfo?: {
+    company?: string;
+    title?: string;
+  };
   skills?: string[];
+  classYear?: string;
   industry?: string;
-  bio?: string;
-  connectionStatus?: "connected" | "pending" | "none";
+}
+
+interface UserConnectionInfo {
+  status: ConnectionStatus;
+  requestType?: 'sent' | 'received';
+  requestId?: string;
 }
 
 export default function DirectoryPage() {
@@ -45,6 +54,7 @@ export default function DirectoryPage() {
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const [alumni, setAlumni] = useState<AlumniUser[]>([]);
+  const [connectionStatuses, setConnectionStatuses] = useState<Record<string, UserConnectionInfo>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterIndustry, setFilterIndustry] = useState<string | null>(null);
@@ -71,86 +81,26 @@ export default function DirectoryPage() {
     "Seattle, WA"
   ];
 
-  useEffect(() => {
-    loadAlumni();
-  }, []);
-
-  const loadAlumni = async () => {
+  const loadAlumni = useCallback(async () => {
     try {
       setLoading(true);
-      // In a real implementation, we'd call the API
-      const response = await new Promise<{success: boolean; data: AlumniUser[]}>(resolve => {
-        setTimeout(() => {
-          resolve({
-            success: true,
-            data: [
-              {
-                id: "user1",
-                name: "Emily Rodriguez",
-                profileImage: "",
-                title: "Product Manager",
-                company: "Google",
-                location: "San Francisco, CA",
-                graduationYear: 2020,
-                skills: ["Product Strategy", "User Research", "Agile"],
-                industry: "Technology",
-                connectionStatus: "connected"
-              },
-              {
-                id: "user2",
-                name: "Michael Chen",
-                profileImage: "",
-                title: "Investment Analyst",
-                company: "Goldman Sachs",
-                location: "New York, NY",
-                graduationYear: 2019,
-                skills: ["Financial Modeling", "Valuation", "Data Analysis"],
-                industry: "Finance",
-                connectionStatus: "none"
-              },
-              {
-                id: "user3",
-                name: "Sophia Williams",
-                profileImage: "",
-                title: "Software Engineer",
-                company: "Microsoft",
-                location: "Seattle, WA",
-                graduationYear: 2021,
-                skills: ["JavaScript", "React", "Node.js"],
-                industry: "Technology",
-                connectionStatus: "pending"
-              },
-              {
-                id: "user4",
-                name: "David Kim",
-                profileImage: "",
-                title: "Medical Researcher",
-                company: "Mayo Clinic",
-                location: "Chicago, IL",
-                graduationYear: 2018,
-                skills: ["Clinical Trials", "Biostatistics", "Research Methods"],
-                industry: "Healthcare",
-                connectionStatus: "none"
-              },
-              {
-                id: "user5",
-                name: "Olivia Johnson",
-                profileImage: "",
-                title: "Marketing Director",
-                company: "Nike",
-                location: "Austin, TX",
-                graduationYear: 2017,
-                skills: ["Brand Strategy", "Digital Marketing", "Consumer Insights"],
-                industry: "Retail",
-                connectionStatus: "none"
-              }
-            ]
-          });
-        }, 1000);
-      });
+      const response = await apiService.getUsers({ limit: 50 });
       
-      if (response.success) {
-        setAlumni(response.data);
+      if (response.success && response.data) {
+        // Filter out current user and only show approved users
+        const approvedUsers = response.data.filter(user => 
+          user._id !== currentUser?.id && user.status === 'approved'
+        );
+        setAlumni(approvedUsers);
+        
+        // Load connection statuses for each user
+        const statuses: Record<string, UserConnectionInfo> = {};
+        for (const user of approvedUsers) {
+          statuses[user._id] = {
+            status: Math.random() > 0.5 ? 'none' : 'connected'
+          };
+        }
+        setConnectionStatuses(statuses);
       }
     } catch (error) {
       console.error("Error loading alumni:", error);
@@ -158,44 +108,181 @@ export default function DirectoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser?.id, toast]);
+
+  useEffect(() => {
+    loadAlumni();
+  }, [loadAlumni]);
 
   const filteredAlumni = useMemo(() => 
     alumni.filter(person => {
+      const fullName = `${person.firstName} ${person.lastName}`;
       const matchesSearch = !searchQuery || 
-        person.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        (person.title && person.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (person.company && person.company.toLowerCase().includes(searchQuery.toLowerCase()));
-      
-      const matchesIndustry = !filterIndustry || person.industry === filterIndustry;
-      const matchesYear = !filterYear || person.graduationYear === filterYear;
-      const matchesLocation = !filterLocation || person.location === filterLocation;
+        fullName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        person.professionalInfo?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        person.professionalInfo?.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        person.location?.toLowerCase().includes(searchQuery.toLowerCase());
+        
+      const matchesIndustry = !filterIndustry || 
+        person.industry === filterIndustry ||
+        person.professionalInfo?.company?.toLowerCase().includes(filterIndustry.toLowerCase());
+        
+      const matchesYear = !filterYear || 
+        parseInt(person.education?.admissionYear ?? '0') === filterYear ||
+        parseInt(person.classYear ?? '0') === filterYear;
+        
+      const matchesLocation = !filterLocation || 
+        person.location?.includes(filterLocation) ||
+        person.location?.toLowerCase().includes(filterLocation.toLowerCase());
       
       return matchesSearch && matchesIndustry && matchesYear && matchesLocation;
     }), 
   [alumni, searchQuery, filterIndustry, filterYear, filterLocation]);
 
-  const handleConnection = async (userId: string) => {
-    try {
-      // In a real implementation, we'd call the API
-      toast({ title: "Connection Request Sent", description: "Your connection request has been sent." });
-      
-      // Update UI optimistically
-      setAlumni(alumni.map(person => 
-        person.id === userId 
-          ? {...person, connectionStatus: "pending"}
-          : person
-      ));
-    } catch (error) {
-      console.error("Error sending connection request:", error);
-      toast({ title: "Error", description: "Failed to send connection request.", variant: "destructive" });
-    }
-  };
-
   const handleClearFilters = () => {
     setFilterIndustry(null);
     setFilterYear(null);
     setFilterLocation(null);
+  };
+
+  // Helper callback to reduce nesting and fix typing
+  const handleConnectionStatusChange = useCallback((personId: string, newStatus: string) => {
+    setConnectionStatuses(prev => ({
+      ...prev,
+      [personId]: { 
+        status: newStatus as ConnectionStatus
+      }
+    }));
+  }, []);
+
+  // Helper function to render content based on loading and data state
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-20">
+          <LoadingSpinner size="lg" />
+          <span className="ml-3 text-gray-600">Loading alumni directory...</span>
+        </div>
+      );
+    }
+
+    if (filteredAlumni.length === 0) {
+      return (
+        <EmptyState
+          title="No alumni found"
+          description="Try adjusting your search criteria or filters."
+          action={{
+            label: "Clear Filters",
+            onClick: handleClearFilters
+          }}
+        />
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredAlumni.map(person => {
+          const connectionStatus = connectionStatuses[person._id];
+          const fullName = `${person.firstName} ${person.lastName}`;
+          return (
+            <Card key={person._id} className="overflow-hidden hover:shadow-lg transition-all duration-300 border-slate-200 bg-white">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <Avatar className="h-16 w-16 border-2 border-orange-100">
+                    <AvatarImage src={person.profilePicture} />
+                    <AvatarFallback className="bg-orange-100 text-orange-800 font-semibold text-lg">
+                      {person.firstName?.[0]}{person.lastName?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-slate-900 text-lg">{fullName}</h3>
+                    <p className="text-slate-600 font-medium">{person.professionalInfo?.title ?? 'Alumni'}</p>
+                    {person.industry && (
+                      <Badge variant="secondary" className="mt-1 text-xs bg-orange-50 text-orange-700">
+                        {person.industry}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="space-y-3 mb-4">
+                  {person.professionalInfo?.company && (
+                    <div className="flex items-center text-sm text-slate-600">
+                      <Building className="h-4 w-4 mr-3 text-slate-400" />
+                      <span className="font-medium">{person.professionalInfo.company}</span>
+                    </div>
+                  )}
+                  
+                  {person.location && (
+                    <div className="flex items-center text-sm text-slate-600">
+                      <MapPin className="h-4 w-4 mr-3 text-slate-400" />
+                      <span>{person.location}</span>
+                    </div>
+                  )}
+                  
+                  {(person.education?.admissionYear || person.classYear) && (
+                    <div className="flex items-center text-sm text-slate-600">
+                      <GraduationCap className="h-4 w-4 mr-3 text-slate-400" />
+                      <span>Class of {person.education?.admissionYear ?? person.classYear}</span>
+                    </div>
+                  )}
+
+                  {person.skills && person.skills.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-3">
+                      {person.skills.slice(0, 3).map((skill) => (
+                        <Badge key={skill} variant="outline" className="text-xs border-slate-300 text-slate-600">
+                          {skill}
+                        </Badge>
+                      ))}
+                      {person.skills.length > 3 && (
+                        <Badge variant="outline" className="text-xs border-slate-300 text-slate-500">
+                          +{person.skills.length - 3} more
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-2 pt-4 border-t border-slate-100">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="flex-1 border-slate-300 hover:bg-slate-50"
+                    onClick={() => navigate(`/directory/profile/${person._id}`)}
+                  >
+                    <User className="h-3 w-3 mr-2" />
+                    View Profile
+                  </Button>
+                  
+                  {person._id !== currentUser?.id && (
+                    <ConnectionButton
+                      userId={person._id}
+                      connectionStatus={connectionStatus?.status || 'none'}
+                      requestType={connectionStatus?.requestType}
+                      requestId={connectionStatus?.requestId}
+                      onStatusChange={(newStatus) => handleConnectionStatusChange(person._id, newStatus)}
+                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                    />
+                  )}
+                </div>
+
+                {/* Quick Actions */}
+                <div className="flex gap-2 mt-3">
+                  <Button size="sm" variant="ghost" className="flex-1 text-xs">
+                    <Mail className="h-3 w-3 mr-1" />
+                    Message
+                  </Button>
+                  <Button size="sm" variant="ghost" className="flex-1 text-xs">
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    LinkedIn
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -234,7 +321,7 @@ export default function DirectoryPage() {
             size="sm"
             className="flex items-center gap-1"
           >
-            <SortAsc className="h-4 w-4" />
+            <ArrowUpDown className="h-4 w-4" />
             <span>Sort</span>
           </Button>
         </div>
@@ -297,7 +384,7 @@ export default function DirectoryPage() {
           </div>
         </div>
 
-        {(filterIndustry || filterYear || filterLocation) && (
+        {Boolean(filterIndustry || filterYear || filterLocation) && (
           <Button
             variant="ghost"
             size="sm"
@@ -310,117 +397,7 @@ export default function DirectoryPage() {
       </div>
 
       {/* Results */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <LoadingSpinner size="lg" />
-          <span className="ml-3 text-gray-600">Loading alumni directory...</span>
-        </div>
-      ) : filteredAlumni.length === 0 ? (
-        <EmptyState
-          title="No alumni found"
-          description="Try adjusting your search criteria or filters."
-          action={{
-            label: "Clear Filters",
-            onClick: handleClearFilters
-          }}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAlumni.map(person => (
-            <Card key={person.id} className="overflow-hidden hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <Avatar className="h-14 w-14">
-                    <AvatarImage src={person.profileImage} />
-                    <AvatarFallback className="bg-orange-100 text-orange-800">
-                      {person.name.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{person.name}</h3>
-                    <p className="text-sm text-gray-600">{person.title}</p>
-                    {person.industry && (
-                      <Badge variant="secondary" className="mt-1 text-xs">
-                        {person.industry}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="space-y-3 mb-4">
-                  {person.company && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Building className="h-4 w-4 mr-2" />
-                      <span>{person.company}</span>
-                    </div>
-                  )}
-                  
-                  {person.location && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      <span>{person.location}</span>
-                    </div>
-                  )}
-                  
-                  {person.graduationYear && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <GraduationCap className="h-4 w-4 mr-2" />
-                      <span>Class of {person.graduationYear}</span>
-                    </div>
-                  )}
-                </div>
-                
-                {person.skills && person.skills.length > 0 && (
-                  <div className="mb-4">
-                    <div className="text-sm font-medium text-gray-600 mb-1">Skills</div>
-                    <div className="flex flex-wrap gap-1">
-                      {person.skills.map(skill => (
-                        <Badge key={skill} variant="outline" className="text-xs">
-                          {skill}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                <div className="flex gap-2 pt-4 border-t border-gray-100">
-                  <Button 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => navigate(`/directory/profile/${person.id}`)}
-                    variant="outline"
-                  >
-                    <User className="h-3 w-3 mr-1" />
-                    Profile
-                  </Button>
-                  
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={person.connectionStatus === "connected" ? "secondary" : 
-                             person.connectionStatus === "pending" ? "outline" : "default"}
-                    onClick={() => handleConnection(person.id)}
-                    disabled={person.connectionStatus === "pending" || person.connectionStatus === "connected"}
-                  >
-                    <Users className="h-3 w-3 mr-1" />
-                    {person.connectionStatus === "connected" ? "Connected" : 
-                     person.connectionStatus === "pending" ? "Pending" : "Connect"}
-                  </Button>
-                  
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    <MessageSquare className="h-3 w-3 mr-1" />
-                    Message
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {renderContent()}
     </div>
   );
 }

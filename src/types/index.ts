@@ -94,7 +94,7 @@ export interface Job {
 }
 
 // API Response types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
@@ -110,6 +110,9 @@ export interface PaginatedResponse<T> {
     pages: number;
   };
 }
+
+// Connection types
+export type ConnectionStatus = 'none' | 'pending' | 'connected' | 'self';
 
 // Form types
 export interface PostFormData {
@@ -139,4 +142,74 @@ export interface JobFormData {
   isAlumniReferral: boolean;
   applicationDeadline?: string;
   tags: string[];
+}
+
+// Mentorship types
+export interface MentorshipProfile {
+  id: string;
+  _id?: string;
+  userId: {
+    id: string;
+    name: string;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+    profileImage?: string;
+    graduationYear?: number;
+    title?: string;
+  };
+  expertise: string[];
+  experience: string;
+  bio: string;
+  availability: string;
+  rating?: number;
+  reviewCount?: number;
+  isMentor: boolean;
+  isActive: boolean;
+  industry?: string;
+  yearsOfExperience?: number;
+  maxMentees?: number;
+  currentMentees?: number;
+  communicationPreferences?: string[];
+}
+
+export interface MentorshipRequest {
+  id: string;
+  mentorId: string;
+  menteeId: string;
+  message: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MentorshipRelationship {
+  id: string;
+  mentor: MentorshipProfile;
+  mentee: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+  status: 'active' | 'paused' | 'completed';
+  topics: string[];
+  nextSession?: string;
+  createdAt: string;
+}
+
+// Form data types for mentorship features
+export interface MentorshipFormData {
+  expertise: string[];
+  experience: string;
+  bio: string;
+  availability: string;
+  industry?: string;
+  yearsOfExperience?: number;
+  maxMentees?: number;
+  communicationPreferences?: string[];
+}
+
+export interface MentorshipRequestData {
+  message: string;
+  topics?: string[];
 }

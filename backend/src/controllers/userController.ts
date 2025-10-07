@@ -514,6 +514,67 @@ export const getUserSuggestions = asyncHandler(async (req: AuthRequest, res: Res
                 1,
                 0
               ]
+            },
+            // Common skills - 0.5 points per shared skill (up to 3 points max)
+            {
+              $min: [
+                3,
+                {
+                  $multiply: [
+                    0.5,
+                    {
+                      $size: {
+                        $ifNull: [
+                          {
+                            $setIntersection: [
+                              { $ifNull: ['$skills', []] },
+                              { $ifNull: [currentUser.skills || [], []] }
+                            ]
+                          },
+                          []
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            // Common interests - 0.3 points per shared interest (up to 2 points max)
+            {
+              $min: [
+                2,
+                {
+                  $multiply: [
+                    0.3,
+                    {
+                      $size: {
+                        $ifNull: [
+                          {
+                            $setIntersection: [
+                              { $ifNull: ['$interests', []] },
+                              { $ifNull: [currentUser.interests || [], []] }
+                            ]
+                          },
+                          []
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            // Mentor availability match gets 1 point if current user is looking for mentorship
+            {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$isAvailableAsMentor', true] },
+                    { $ne: [currentUser.isAvailableAsMentor, true] }
+                  ]
+                },
+                1,
+                0
+              ]
             }
           ]
         }
@@ -540,6 +601,9 @@ export const getUserSuggestions = asyncHandler(async (req: AuthRequest, res: Res
         city: 1,
         admissionYear: 1,
         headline: 1,
+        skills: 1,
+        interests: 1,
+        isAvailableAsMentor: 1,
         similarityScore: 1
       }
     }
@@ -550,5 +614,139 @@ export const getUserSuggestions = asyncHandler(async (req: AuthRequest, res: Res
   res.json({
     success: true,
     data: suggestions
+  });
+});
+
+// Update user skills
+export const updateUserSkills = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const { userId } = req.params;
+  const { skills } = req.body;
+
+  // Users can only update their own profile unless they're admin
+  if (req.user?._id.toString() !== userId && 
+      req.user?.role !== UserRole.ADMIN && 
+      req.user?.role !== UserRole.SUPER_ADMIN) {
+    res.status(403).json({ success: false, message: 'Not authorized to update this profile' });
+    return;
+  }
+
+  // Validate skills array
+  if (!Array.isArray(skills)) {
+    res.status(400).json({ success: false, message: 'Skills must be an array' });
+    return;
+  }
+
+  // Limit skills and validate each skill
+  const validSkills = skills
+    .filter(skill => typeof skill === 'string' && skill.trim().length > 0)
+    .map(skill => skill.trim())
+    .slice(0, 20); // Limit to 20 skills
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: { skills: validSkills } },
+    { new: true, runValidators: true }
+  ).select('-password -refreshTokens');
+
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Skills updated successfully',
+    skills: user.skills
+  });
+});
+
+// Update user interests
+export const updateUserInterests = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const { userId } = req.params;
+  const { interests } = req.body;
+
+  // Users can only update their own profile unless they're admin
+  if (req.user?._id.toString() !== userId && 
+      req.user?.role !== UserRole.ADMIN && 
+      req.user?.role !== UserRole.SUPER_ADMIN) {
+    res.status(403).json({ success: false, message: 'Not authorized to update this profile' });
+    return;
+  }
+
+  // Validate interests array
+  if (!Array.isArray(interests)) {
+    res.status(400).json({ success: false, message: 'Interests must be an array' });
+    return;
+  }
+
+  // Limit interests and validate each interest
+  const validInterests = interests
+    .filter(interest => typeof interest === 'string' && interest.trim().length > 0)
+    .map(interest => interest.trim())
+    .slice(0, 15); // Limit to 15 interests
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: { interests: validInterests } },
+    { new: true, runValidators: true }
+  ).select('-password -refreshTokens');
+
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Interests updated successfully',
+    interests: user.interests
+  });
+});
+
+// Update privacy settings
+export const updatePrivacySettings = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const { userId } = req.params;
+  const privacyUpdates = req.body;
+
+  // Users can only update their own privacy settings
+  if (req.user?._id.toString() !== userId) {
+    res.status(403).json({ success: false, message: 'Not authorized to update these settings' });
+    return;
+  }
+
+  // Validate privacy settings
+  const allowedFields = [
+    'profileVisibility', 'showEmail', 'showPhone', 'showBio', 'showSkills', 
+    'showInterests', 'showConnections', 'allowMessaging', 'allowConnection', 'allowProfileSearch'
+  ];
+
+  const validUpdates: Record<string, string | boolean> = {};
+  for (const [key, value] of Object.entries(privacyUpdates)) {
+    if (allowedFields.includes(key)) {
+      if (key === 'profileVisibility') {
+        if (['public', 'alumni', 'connections'].includes(value as string)) {
+          validUpdates[`privacySettings.${key}`] = value as string;
+        }
+      } else if (typeof value === 'boolean') {
+        validUpdates[`privacySettings.${key}`] = value;
+      }
+    }
+  }
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: validUpdates },
+    { new: true, runValidators: true }
+  ).select('-password -refreshTokens');
+
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Privacy settings updated successfully',
+    privacySettings: user.privacySettings
   });
 });

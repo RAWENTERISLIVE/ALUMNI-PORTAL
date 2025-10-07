@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserById = exports.updateUserProfile = exports.getUserStats = exports.getAlumniDirectory = exports.deleteUser = exports.demoteAdmin = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.rejectUser = exports.approveUser = exports.getPendingUsers = exports.getAllUsers = void 0;
+exports.updatePrivacySettings = exports.updateUserInterests = exports.updateUserSkills = exports.getUserSuggestions = exports.getUserById = exports.updateUserProfile = exports.getUserStats = exports.getAlumniDirectory = exports.deleteUser = exports.demoteAdmin = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.rejectUser = exports.approveUser = exports.getPendingUsers = exports.getAllUsers = void 0;
 const User_1 = __importStar(require("../models/User"));
 const errorHandler_1 = require("../middleware/errorHandler");
 exports.getAllUsers = (0, errorHandler_1.asyncHandler)(async (req, res) => {
@@ -62,9 +62,13 @@ exports.getAllUsers = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         .limit(limit * 1)
         .skip((page - 1) * limit);
     const total = await User_1.default.countDocuments(query);
+    const transformedUsers = users.map(user => ({
+        ...user.toObject(),
+        id: user._id.toString()
+    }));
     res.status(200).json({
         success: true,
-        users,
+        users: transformedUsers,
         pagination: {
             page,
             limit,
@@ -77,9 +81,13 @@ exports.getPendingUsers = (0, errorHandler_1.asyncHandler)(async (_req, res) => 
     const users = await User_1.default.find({ status: User_1.UserStatus.PENDING })
         .select('-password -refreshTokens -passwordResetToken -emailVerificationToken')
         .sort({ createdAt: -1 });
+    const transformedUsers = users.map(user => ({
+        ...user.toObject(),
+        id: user._id.toString()
+    }));
     res.status(200).json({
         success: true,
-        users
+        users: transformedUsers
     });
 });
 exports.approveUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
@@ -93,6 +101,21 @@ exports.approveUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         res.status(400).json({ message: 'User is not pending approval' });
         return;
     }
+    if (user.needsManualVerification && user.admissionNumber === 'MANUAL_VERIFICATION') {
+        const year = user.admissionYear;
+        const yy = year.slice(-2);
+        const lastUser = await User_1.default.find({ admissionNumber: { $regex: `^501/${yy}` } })
+            .sort({ admissionNumber: -1 })
+            .limit(1);
+        let nextNumber = 1;
+        if (lastUser.length > 0 && lastUser[0] && lastUser[0].admissionNumber) {
+            const match = lastUser[0].admissionNumber.match(/^501\/(\d{2})(?:-(\d+))?$/);
+            if (match) {
+                nextNumber = match[2] ? parseInt(match[2], 10) + 1 : 2;
+            }
+        }
+        user.admissionNumber = nextNumber === 1 ? `501/${yy}` : `501/${yy}-${nextNumber}`;
+    }
     user.status = User_1.UserStatus.ACTIVE;
     user.isVerified = true;
     await user.save();
@@ -103,7 +126,9 @@ exports.approveUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             id: user._id,
             name: user.name,
             email: user.email,
-            status: user.status
+            status: user.status,
+            admissionNumber: user.admissionNumber,
+            admissionYear: user.admissionYear
         }
     });
 });
@@ -252,11 +277,28 @@ exports.deleteUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
 const getAlumniDirectory = async (_req, res) => {
     try {
         const alumni = await User_1.default.find({ status: 'active' })
-            .select('firstName lastName email professionalInfo education location profilePicture')
-            .sort({ lastName: 1 });
+            .select('name firstName lastName email admissionYear company jobTitle location profileImage')
+            .sort({ lastName: 1, firstName: 1 });
+        const formattedAlumni = alumni.map(user => {
+            return {
+                _id: user._id,
+                firstName: user.firstName || user.name.split(' ')[0],
+                lastName: user.lastName || user.name.split(' ').slice(1).join(' ') || '',
+                email: user.email,
+                profilePicture: user.profileImage,
+                location: user.location || `${user.city || ''} ${user.country || ''}`.trim(),
+                education: {
+                    admissionYear: user.admissionYear
+                },
+                professionalInfo: {
+                    company: user.company,
+                    title: user.jobTitle
+                }
+            };
+        });
         res.status(200).json({
             success: true,
-            data: alumni,
+            data: formattedAlumni,
         });
     }
     catch (error) {
@@ -331,6 +373,252 @@ exports.getUserById = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     res.status(200).json({
         success: true,
         user
+    });
+});
+exports.getUserSuggestions = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+        res.status(401).json({
+            success: false,
+            message: 'User not authenticated'
+        });
+        return;
+    }
+    const limit = parseInt(req.query.limit) || 5;
+    const currentUser = await User_1.default.findById(userId);
+    if (!currentUser) {
+        res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+        return;
+    }
+    const suggestionPipeline = [
+        {
+            $match: {
+                _id: { $ne: userId },
+                status: 'active'
+            }
+        },
+        {
+            $addFields: {
+                similarityScore: {
+                    $sum: [
+                        {
+                            $cond: [
+                                { $eq: ['$admissionYear', currentUser.admissionYear] },
+                                3,
+                                0
+                            ]
+                        },
+                        {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $ne: ['$company', null] },
+                                        { $ne: ['$company', ''] },
+                                        { $eq: ['$company', currentUser.company] }
+                                    ]
+                                },
+                                2,
+                                0
+                            ]
+                        },
+                        {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $ne: ['$city', null] },
+                                        { $ne: ['$city', ''] },
+                                        { $eq: ['$city', currentUser.city] }
+                                    ]
+                                },
+                                1,
+                                0
+                            ]
+                        },
+                        {
+                            $min: [
+                                3,
+                                {
+                                    $multiply: [
+                                        0.5,
+                                        {
+                                            $size: {
+                                                $ifNull: [
+                                                    {
+                                                        $setIntersection: [
+                                                            { $ifNull: ['$skills', []] },
+                                                            { $ifNull: [currentUser.skills || [], []] }
+                                                        ]
+                                                    },
+                                                    []
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            $min: [
+                                2,
+                                {
+                                    $multiply: [
+                                        0.3,
+                                        {
+                                            $size: {
+                                                $ifNull: [
+                                                    {
+                                                        $setIntersection: [
+                                                            { $ifNull: ['$interests', []] },
+                                                            { $ifNull: [currentUser.interests || [], []] }
+                                                        ]
+                                                    },
+                                                    []
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ['$isAvailableAsMentor', true] },
+                                        { $ne: [currentUser.isAvailableAsMentor, true] }
+                                    ]
+                                },
+                                1,
+                                0
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            $sort: {
+                similarityScore: -1,
+                lastLogin: -1,
+                createdAt: -1
+            }
+        },
+        { $limit: limit },
+        {
+            $project: {
+                name: 1,
+                profileImage: 1,
+                role: 1,
+                company: 1,
+                jobTitle: 1,
+                city: 1,
+                admissionYear: 1,
+                headline: 1,
+                skills: 1,
+                interests: 1,
+                isAvailableAsMentor: 1,
+                similarityScore: 1
+            }
+        }
+    ];
+    const suggestions = await User_1.default.aggregate(suggestionPipeline);
+    res.json({
+        success: true,
+        data: suggestions
+    });
+});
+exports.updateUserSkills = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { userId } = req.params;
+    const { skills } = req.body;
+    if (req.user?._id.toString() !== userId &&
+        req.user?.role !== User_1.UserRole.ADMIN &&
+        req.user?.role !== User_1.UserRole.SUPER_ADMIN) {
+        res.status(403).json({ success: false, message: 'Not authorized to update this profile' });
+        return;
+    }
+    if (!Array.isArray(skills)) {
+        res.status(400).json({ success: false, message: 'Skills must be an array' });
+        return;
+    }
+    const validSkills = skills
+        .filter(skill => typeof skill === 'string' && skill.trim().length > 0)
+        .map(skill => skill.trim())
+        .slice(0, 20);
+    const user = await User_1.default.findByIdAndUpdate(userId, { $set: { skills: validSkills } }, { new: true, runValidators: true }).select('-password -refreshTokens');
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    res.status(200).json({
+        success: true,
+        message: 'Skills updated successfully',
+        skills: user.skills
+    });
+});
+exports.updateUserInterests = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { userId } = req.params;
+    const { interests } = req.body;
+    if (req.user?._id.toString() !== userId &&
+        req.user?.role !== User_1.UserRole.ADMIN &&
+        req.user?.role !== User_1.UserRole.SUPER_ADMIN) {
+        res.status(403).json({ success: false, message: 'Not authorized to update this profile' });
+        return;
+    }
+    if (!Array.isArray(interests)) {
+        res.status(400).json({ success: false, message: 'Interests must be an array' });
+        return;
+    }
+    const validInterests = interests
+        .filter(interest => typeof interest === 'string' && interest.trim().length > 0)
+        .map(interest => interest.trim())
+        .slice(0, 15);
+    const user = await User_1.default.findByIdAndUpdate(userId, { $set: { interests: validInterests } }, { new: true, runValidators: true }).select('-password -refreshTokens');
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    res.status(200).json({
+        success: true,
+        message: 'Interests updated successfully',
+        interests: user.interests
+    });
+});
+exports.updatePrivacySettings = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { userId } = req.params;
+    const privacyUpdates = req.body;
+    if (req.user?._id.toString() !== userId) {
+        res.status(403).json({ success: false, message: 'Not authorized to update these settings' });
+        return;
+    }
+    const allowedFields = [
+        'profileVisibility', 'showEmail', 'showPhone', 'showBio', 'showSkills',
+        'showInterests', 'showConnections', 'allowMessaging', 'allowConnection', 'allowProfileSearch'
+    ];
+    const validUpdates = {};
+    for (const [key, value] of Object.entries(privacyUpdates)) {
+        if (allowedFields.includes(key)) {
+            if (key === 'profileVisibility') {
+                if (['public', 'alumni', 'connections'].includes(value)) {
+                    validUpdates[`privacySettings.${key}`] = value;
+                }
+            }
+            else if (typeof value === 'boolean') {
+                validUpdates[`privacySettings.${key}`] = value;
+            }
+        }
+    }
+    const user = await User_1.default.findByIdAndUpdate(userId, { $set: validUpdates }, { new: true, runValidators: true }).select('-password -refreshTokens');
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    res.status(200).json({
+        success: true,
+        message: 'Privacy settings updated successfully',
+        privacySettings: user.privacySettings
     });
 });
 //# sourceMappingURL=userController.js.map

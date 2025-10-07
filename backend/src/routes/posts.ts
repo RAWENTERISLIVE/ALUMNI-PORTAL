@@ -14,7 +14,7 @@ import {
   sharePost,
   getBookmarkedPosts,
   getFeedPosts
-} from '../controllers/postControllerNew';
+} from '../controllers/postController';
 import { authMiddleware, requireAdmin } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 

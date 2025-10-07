@@ -18,13 +18,6 @@ export interface IPost extends Document {
   shareCount: number;
   visibility: 'public' | 'connections_only';
   tags: string[];
-  attachments: {
-    type: 'image' | 'document';
-    url: string;
-    name: string;
-    size: number;
-    extension?: string;
-  }[];
   externalLinks: string[];
   mentions?: mongoose.Types.ObjectId[];
   // Fields for shared posts
@@ -109,28 +102,6 @@ const postSchema = new Schema<IPost>({
     type: String,
     trim: true,
     maxlength: 50
-  }],
-  attachments: [{
-    type: {
-      type: String,
-      enum: ['image', 'document'],
-      required: true
-    },
-    url: {
-      type: String,
-      required: true
-    },
-    name: {
-      type: String,
-      required: true
-    },
-    size: {
-      type: Number,
-      required: true
-    },
-    extension: {
-      type: String
-    }
   }],
   externalLinks: [{
     type: String,
