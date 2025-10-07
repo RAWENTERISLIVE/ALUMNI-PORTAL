@@ -12,18 +12,7 @@ import './middleware/auth';
 import User from './models/User';
 
 // Import routes
-import authRoutes from './routes/auth';
-import userRoutes from './routes/users';
-import postRoutes from './routes/posts';
-import jobRoutes from './routes/jobs';
-import eventRoutes from './routes/events';
-import groupRoutes from './routes/groups';
-import mentorshipRoutes from './routes/mentorship';
-import connectionRoutes from './routes/connections';
-import commentRoutes from './routes/comments';
-import uploadRoutes from './routes/uploads';
-import reportRoutes from './routes/reports';
-import statusRoutes from './routes/status';
+import apiRoutes from './api';
 
 // Load environment variables
 dotenv.config();
@@ -81,19 +70,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // API routes
-app.use('/api/status', statusRoutes); // Phase 1 - System status endpoints
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/posts', postRoutes);
-app.use('/api/jobs', jobRoutes);
-app.use('/api/events', eventRoutes);
-app.use('/api/groups', groupRoutes);
-app.use('/api/mentorship', mentorshipRoutes);
-app.use('/api/connections', connectionRoutes); // Phase 2 - Connection system
-app.use('/api', commentRoutes); // Comments routes (includes /posts/:postId/comments)
-app.use('/api/uploads', uploadRoutes); // Added uploads routes
-app.use('/api/reports', reportRoutes); // Reports routes
-app.use('/api/status', statusRoutes); // Status routes
+app.use('/api', apiRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
