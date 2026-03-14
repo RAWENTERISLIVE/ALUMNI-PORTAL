@@ -25,6 +25,11 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: Re
   const [topic, setTopic] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const mentorName = mentor?.user?.name || mentor?.name || "Mentor";
+  const mentorAvatar = mentor?.user?.profileImage || mentor?.avatar;
+  const mentorTitle = mentor?.user?.title || mentor?.role || "Alumni Mentor";
+  const mentorCompany = mentor?.user?.company || mentor?.company || "Alumni Network";
+  const mentorGraduationYear = mentor?.user?.graduationYear || mentor?.graduationYear;
 
   const handleSubmit = async () => {
     if (!message.trim() || !topic) {
@@ -49,7 +54,7 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: Re
         // Default behavior if no onSubmit provided
         toast({
           title: "Mentorship Request Sent",
-          description: `Your request has been sent to ${mentor.user?.name || mentor.name}. You'll be notified when they respond.`,
+          description: `Your request has been sent to ${mentorName}. You'll be notified when they respond.`,
         });
       }
       
@@ -77,22 +82,24 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: Re
         
         <div className="flex gap-4 items-start">
           <Avatar className="h-16 w-16">
-            <AvatarImage src={mentor?.avatar} alt={mentor?.name} />
-            <AvatarFallback>{mentor?.name?.charAt(0)}</AvatarFallback>
+            <AvatarImage src={mentorAvatar} alt={mentorName} />
+            <AvatarFallback>{mentorName?.charAt(0)}</AvatarFallback>
           </Avatar>
           
           <div>
-            <h3 className="text-lg font-medium">{mentor?.name}</h3>
+            <h3 className="text-lg font-medium">{mentorName}</h3>
             
             <div className="flex items-center gap-2 text-muted-foreground text-sm mt-1">
               <Briefcase className="h-3 w-3" />
-              <span>{mentor?.role} at {mentor?.company}</span>
+              <span>{mentorTitle} at {mentorCompany}</span>
             </div>
             
-            <div className="text-xs bg-muted rounded-full px-2 py-1 flex items-center gap-1 w-fit mt-1">
-              <GraduationCap className="h-3 w-3" />
-              <span>Class of {mentor?.graduationYear}</span>
-            </div>
+            {mentorGraduationYear && (
+              <div className="text-xs bg-muted rounded-full px-2 py-1 flex items-center gap-1 w-fit mt-1">
+                <GraduationCap className="h-3 w-3" />
+                <span>Class of {mentorGraduationYear}</span>
+              </div>
+            )}
           </div>
         </div>
         

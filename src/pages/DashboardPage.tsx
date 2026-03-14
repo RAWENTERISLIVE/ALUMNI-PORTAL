@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, TrendingUp, Users, Briefcase, Calendar, BookOpen } from 'lucide-react';
+import { Plus, Users, Briefcase, BookOpen } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -93,53 +93,53 @@ export default function DashboardPage() {
       description: 'Find career opportunities',
       icon: Briefcase,
       href: '/jobs',
-      color: 'border-blue-200 hover:border-blue-300 hover:bg-blue-50'
+      color: 'border-border hover:border-primary/40 hover:bg-primary/5'
     },
     {
       title: 'Join Groups',
       description: 'Connect with like-minded alumni',
       icon: Users,
       href: '/groups',
-      color: 'border-green-200 hover:border-green-300 hover:bg-green-50'
+      color: 'border-border hover:border-primary/40 hover:bg-primary/5'
     },
     {
       title: 'Find Mentors',
       description: 'Get guidance from experienced alumni',
       icon: BookOpen,
       href: '/mentorship',
-      color: 'border-purple-200 hover:border-purple-300 hover:bg-purple-50'
+      color: 'border-border hover:border-primary/40 hover:bg-primary/5'
     }
   ];
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="min-h-screen bg-muted/30">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 break-words">
             Welcome back{currentUser?.name ? `, ${currentUser.name.split(' ')[0]}` : ''}! 👋
           </h1>
-          <p className="text-slate-600">
+          <p className="text-muted-foreground">
             Stay connected with your alumni network and discover new opportunities.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Create Post Section */}
             {isAuthenticated && (
-              <Card className="bg-white border-slate-200">
+              <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-slate-900">
+                  <CardTitle className="text-lg font-semibold text-foreground">
                     Share an Update
                   </CardTitle>
                 </CardHeader>
@@ -149,7 +149,7 @@ export default function DashboardPage() {
                     trigger={
                       <Button 
                         size="lg" 
-                        className="w-full justify-start gap-3 bg-slate-50 border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 font-medium"
+                        className="w-full justify-start gap-3 bg-muted/30 border-2 border-border hover:border-blue-300 hover:bg-primary/5 text-foreground/90 font-medium"
                       >
                         <Plus className="h-5 w-5" />
                         What's on your mind?
@@ -162,13 +162,13 @@ export default function DashboardPage() {
 
             {/* Featured Posts */}
             {featuredPosts.length > 0 && (
-              <Card className="bg-white border-slate-200">
+              <Card className="bg-card border-border">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-semibold text-slate-900">
+                    <CardTitle className="text-lg font-semibold text-foreground">
                       Featured Posts
                     </CardTitle>
-                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                    <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
                       Featured
                     </Badge>
                   </div>
@@ -187,17 +187,19 @@ export default function DashboardPage() {
             )}
 
             {/* Recent Posts */}
-            <Card className="bg-white border-slate-200">
+            <Card className="bg-card border-border">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-semibold text-slate-900">
+                  <CardTitle className="text-lg font-semibold text-foreground">
                     Recent Posts
                   </CardTitle>
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => window.location.href = '/posts'}
-                    className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                    onClick={() => {
+                      globalThis.location.href = '/posts';
+                    }}
+                    className="border-border/80 text-foreground/90 hover:bg-muted/30"
                   >
                     View All
                   </Button>
@@ -214,7 +216,7 @@ export default function DashboardPage() {
                     />
                   ))
                 ) : (
-                  <div className="text-center py-8 text-slate-500">
+                  <div className="text-center py-8 text-muted-foreground">
                     <p>No recent posts to display.</p>
                     {isAuthenticated && (
                       <p className="text-sm mt-2">Be the first to share something!</p>
@@ -228,26 +230,28 @@ export default function DashboardPage() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Quick Actions */}
-            <Card className="bg-white border-slate-200">
+            <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-lg font-semibold text-slate-900">
+                <CardTitle className="text-lg font-semibold text-foreground">
                   Quick Actions
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {quickActions.map((action, index) => {
+                {quickActions.map((action) => {
                   const Icon = action.icon;
                   return (
                     <button
-                      key={index}
-                      onClick={() => window.location.href = action.href}
+                      key={action.href}
+                      onClick={() => {
+                        globalThis.location.href = action.href;
+                      }}
                       className={`w-full p-4 border-2 rounded-lg text-left transition-all duration-200 ${action.color}`}
                     >
                       <div className="flex items-center gap-3">
-                        <Icon className="h-5 w-5 text-slate-600" />
+                        <Icon className="h-5 w-5 text-muted-foreground" />
                         <div>
-                          <p className="font-medium text-slate-900">{action.title}</p>
-                          <p className="text-sm text-slate-600">{action.description}</p>
+                          <p className="font-medium text-foreground">{action.title}</p>
+                          <p className="text-sm text-muted-foreground">{action.description}</p>
                         </div>
                       </div>
                     </button>
@@ -258,30 +262,32 @@ export default function DashboardPage() {
 
             {/* User Profile Summary */}
             {isAuthenticated && currentUser && (
-              <Card className="bg-white border-slate-200">
+              <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-slate-900">
+                  <CardTitle className="text-lg font-semibold text-foreground">
                     Your Profile
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-700 font-semibold">
+                      <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
+                        <span className="text-primary font-semibold">
                           {currentUser.name?.charAt(0) || 'U'}
                         </span>
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900">{currentUser.name}</p>
-                        <p className="text-sm text-slate-600">{currentUser.email}</p>
+                        <p className="font-medium text-foreground">{currentUser.name}</p>
+                        <p className="text-sm text-muted-foreground">{currentUser.email}</p>
                       </div>
                     </div>
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="w-full border-slate-300 text-slate-700 hover:bg-slate-50"
-                      onClick={() => window.location.href = '/profile'}
+                      className="w-full border-border/80 text-foreground/90 hover:bg-muted/30"
+                      onClick={() => {
+                        globalThis.location.href = '/profile';
+                      }}
                     >
                       View Profile
                     </Button>

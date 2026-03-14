@@ -28,7 +28,7 @@ interface SharedPostProps {
 
 export function SharedPost({ post }: SharedPostProps) {
   return (
-    <Card className="mt-3 border-gray-200 shadow-sm">
+    <Card className="mt-3 border-border shadow-sm">
       <CardHeader className="p-3 pb-0">
         <div className="flex items-center space-x-2">
           <Avatar className="h-6 w-6">
@@ -37,14 +37,14 @@ export function SharedPost({ post }: SharedPostProps) {
           </Avatar>
           <div>
             <p className="font-medium text-sm">{post.author.name}</p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted/300">
               {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
             </p>
           </div>
         </div>
       </CardHeader>
       <CardContent className="p-3 pt-2">
-        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap line-clamp-4">
+        <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap line-clamp-4">
           {post.content}
         </p>
         
@@ -66,9 +66,9 @@ export function SharedPost({ post }: SharedPostProps) {
         {post.attachments && post.attachments.length > 0 && (
           <div className="mt-2">
             <div 
-              className="flex items-center p-2 rounded-lg border border-gray-200 bg-gray-50"
+              className="flex items-center p-2 rounded-lg border border-border bg-muted/30"
             >
-              <div className="mr-2 text-blue-500">
+              <div className="mr-2 text-foreground">
                 {post.attachments[0].type === 'document' && <div className="text-lg">📄</div>}
                 {post.attachments[0].type === 'image' && <div className="text-lg">🖼️</div>}
                 {post.attachments[0].type === 'video' && <div className="text-lg">🎬</div>}
@@ -79,12 +79,12 @@ export function SharedPost({ post }: SharedPostProps) {
                   href={post.attachments[0].url} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline font-medium text-xs truncate block"
+                  className="text-foreground/90 hover:underline font-medium text-xs truncate block"
                 >
                   {post.attachments[0].name}
                 </a>
                 {post.attachments.length > 1 && (
-                  <p className="text-xs text-gray-500">+{post.attachments.length - 1} more</p>
+                  <p className="text-xs text-muted/300">+{post.attachments.length - 1} more</p>
                 )}
               </div>
             </div>

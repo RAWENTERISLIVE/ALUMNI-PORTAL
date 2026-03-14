@@ -1,0 +1,715 @@
+{{
+
+  "product_name": "Alumni Portal - Alma Connect Sphere",  "meta": {
+
+  "version": "3.1-phase1",    "project": "Alumni-Student-Faculty Collaboration Portal",
+
+  "overview": "A comprehensive alumni networking and engagement platform that enables alumni to connect, share updates, find jobs, participate in events, join groups, and engage in mentorship programs.",    "date": "2025-10-04",
+
+  "target_users": [    "prepared_by": "Software Development Manager"
+
+    "Alumni (graduated students)",  },
+
+    "Faculty members",  "product_overview": "An integrated web platform enabling secure collaboration and engagement among alumni, students, and faculty through social feeds, mentorship, job boards, events, groups, and administrative tools.",
+
+    "Administrators",  "core_goals": [
+
+    "Super Administrators"    "Provide secure and role-based access to platform features using robust authentication and RBAC.",
+
+  ],    "Enable dynamic, personalized home feeds aggregating content from users' connections, groups, jobs, and events.",
+
+  "core_features": [    "Facilitate meaningful community interaction via posts, comments, groups, and mentorship programs.",
+
+    {    "Offer comprehensive user profile management along with connection building and privacy controls.",
+
+      "feature_name": "Authentication & Authorization",    "Support career development through job listings, applications, and mentorship pairing.",
+
+      "description": "Secure user authentication with JWT tokens, role-based access control, and manual verification workflow",    "Empower admins with moderation, user management, analytics, and configuration capabilities.",
+
+      "endpoints": [    "Deliver an intuitive, accessible, and responsive UI adhering to branded design principles for broad user engagement."
+
+        {"method": "POST", "path": "/api/auth/register", "description": "User registration"},  ],
+
+        {"method": "POST", "path": "/api/auth/login", "description": "User login"},  "key_features": [
+
+        {"method": "POST", "path": "/api/auth/refresh-token", "description": "Refresh access token"},    "Multi-mode user registration with admin approval workflows and JWT-based authentication.",
+
+        {"method": "POST", "path": "/api/auth/logout", "description": "Logout user"},    "Real-time, filtered home feed aggregating posts, group content, jobs, and announcements.",
+
+        {"method": "GET", "path": "/api/auth/me", "description": "Get current user"}    "User profiles with customizable privacy settings, batch, skills, and mentorship openness.",
+
+      ]    "Rich posts module supporting text, images, attachments, audience targeting, comments, reactions, and reporting.",
+
+    },    "Group management with public/private groups, join requests, group feeds, and admin moderation.",
+
+    {    "Job board featuring listings with filters, job saving, application tracking, and notifications.",
+
+      "feature_name": "Posts & Social Feed",    "Mentorship directory with request handling, scheduling integrations, feedback, and mentor profiles.",
+
+      "description": "Social networking features with posts, reactions, bookmarks, and shares",    "Alumni directory with search, filters, saved searches, and connection requests.",
+
+      "endpoints": [    "Settings panel for account, privacy, notifications, data export, and localization.",
+
+        {"method": "POST", "path": "/api/posts", "description": "Create post"},    "Admin console with user approval, suspensions, role management, content moderation, analytics dashboards, and audit logs."
+
+        {"method": "GET", "path": "/api/posts", "description": "Get all posts"},  ],
+
+        {"method": "GET", "path": "/api/posts/feed", "description": "Get personalized feed"},  "user_flow_summary": [
+
+        {"method": "POST", "path": "/api/posts/:postId/like", "description": "Like/react to post"}    "Users register via standard or manual paths; admins approve pending users; super-admins have direct activation.",
+
+      ]    "Users log in, receive JWT tokens, and are redirected based on role to personalized feeds or admin dashboards.",
+
+    },    "Users create and edit profiles, establish connections via requests, and access suggested connections tailored by batch and group.",
+
+    {    "Users create posts with rich content, set audience visibility, comment, react, bookmark, and report inappropriate content.",
+
+      "feature_name": "Job Board",    "Users explore and join groups, participate in group feeds, and admins manage group membership and posts.",
+
+      "description": "Job posting and discovery platform",    "Users browse job listings with advanced filters, save jobs, upload resumes to apply, and receive notifications based on skills.",
+
+      "endpoints": [    "Users browse mentor profiles, send mentorship requests, and mentors accept or reject requests; feedback is collected.",
+
+        {"method": "GET", "path": "/api/jobs", "description": "Get all jobs"},    "Admins moderate flagged content, manage users (approve/suspend/promote), and monitor site analytics.",
+
+        {"method": "POST", "path": "/api/jobs", "description": "Create job"},    "Settings allow users to manage account security, privacy options, notifications, and data export rights.",
+
+        {"method": "POST", "path": "/api/jobs/:id/save", "description": "Save job"}    "The UI conforms to responsive design with accessible navigation, consistent branding, and supports real-time updates and interactions."
+
+      ]  ],
+
+    },  "validation_criteria": [
+
+    {    "Authentication flow enforces RBAC and token expiration correctly; admin role actions are secured.",
+
+      "feature_name": "Events Management",    "Home feed loads relevant personalized content with functional real-time updates and filter tabs.",
+
+      "description": "Event creation and RSVP system",    "Profile updates persist correctly with respect to privacy settings and are reflected across modules.",
+
+      "endpoints": [    "Post creation, editing, deletion, commenting, reacting, bookmarking, and reporting features work per specs.",
+
+        {"method": "GET", "path": "/api/events", "description": "Get all events"},    "Group join/leave workflows, group admin tools, and group feed inclusion behave as designed.",
+
+        {"method": "POST", "path": "/api/events", "description": "Create event"},    "Job board supports search, filters, saving, applying, and admin review workflows properly.",
+
+        {"method": "POST", "path": "/api/events/:eventId/rsvp", "description": "RSVP to event"}    "Mentorship request lifecycle from sending to mentor response and feedback storage executes without error.",
+
+      ]    "Admin console actions reflect in user statuses and content moderation queues flow correctly.",
+
+    }    "UI components adhere to design guidelines for colors, typography, accessibility, responsiveness, and feedback.",
+
+  ]    "System stability with input validation, rate limiting, and security headers implemented as per standards."
+
+}  ],
+
+  "code_summary": {
+    "tech_stack": [
+      "TypeScript",
+      "React 18.3",
+      "Node.js/Express 4.18",
+      "MongoDB/Mongoose 8.0",
+      "Vite 5.x",
+      "TailwindCSS",
+      "Shadcn UI",
+      "React Router v6",
+      "Tanstack React Query",
+      "JWT Authentication",
+      "Bcrypt",
+      "Multer (file uploads)",
+      "Helmet (security)",
+      "Express Rate Limit",
+      "Express Validator"
+    ],
+    "features": [
+      {
+        "name": "Authentication API",
+        "description": "User authentication with JWT tokens, registration, login, logout, password reset, and token refresh functionality",
+        "files": [
+          "backend/src/routes/auth.ts",
+          "backend/src/controllers/authController.ts",
+          "backend/src/middleware/auth.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/auth/register": {
+              "post": {
+                "summary": "Register a new user",
+                "requestBody": {
+                  "required": true,
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "password": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "admissionNumber": {
+                            "type": "string"
+                          },
+                          "graduationYear": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "/api/auth/login": {
+              "post": {
+                "summary": "Login user",
+                "requestBody": {
+                  "required": true,
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "password": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "/api/auth/refresh-token": {
+              "post": {
+                "summary": "Refresh access token"
+              }
+            },
+            "/api/auth/logout": {
+              "post": {
+                "summary": "Logout user"
+              }
+            },
+            "/api/auth/me": {
+              "get": {
+                "summary": "Get current user profile"
+              }
+            },
+            "/api/auth/forgot-password": {
+              "post": {
+                "summary": "Request password reset"
+              }
+            },
+            "/api/auth/reset-password": {
+              "post": {
+                "summary": "Reset password with token"
+              }
+            },
+            "/api/auth/change-password": {
+              "patch": {
+                "summary": "Change password for authenticated user"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "User Management API",
+        "description": "Admin user management including approval, suspension, role management, and user directory",
+        "files": [
+          "backend/src/routes/users.ts",
+          "backend/src/controllers/userController.ts",
+          "backend/src/models/User.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/users": {
+              "get": {
+                "summary": "Get all users (admin only)"
+              }
+            },
+            "/api/users/pending": {
+              "get": {
+                "summary": "Get pending users for approval (admin only)"
+              }
+            },
+            "/api/users/:id/approve": {
+              "patch": {
+                "summary": "Approve pending user (admin only)"
+              }
+            },
+            "/api/users/:id/reject": {
+              "patch": {
+                "summary": "Reject pending user (admin only)"
+              }
+            },
+            "/api/users/:id/suspend": {
+              "patch": {
+                "summary": "Suspend user account (admin only)"
+              }
+            },
+            "/api/users/:id/reactivate": {
+              "patch": {
+                "summary": "Reactivate suspended user (admin only)"
+              }
+            },
+            "/api/users/:id/promote": {
+              "patch": {
+                "summary": "Promote user to admin (super admin only)"
+              }
+            },
+            "/api/users/:id/demote": {
+              "patch": {
+                "summary": "Demote admin to user (super admin only)"
+              }
+            },
+            "/api/users/:id": {
+              "delete": {
+                "summary": "Delete user (admin only)"
+              },
+              "get": {
+                "summary": "Get user by ID"
+              }
+            },
+            "/api/users/directory": {
+              "get": {
+                "summary": "Get alumni directory with search and filters"
+              }
+            },
+            "/api/users/suggestions": {
+              "get": {
+                "summary": "Get user connection suggestions"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Posts API",
+        "description": "Social posts with likes, bookmarks, shares, comments, and different visibility levels",
+        "files": [
+          "backend/src/routes/posts.ts",
+          "backend/src/routes/postsNew.ts",
+          "backend/src/controllers/postController.ts",
+          "backend/src/controllers/postControllerNew.ts",
+          "backend/src/models/Post.ts",
+          "backend/src/models/PostNew.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/posts": {
+              "post": {
+                "summary": "Create a new post"
+              },
+              "get": {
+                "summary": "Get all posts with pagination and filtering"
+              }
+            },
+            "/api/posts/:postId": {
+              "get": {
+                "summary": "Get post by ID"
+              },
+              "patch": {
+                "summary": "Update post (author or admin)"
+              },
+              "delete": {
+                "summary": "Delete post (author or admin)"
+              }
+            },
+            "/api/posts/:postId/like": {
+              "post": {
+                "summary": "Like/unlike a post"
+              }
+            },
+            "/api/posts/:postId/react": {
+              "post": {
+                "summary": "React to a post with specific reaction type"
+              }
+            },
+            "/api/posts/:postId/bookmark": {
+              "post": {
+                "summary": "Bookmark a post"
+              },
+              "delete": {
+                "summary": "Remove bookmark"
+              }
+            },
+            "/api/posts/share": {
+              "post": {
+                "summary": "Share a post"
+              }
+            },
+            "/api/posts/featured": {
+              "get": {
+                "summary": "Get featured posts"
+              }
+            },
+            "/api/posts/bookmarked": {
+              "get": {
+                "summary": "Get user's bookmarked posts"
+              }
+            },
+            "/api/posts/feed": {
+              "get": {
+                "summary": "Get personalized feed from connections"
+              }
+            },
+            "/api/posts/school-updates": {
+              "get": {
+                "summary": "Get school announcements and updates"
+              }
+            },
+            "/api/posts/:postId/feature": {
+              "patch": {
+                "summary": "Feature/unfeature a post (admin only)"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Comments API",
+        "description": "Post comments and replies with like functionality",
+        "files": [
+          "backend/src/routes/comments.ts",
+          "backend/src/controllers/commentController.ts",
+          "backend/src/models/Comment.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/posts/:postId/comments": {
+              "post": {
+                "summary": "Create a comment on a post"
+              },
+              "get": {
+                "summary": "Get all comments for a post"
+              }
+            },
+            "/api/comments/:commentId/replies": {
+              "get": {
+                "summary": "Get replies to a comment"
+              }
+            },
+            "/api/comments/:commentId/like": {
+              "post": {
+                "summary": "Like a comment"
+              },
+              "delete": {
+                "summary": "Unlike a comment"
+              }
+            },
+            "/api/comments/:commentId": {
+              "delete": {
+                "summary": "Delete a comment (author or admin)"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Jobs API",
+        "description": "Job board with posting, searching, and application tracking",
+        "files": [
+          "backend/src/routes/jobs.ts",
+          "backend/src/controllers/jobController.ts",
+          "backend/src/models/Job.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/jobs": {
+              "get": {
+                "summary": "Get all jobs with filters and pagination"
+              },
+              "post": {
+                "summary": "Create a new job posting"
+              }
+            },
+            "/api/jobs/:id": {
+              "get": {
+                "summary": "Get job by ID"
+              },
+              "put": {
+                "summary": "Update job (poster or admin)"
+              },
+              "delete": {
+                "summary": "Delete job (poster or admin)"
+              }
+            },
+            "/api/jobs/:id/save": {
+              "post": {
+                "summary": "Save/unsave a job"
+              }
+            },
+            "/api/jobs/:id/apply": {
+              "post": {
+                "summary": "Increment application count"
+              }
+            },
+            "/api/jobs/saved": {
+              "get": {
+                "summary": "Get user's saved jobs"
+              }
+            },
+            "/api/jobs/stats": {
+              "get": {
+                "summary": "Get job statistics (admin only)"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Events API",
+        "description": "Event management with RSVP functionality",
+        "files": [
+          "backend/src/routes/events.ts",
+          "backend/src/controllers/eventController.ts",
+          "backend/src/models/Event.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/events": {
+              "get": {
+                "summary": "Get all events"
+              },
+              "post": {
+                "summary": "Create a new event"
+              }
+            },
+            "/api/events/upcoming": {
+              "get": {
+                "summary": "Get upcoming events"
+              }
+            },
+            "/api/events/user": {
+              "get": {
+                "summary": "Get events user is attending"
+              }
+            },
+            "/api/events/:eventId": {
+              "get": {
+                "summary": "Get event by ID"
+              },
+              "patch": {
+                "summary": "Update event (creator or admin)"
+              },
+              "delete": {
+                "summary": "Delete event (creator or admin)"
+              }
+            },
+            "/api/events/:eventId/rsvp": {
+              "post": {
+                "summary": "RSVP to an event"
+              },
+              "delete": {
+                "summary": "Cancel RSVP"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Groups API",
+        "description": "Group management with messaging functionality",
+        "files": [
+          "backend/src/routes/groups.ts",
+          "backend/src/controllers/groupController.ts",
+          "backend/src/models/Group.ts",
+          "backend/src/models/GroupMessage.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/groups": {
+              "get": {
+                "summary": "Get all groups"
+              },
+              "post": {
+                "summary": "Create a new group"
+              }
+            },
+            "/api/groups/user": {
+              "get": {
+                "summary": "Get user's groups"
+              }
+            },
+            "/api/groups/:groupId": {
+              "get": {
+                "summary": "Get group by ID"
+              }
+            },
+            "/api/groups/:groupId/join": {
+              "post": {
+                "summary": "Join a group"
+              }
+            },
+            "/api/groups/:groupId/leave": {
+              "post": {
+                "summary": "Leave a group"
+              }
+            },
+            "/api/groups/:groupId/messages": {
+              "get": {
+                "summary": "Get group messages"
+              },
+              "post": {
+                "summary": "Post a message to group"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Mentorship API",
+        "description": "Mentorship program with mentor profiles and request management",
+        "files": [
+          "backend/src/routes/mentorship.ts",
+          "backend/src/controllers/mentorshipController.ts",
+          "backend/src/models/MentorshipProfile.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/mentorship/mentors": {
+              "get": {
+                "summary": "Get all available mentors"
+              }
+            },
+            "/api/mentorship/become-mentor": {
+              "post": {
+                "summary": "Register as a mentor"
+              }
+            },
+            "/api/mentorship/profile": {
+              "get": {
+                "summary": "Get mentorship profile"
+              }
+            },
+            "/api/mentorship/request/:mentorId": {
+              "post": {
+                "summary": "Request mentorship from a mentor"
+              }
+            },
+            "/api/mentorship/request/:requestId/:action": {
+              "post": {
+                "summary": "Respond to mentorship request (accept/reject)"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "File Upload API",
+        "description": "File upload handling for images and documents",
+        "files": [
+          "backend/src/routes/uploads.ts",
+          "backend/src/routes/uploadsNew.ts",
+          "backend/src/controllers/uploadController.ts",
+          "backend/src/controllers/uploadControllerNew.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/uploads/single": {
+              "post": {
+                "summary": "Upload a single file"
+              }
+            },
+            "/api/uploads/multiple": {
+              "post": {
+                "summary": "Upload multiple files"
+              }
+            },
+            "/api/uploads/:filename": {
+              "get": {
+                "summary": "Serve uploaded file"
+              }
+            },
+            "/api/upload": {
+              "post": {
+                "summary": "Alternative upload endpoint"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Reports API",
+        "description": "Content reporting and moderation system",
+        "files": [
+          "backend/src/routes/reports.ts",
+          "backend/src/controllers/reportController.ts",
+          "backend/src/models/Report.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/reports": {
+              "post": {
+                "summary": "Create a report for inappropriate content"
+              },
+              "get": {
+                "summary": "Get all reports (admin only)"
+              }
+            },
+            "/api/reports/stats": {
+              "get": {
+                "summary": "Get report statistics (admin only)"
+              }
+            },
+            "/api/reports/:reportId/status": {
+              "patch": {
+                "summary": "Update report status (admin only)"
+              }
+            },
+            "/api/reports/:reportId": {
+              "delete": {
+                "summary": "Delete report (admin only)"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "System Status API",
+        "description": "Health check and system status monitoring",
+        "files": [
+          "backend/src/routes/status.ts",
+          "backend/src/controllers/statusController.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/status/health": {
+              "get": {
+                "summary": "Health check endpoint"
+              }
+            },
+            "/api/status/phase1": {
+              "get": {
+                "summary": "Get Phase 1 completion status (admin only)"
+              }
+            },
+            "/api/status/system": {
+              "get": {
+                "summary": "Get detailed system status (admin only)"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

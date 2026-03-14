@@ -3,220 +3,384 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSchoolUpdates = exports.getFeaturedPosts = exports.toggleFeaturePost = exports.likePost = exports.deletePost = exports.updatePost = exports.getPostById = exports.getAllPosts = exports.createPost = void 0;
-const Post_1 = __importDefault(require("../models/Post"));
-const mongoose_1 = __importDefault(require("mongoose"));
-const createPost = async (req, res) => {
-    try {
-        const { title, content, category, imageUrl, visibility, tags, isSchoolUpdate } = req.body;
-        const author = req.user?.id;
-        if (!author) {
-            res.status(400).json({ success: false, message: 'Author ID is missing.' });
-            return;
+exports.toggleFeaturePost = exports.getSchoolUpdates = exports.getFeaturedPosts = exports.getBookmarkedPosts = exports.getFeedPosts = exports.sharePost = exports.bookmarkPost = exports.likePost = exports.deletePost = exports.updatePost = exports.getPostById = exports.getAllPosts = exports.createPost = void 0;
+const client_1 = require("@prisma/client");
+const prisma_1 = __importDefault(require("../config/prisma"));
+const errorHandler_1 = require("../middleware/errorHandler");
+const postInclude = {
+    author: {
+        select: {
+            id: true,
+            name: true,
+            profileImage: true,
+            role: true,
+            admissionYear: true
         }
-        const post = new Post_1.default({
-            title,
+    },
+    reactions: {
+        select: {
+            userId: true,
+            type: true
+        }
+    },
+    bookmarks: {
+        select: {
+            id: true
+        }
+    },
+    _count: {
+        select: {
+            comments: true
+        }
+    }
+};
+const normalizePost = (post, currentUserId) => ({
+    ...post,
+    author: {
+        ...post.author,
+        role: typeof post.author?.role === 'string' ? post.author.role.toLowerCase() : post.author?.role,
+        classYear: post.author?.admissionYear ? Number.parseInt(post.author.admissionYear, 10) : undefined
+    },
+    bookmarks: (post.bookmarks || []).map((bookmarkUser) => bookmarkUser.id),
+    commentCount: post._count?.comments ?? 0,
+    shareCount: post.shareCount ?? 0,
+    isLiked: currentUserId ? (post.reactions || []).some((reaction) => reaction.userId === currentUserId && reaction.type === 'like') : false,
+    isBookmarked: currentUserId ? (post.bookmarks || []).some((bookmarkUser) => bookmarkUser.id === currentUserId) : false,
+});
+exports.createPost = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { content, title, category, visibility, tags, attachments, externalLinks, originalPostId, shareType } = req.body;
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    if (!content && !attachments && !originalPostId) {
+        res.status(400).json({ success: false, message: 'Content, attachments, or shared post is required' });
+        return;
+    }
+    const newPost = await prisma_1.default.post.create({
+        data: {
             content,
-            author,
-            category,
-            imageUrl,
-            visibility,
-            tags,
-            isSchoolUpdate: isSchoolUpdate || false,
-            isFeatured: false,
-        });
-        await post.save();
-        res.status(201).json({ success: true, message: 'Post created successfully', post });
+            title: title || null,
+            category: category || 'general',
+            visibility: visibility || 'public',
+            tags: tags || [],
+            attachments: attachments || null,
+            externalLinks: externalLinks || [],
+            authorId: req.user.id,
+            sharedPostId: originalPostId || null,
+            shareType: shareType || null
+        },
+        include: postInclude
+    });
+    const normalizedPost = normalizePost(newPost, req.user.id);
+    res.status(201).json({ success: true, data: normalizedPost, post: normalizedPost });
+});
+exports.getAllPosts = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const page = Number.parseInt(req.query.page) || 1;
+    const limit = Number.parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const { category, search, tags, authorId, visibility } = req.query;
+    const where = {};
+    if (category)
+        where.category = category;
+    if (authorId)
+        where.authorId = authorId;
+    if (visibility)
+        where.visibility = visibility;
+    if (search)
+        where.content = { contains: search, mode: 'insensitive' };
+    if (tags) {
+        const tagsArray = tags.split(',').map(t => t.trim());
+        where.tags = { hasSome: tagsArray };
     }
-    catch (error) {
-        res.status(500).json({ success: false, message: 'Failed to create post', error: error.message });
+    const [posts, total] = await Promise.all([
+        prisma_1.default.post.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            skip, take: limit,
+            include: postInclude
+        }),
+        prisma_1.default.post.count({ where })
+    ]);
+    const normalizedPosts = posts.map((post) => normalizePost(post));
+    res.status(200).json({
+        success: true,
+        data: normalizedPosts,
+        posts: normalizedPosts,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    });
+});
+exports.getPostById = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { postId } = req.params;
+    if (!postId) {
+        res.status(400).json({ success: false, message: 'Post ID is required' });
+        return;
     }
-};
-exports.createPost = createPost;
-const getAllPosts = async (req, res) => {
-    try {
-        const { page = 1, limit = 10, authorId, category, visibility, tag, sortBy = 'createdAt', sortOrder = 'desc', isSchoolUpdate } = req.query;
-        const query = {};
-        if (authorId)
-            query.author = authorId;
-        if (category)
-            query.category = category;
-        if (visibility)
-            query.visibility = visibility;
-        if (tag)
-            query.tags = { $in: [tag] };
-        if (isSchoolUpdate !== undefined)
-            query.isSchoolUpdate = isSchoolUpdate === 'true';
-        const posts = await Post_1.default.find(query)
-            .populate('author', 'name email profileImage')
-            .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
-            .skip((Number(page) - 1) * Number(limit))
-            .limit(Number(limit));
-        const totalPosts = await Post_1.default.countDocuments(query);
-        res.status(200).json({
-            success: true,
-            posts,
-            pagination: {
-                currentPage: Number(page),
-                totalPages: Math.ceil(totalPosts / Number(limit)),
-                totalPosts,
-            },
-        });
+    const post = await prisma_1.default.post.findUnique({
+        where: { id: postId },
+        include: postInclude
+    });
+    if (!post) {
+        res.status(404).json({ success: false, message: 'Post not found' });
+        return;
     }
-    catch (error) {
-        res.status(500).json({ success: false, message: 'Failed to fetch posts', error: error.message });
+    res.status(200).json({ success: true, data: normalizePost(post) });
+});
+exports.updatePost = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { postId } = req.params;
+    if (!postId) {
+        res.status(400).json({ success: false, message: 'Post ID is required' });
+        return;
     }
-};
-exports.getAllPosts = getAllPosts;
-const getPostById = async (req, res) => {
-    try {
-        const post = await Post_1.default.findById(req.params.postId)
-            .populate('author', 'name email profileImage')
-            .populate('comments');
-        if (!post) {
-            res.status(404).json({ success: false, message: 'Post not found' });
-            return;
-        }
-        res.status(200).json({ success: true, post });
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
     }
-    catch (error) {
-        res.status(500).json({ success: false, message: 'Failed to fetch post', error: error.message });
+    const post = await prisma_1.default.post.findUnique({ where: { id: postId } });
+    if (!post) {
+        res.status(404).json({ success: false, message: 'Post not found' });
+        return;
     }
-};
-exports.getPostById = getPostById;
-const updatePost = async (req, res) => {
-    try {
-        const { title, content, category, imageUrl, visibility, tags, isSchoolUpdate } = req.body;
-        const postId = req.params.postId;
-        const userId = req.user?.id;
-        const userRole = req.user?.role;
-        const post = await Post_1.default.findById(postId);
-        if (!post) {
-            return res.status(404).json({ success: false, message: 'Post not found' });
-        }
-        if (post.author.toString() !== userId && userRole !== 'admin' && userRole !== 'super_admin') {
-            return res.status(403).json({ success: false, message: 'You are not authorized to update this post' });
-        }
-        post.title = title ?? post.title;
-        post.content = content ?? post.content;
-        post.category = category ?? post.category;
-        post.imageUrl = imageUrl ?? post.imageUrl;
-        post.visibility = visibility ?? post.visibility;
-        post.tags = tags ?? post.tags;
-        if (isSchoolUpdate !== undefined) {
-            post.isSchoolUpdate = isSchoolUpdate;
-        }
-        await post.save();
-        return res.status(200).json({ success: true, message: 'Post updated successfully', post });
+    if (post.authorId !== req.user.id && req.user.role !== client_1.Role.ADMIN) {
+        res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
     }
-    catch (error) {
-        return res.status(500).json({ success: false, message: 'Failed to update post', error: error.message });
+    const { content, title, category, visibility, tags, attachments, externalLinks } = req.body;
+    const updatedPost = await prisma_1.default.post.update({
+        where: { id: postId },
+        data: {
+            content: content ?? post.content,
+            title: title ?? post.title,
+            category: category ?? post.category,
+            visibility: visibility ?? post.visibility,
+            tags: tags ?? post.tags,
+            attachments: attachments ?? post.attachments,
+            externalLinks: externalLinks ?? post.externalLinks
+        },
+        include: postInclude
+    });
+    const normalizedPost = normalizePost(updatedPost, req.user.id);
+    res.status(200).json({ success: true, data: normalizedPost, post: normalizedPost });
+});
+exports.deletePost = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { postId } = req.params;
+    if (!postId) {
+        res.status(400).json({ success: false, message: 'Post ID is required' });
+        return;
     }
-};
-exports.updatePost = updatePost;
-const deletePost = async (req, res) => {
-    try {
-        const postId = req.params.postId;
-        const userId = req.user?.id;
-        const userRole = req.user?.role;
-        const post = await Post_1.default.findById(postId);
-        if (!post) {
-            return res.status(404).json({ success: false, message: 'Post not found' });
-        }
-        if (post.author.toString() !== userId && userRole !== 'admin' && userRole !== 'super_admin') {
-            return res.status(403).json({ success: false, message: 'You are not authorized to delete this post' });
-        }
-        await post.deleteOne();
-        return res.status(200).json({ success: true, message: 'Post deleted successfully' });
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
     }
-    catch (error) {
-        return res.status(500).json({ success: false, message: 'Failed to delete post', error: error.message });
+    const post = await prisma_1.default.post.findUnique({ where: { id: postId } });
+    if (!post) {
+        res.status(404).json({ success: false, message: 'Post not found' });
+        return;
     }
-};
-exports.deletePost = deletePost;
-const likePost = async (req, res) => {
-    try {
-        const postId = req.params.postId;
-        const userId = req.user?.id;
-        if (!userId) {
-            return res.status(400).json({ success: false, message: 'User ID is missing.' });
-        }
-        const post = await Post_1.default.findById(postId);
-        if (!post) {
-            return res.status(404).json({ success: false, message: 'Post not found' });
-        }
-        const userObjectId = new mongoose_1.default.Types.ObjectId(userId);
-        const alreadyLiked = post.likes.some(like => like.equals(userObjectId));
-        if (alreadyLiked) {
-            post.likes = post.likes.filter(like => !like.equals(userObjectId));
+    if (post.authorId !== req.user.id && req.user.role !== client_1.Role.ADMIN) {
+        res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
+    }
+    await prisma_1.default.post.delete({ where: { id: postId } });
+    res.status(200).json({ success: true, data: {} });
+});
+exports.likePost = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { postId } = req.params;
+    if (!postId) {
+        res.status(400).json({ success: false, message: 'Post ID is required' });
+        return;
+    }
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    const reactionType = req.body?.reactionType || 'like';
+    const existingReaction = await prisma_1.default.postReaction.findUnique({
+        where: { postId_userId: { postId, userId: req.user.id } }
+    });
+    let message = '';
+    if (existingReaction) {
+        if (existingReaction.type === reactionType) {
+            await prisma_1.default.postReaction.delete({
+                where: { postId_userId: { postId, userId: req.user.id } }
+            });
+            message = 'Post reaction removed';
         }
         else {
-            post.likes.push(userObjectId);
+            await prisma_1.default.postReaction.update({
+                where: { postId_userId: { postId, userId: req.user.id } },
+                data: { type: reactionType }
+            });
+            message = 'Post reaction updated';
         }
-        await post.save();
-        return res.status(200).json({ success: true, message: alreadyLiked ? 'Post unliked' : 'Post liked', post });
     }
-    catch (error) {
-        return res.status(500).json({ success: false, message: 'Failed to like/unlike post', error: error.message });
+    else {
+        await prisma_1.default.postReaction.create({ data: { postId, userId: req.user.id, type: reactionType } });
+        message = 'Post reacted';
     }
-};
-exports.likePost = likePost;
-const toggleFeaturePost = async (req, res) => {
-    try {
-        const postId = req.params.postId;
-        const post = await Post_1.default.findById(postId);
-        if (!post) {
-            return res.status(404).json({ success: false, message: 'Post not found' });
+    const updatedPost = await prisma_1.default.post.findUnique({
+        where: { id: postId },
+        include: postInclude
+    });
+    const normalizedPost = updatedPost ? normalizePost(updatedPost, req.user.id) : undefined;
+    res.status(200).json({ success: true, message, data: normalizedPost, post: normalizedPost });
+});
+exports.bookmarkPost = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { postId } = req.params;
+    if (!postId) {
+        res.status(400).json({ success: false, message: 'Post ID is required' });
+        return;
+    }
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    const existingBookmark = await prisma_1.default.post.findFirst({
+        where: {
+            id: postId,
+            bookmarks: {
+                some: { id: req.user.id }
+            }
+        },
+        select: { id: true }
+    });
+    let message = '';
+    if (existingBookmark) {
+        await prisma_1.default.post.update({
+            where: { id: postId },
+            data: { bookmarks: { disconnect: { id: req.user.id } } }
+        });
+        message = 'Post removed from bookmarks';
+    }
+    else {
+        await prisma_1.default.post.update({
+            where: { id: postId },
+            data: { bookmarks: { connect: { id: req.user.id } } }
+        });
+        message = 'Post bookmarked';
+    }
+    res.status(200).json({ success: true, message });
+});
+exports.sharePost = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { originalPostId, content, visibility, shareType } = req.body;
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    if (!originalPostId) {
+        res.status(400).json({ success: false, message: 'Original post ID is required' });
+        return;
+    }
+    const originalPost = await prisma_1.default.post.findUnique({ where: { id: originalPostId } });
+    if (!originalPost) {
+        res.status(404).json({ success: false, message: 'Original post not found' });
+        return;
+    }
+    const newPost = await prisma_1.default.post.create({
+        data: {
+            content: content || '',
+            visibility: visibility || 'public',
+            category: 'general',
+            authorId: req.user.id,
+            sharedPostId: originalPostId,
+            shareType: shareType || 'simple'
+        },
+        include: postInclude
+    });
+    const normalizedPost = normalizePost(newPost, req.user.id);
+    await prisma_1.default.post.update({
+        where: { id: originalPostId },
+        data: { shareCount: { increment: 1 } }
+    });
+    res.status(201).json({ success: true, data: normalizedPost, post: normalizedPost });
+});
+exports.getFeedPosts = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const page = Number.parseInt(req.query.page) || 1;
+    const limit = Number.parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const [posts, total] = await Promise.all([
+        prisma_1.default.post.findMany({
+            orderBy: { createdAt: 'desc' },
+            skip, take: limit,
+            include: postInclude
+        }),
+        prisma_1.default.post.count()
+    ]);
+    const normalizedPosts = posts.map((post) => normalizePost(post, req.user?.id));
+    res.status(200).json({
+        success: true,
+        data: normalizedPosts,
+        posts: normalizedPosts,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    });
+});
+exports.getBookmarkedPosts = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    const page = Number.parseInt(req.query.page) || 1;
+    const limit = Number.parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const posts = await prisma_1.default.post.findMany({
+        where: {
+            bookmarks: {
+                some: { id: req.user.id }
+            }
+        },
+        include: postInclude,
+        orderBy: { createdAt: 'desc' },
+        skip, take: limit
+    });
+    const total = await prisma_1.default.post.count({
+        where: {
+            bookmarks: {
+                some: { id: req.user.id }
+            }
         }
-        post.isFeatured = !post.isFeatured;
-        await post.save();
-        return res.status(200).json({
-            success: true,
-            message: `Post ${post.isFeatured ? 'featured' : 'unfeatured'} successfully`,
-            post
-        });
+    });
+    const normalizedPosts = posts.map((post) => normalizePost(post, req.user.id));
+    res.status(200).json({
+        success: true,
+        data: normalizedPosts,
+        posts: normalizedPosts,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    });
+});
+exports.getFeaturedPosts = (0, errorHandler_1.asyncHandler)(async (_req, res) => {
+    const posts = await prisma_1.default.post.findMany({
+        where: { isFeatured: true },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: postInclude
+    });
+    res.status(200).json({ success: true, data: posts.map((post) => normalizePost(post)) });
+});
+exports.getSchoolUpdates = (0, errorHandler_1.asyncHandler)(async (_req, res) => {
+    const posts = await prisma_1.default.post.findMany({
+        where: { isSchoolUpdate: true },
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+        include: postInclude
+    });
+    res.status(200).json({ success: true, data: posts.map((post) => normalizePost(post)) });
+});
+exports.toggleFeaturePost = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { postId } = req.params;
+    if (!postId) {
+        res.status(400).json({ success: false, message: 'Post ID is required' });
+        return;
     }
-    catch (error) {
-        return res.status(500).json({ success: false, message: 'Failed to toggle feature status', error: error.message });
+    const post = await prisma_1.default.post.findUnique({ where: { id: postId } });
+    if (!post) {
+        res.status(404).json({ success: false, message: 'Post not found' });
+        return;
     }
-};
-exports.toggleFeaturePost = toggleFeaturePost;
-const getFeaturedPosts = async (req, res) => {
-    try {
-        const { limit = 5 } = req.query;
-        const posts = await Post_1.default.find({ isFeatured: true })
-            .populate('author', 'name email profileImage')
-            .sort({ createdAt: -1 })
-            .limit(Number(limit));
-        res.status(200).json({ success: true, posts });
-    }
-    catch (error) {
-        res.status(500).json({ success: false, message: 'Failed to fetch featured posts', error: error.message });
-    }
-};
-exports.getFeaturedPosts = getFeaturedPosts;
-const getSchoolUpdates = async (req, res) => {
-    try {
-        const { page = 1, limit = 10 } = req.query;
-        const posts = await Post_1.default.find({ isSchoolUpdate: true })
-            .populate('author', 'name email profileImage')
-            .sort({ createdAt: -1 })
-            .skip((Number(page) - 1) * Number(limit))
-            .limit(Number(limit));
-        const totalPosts = await Post_1.default.countDocuments({ isSchoolUpdate: true });
-        res.status(200).json({
-            success: true,
-            posts,
-            pagination: {
-                currentPage: Number(page),
-                totalPages: Math.ceil(totalPosts / Number(limit)),
-                totalPosts,
-            },
-        });
-    }
-    catch (error) {
-        res.status(500).json({ success: false, message: 'Failed to fetch school updates', error: error.message });
-    }
-};
-exports.getSchoolUpdates = getSchoolUpdates;
+    const updatedPost = await prisma_1.default.post.update({
+        where: { id: postId },
+        data: { isFeatured: !post.isFeatured },
+        include: postInclude
+    });
+    res.status(200).json({ success: true, data: normalizePost(updatedPost, req.user?.id) });
+});
 //# sourceMappingURL=postController.js.map

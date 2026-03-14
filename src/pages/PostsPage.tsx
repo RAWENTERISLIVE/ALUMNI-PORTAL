@@ -183,7 +183,7 @@ export default function PostsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-muted/30">
       <PageHeader
         title="Posts"
         description="Connect with alumni, share updates, and discover opportunities"
@@ -198,7 +198,7 @@ export default function PostsPage() {
               trigger={
                 <Button 
                   size="lg" 
-                  className="w-full justify-start gap-3 bg-white border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 font-medium shadow-sm"
+                  className="w-full justify-start gap-3 bg-card border-2 border-border hover:border-blue-300 hover:bg-primary/5 text-foreground/90 font-medium shadow-sm"
                 >
                   <Plus className="h-5 w-5" />
                   Share what's on your mind...
@@ -210,10 +210,10 @@ export default function PostsPage() {
 
         {/* Posts Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-white border border-slate-200 shadow-sm">
+          <TabsList className="grid w-full grid-cols-3 bg-card border border-border shadow-sm">
             <TabsTrigger 
               value="recent" 
-              className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
+              className="data-[state=active]:bg-primary/5 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
             >
               Recent Posts
             </TabsTrigger>
@@ -221,13 +221,13 @@ export default function PostsPage() {
               <>
                 <TabsTrigger 
                   value="following" 
-                  className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
+                  className="data-[state=active]:bg-primary/5 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
                 >
                   Following
                 </TabsTrigger>
                 <TabsTrigger 
                   value="saved" 
-                  className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
+                  className="data-[state=active]:bg-primary/5 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
                 >
                   Saved Posts
                 </TabsTrigger>
@@ -271,7 +271,7 @@ export default function PostsPage() {
                         onClick={loadMore}
                         disabled={isLoading}
                         variant="outline"
-                        className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                        className="border-border/80 text-foreground/90 hover:bg-muted/30"
                       >
                         {isLoading ? (
                           <>

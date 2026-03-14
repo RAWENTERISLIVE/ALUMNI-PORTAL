@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import User, { IUser, UserRole } from '../models/User';
+import UserModel, { IUser, UserRole, User as NamedUser } from '../models/User';
+
+const User: any = (UserModel as any)?.findOne ? UserModel : (NamedUser as any);
 
 export interface AuthRequest extends Request {
   user?: IUser;

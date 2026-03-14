@@ -46,7 +46,7 @@ const getCategoryColor = (category: string) => {
   switch (category?.toLowerCase()) {
     case 'tech':
     case 'technology':
-      return 'bg-blue-50 text-blue-500';
+      return 'bg-primary/5 text-foreground';
     case 'sustainability':
     case 'environment':
       return 'bg-green-50 text-green-500';
@@ -57,7 +57,7 @@ const getCategoryColor = (category: string) => {
     case 'business':
       return 'bg-amber-50 text-amber-500';
     default:
-      return 'bg-gray-50 text-gray-500';
+      return 'bg-muted/30 text-muted/300';
   }
 };
 
@@ -65,7 +65,7 @@ const getBadgeColor = (category: string) => {
   switch (category?.toLowerCase()) {
     case 'tech':
     case 'technology':
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-primary/10 text-blue-800';
     case 'sustainability':
     case 'environment':
       return 'bg-green-100 text-green-800';
@@ -76,7 +76,7 @@ const getBadgeColor = (category: string) => {
     case 'business':
       return 'bg-amber-100 text-amber-800';
     default:
-      return 'bg-gray-100 text-gray-800';
+      return 'bg-gray-100 text-foreground/90';
   }
 };
 
@@ -222,7 +222,7 @@ export default function GroupsPage() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <LoadingSpinner size="lg" />
-        <span className="ml-4 text-gray-600">Loading groups...</span>
+        <span className="ml-4 text-muted-foreground">Loading groups...</span>
       </div>
     );
   }
@@ -231,18 +231,18 @@ export default function GroupsPage() {
     <div className="container mx-auto p-4 sm:p-6">
       {/* Page Header */}
       <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-800">Alumni Groups</h1>
-          <p className="text-md text-gray-500 mt-1">Connect, collaborate, and grow with your alumni community.</p>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground/90">Alumni Groups</h1>
+          <p className="text-md text-muted/300 mt-1">Connect, collaborate, and grow with your alumni community.</p>
       </div>
 
       {/* Search and Filter Section */}
       <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
         <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search groups..."
-            className="pl-10 pr-4 py-2 w-full rounded-lg border-gray-300 focus:ring-orange-300 focus:border-orange-300"
+            className="pl-10 pr-4 py-2 w-full rounded-lg border-gray-300 focus:ring-primary/30 focus:border-primary/30"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -251,7 +251,7 @@ export default function GroupsPage() {
         <div className="flex items-center space-x-2">
           <Button
             onClick={() => setIsCreateGroupModalOpen(true)}
-            className="bg-orange-500 text-white rounded-lg hover:bg-orange-600 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+            className="bg-primary text-white rounded-lg hover:bg-primary/90 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Group
@@ -269,8 +269,8 @@ export default function GroupsPage() {
             className={cn(
               "rounded-full whitespace-nowrap transition-all duration-300",
               selectedCategory === category.id
-                ? "bg-orange-500 text-white border-orange-500 shadow-sm"
-                : "border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400"
+                ? "bg-primary text-white border-primary shadow-sm"
+                : "border-gray-300 text-foreground/80 hover:bg-gray-100 hover:border-gray-400"
             )}
           >
             {category.name}
@@ -301,7 +301,7 @@ export default function GroupsPage() {
             return (
               <Card
                 key={group.id || group._id}
-                className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 flex flex-col"
+                className="bg-card border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 flex flex-col"
               >
                 <CardContent className="p-5 flex-grow">
                   <div className="flex justify-between items-start mb-3">
@@ -314,22 +314,22 @@ export default function GroupsPage() {
                      </Badge>
                   </div>
 
-                  <h3 className="text-lg font-bold line-clamp-2 mb-2 h-14 text-gray-900 hover:text-orange-600 transition-colors">{group.name}</h3>
+                  <h3 className="text-lg font-bold line-clamp-2 mb-2 h-14 text-foreground hover:text-foreground/90 transition-colors">{group.name}</h3>
 
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-3 h-16 leading-relaxed">
+                  <p className="text-muted-foreground text-sm mb-4 line-clamp-3 h-16 leading-relaxed">
                     {group.description || "No description available."}
                   </p>
 
-                  <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div className="flex items-center justify-between text-sm text-muted/300">
                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-orange-500" />
+                        <Users className="h-4 w-4 text-foreground" />
                         <span className="font-medium">{group.memberCount || group.members?.length || 0} members</span>
                      </div>
                      <div className="flex -space-x-2 overflow-hidden">
                         {Array.isArray(group.members) && group.members.slice(0, 3).map((member: any, index: number) => (
                            <Avatar key={index} className="inline-block h-8 w-8 rounded-full border-2 border-white ring-1 ring-gray-200">
                              <AvatarImage src={typeof member === 'object' ? member.profileImage : undefined} />
-                             <AvatarFallback className="bg-orange-100 text-orange-800 font-medium">
+                             <AvatarFallback className="bg-primary/10 text-foreground/90 font-medium">
                                {typeof member === 'object' && member.name 
                                  ? member.name[0] 
                                  : typeof member === 'object' && member.firstName 
@@ -339,20 +339,20 @@ export default function GroupsPage() {
                            </Avatar>
                         ))}
                         {(group.memberCount > 3 || (Array.isArray(group.members) && group.members.length > 3)) && (
-                           <div className="w-8 h-8 bg-gray-200 border-2 border-white rounded-full flex items-center justify-center text-xs text-gray-800 font-medium shadow-sm">
+                           <div className="w-8 h-8 bg-gray-200 border-2 border-white rounded-full flex items-center justify-center text-xs text-foreground/90 font-medium shadow-sm">
                              +{(group.memberCount || group.members.length) - 3}
                            </div>
                         )}
                      </div>
                   </div>
                 </CardContent>
-                <CardFooter className="p-4 pt-0 bg-gray-50 border-t">
+                <CardFooter className="p-4 pt-0 bg-muted/30 border-t">
                     <div className="flex w-full gap-2">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleViewDiscussion(group)}
-                        className={`w-full border-gray-300 hover:border-orange-500 hover:text-orange-600 transition-colors ${isPrivate && !isJoined ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-full border-gray-300 hover:border-primary hover:text-foreground/90 transition-colors ${isPrivate && !isJoined ? 'opacity-50 cursor-not-allowed' : ''}`}
                         disabled={isPrivate && !isJoined}
                       >
                         <MessageSquare className="h-4 w-4 mr-2"/>
@@ -363,8 +363,8 @@ export default function GroupsPage() {
                         size="sm"
                         onClick={() => handleJoinLeaveGroup(group)}
                         className={`w-full ${isJoined 
-                          ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' 
-                          : 'bg-orange-500 hover:bg-orange-600 text-white transform hover:scale-105 hover:shadow-sm transition-all duration-300'}`}
+                          ? 'bg-gray-200 hover:bg-gray-300 text-foreground/90' 
+                          : 'bg-primary hover:bg-primary/90 text-white transform hover:scale-105 hover:shadow-sm transition-all duration-300'}`}
                         variant={isJoined ? "secondary" : "default"}
                       >
                         {isJoined ? "Leave" : "Join"}

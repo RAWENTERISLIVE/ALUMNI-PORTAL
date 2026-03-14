@@ -85,9 +85,9 @@ export const SharePostModal = ({
   
   return (
     <Dialog open={open} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="sm:max-w-md bg-white">
+      <DialogContent className="sm:max-w-md bg-card">
         <DialogHeader>
-          <DialogTitle className="text-gray-900">Share Post</DialogTitle>
+          <DialogTitle className="text-foreground">Share Post</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
@@ -100,24 +100,24 @@ export const SharePostModal = ({
           />
           
           <div className="mb-4">
-            <label htmlFor="visibility" className="block text-sm font-medium text-gray-800 mb-1">Who can see this?</label>
+            <label htmlFor="visibility" className="block text-sm font-medium text-foreground/90 mb-1">Who can see this?</label>
             <select 
               id="visibility"
               value={visibility}
               onChange={(e) => setVisibility(e.target.value as 'public' | 'connections_only')}
-              className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 bg-white text-gray-800"
+              className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary bg-card text-foreground/90"
             >
               <option value="public">Everyone</option>
               <option value="connections_only">Connections Only</option>
             </select>
-            <p className="text-xs text-gray-600 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {visibility === 'connections_only' ? 
                 "Only your connections will see this shared post" : 
                 "Anyone can see this shared post"}
             </p>
           </div>
           
-          <div className="border rounded-lg p-2 bg-gray-50">
+          <div className="border rounded-lg p-2 bg-muted/30">
             <Card className="shadow-none border-none">
               <CardHeader className="p-2 pb-0">
                 <div className="flex items-center space-x-2">
@@ -127,7 +127,7 @@ export const SharePostModal = ({
                   </Avatar>
                   <div>
                     <p className="font-medium text-sm">{post.author.name}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted/300">
                       {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
                     </p>
                   </div>
@@ -144,14 +144,14 @@ export const SharePostModal = ({
               variant="outline" 
               onClick={onClose} 
               disabled={isSubmitting}
-              className="border-gray-300 text-gray-800 hover:bg-gray-50"
+              className="border-gray-300 text-foreground/90 hover:bg-muted/30"
             >
               Cancel
             </Button>
             <Button 
               onClick={handleSharePost} 
               disabled={isSubmitting}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
+              className="bg-primary hover:bg-primary/90 text-white"
             >
               {isSubmitting ? (
                 <>

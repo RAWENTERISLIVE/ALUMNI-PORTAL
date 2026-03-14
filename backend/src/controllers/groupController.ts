@@ -1,328 +1,193 @@
 import { Request, Response } from 'express';
-import Group, { GroupPrivacy } from '../models/Group';
-import GroupMessage from '../models/GroupMessage';
+import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
 
-// @desc    Create a new group
-// @route   POST /api/groups
-// @access  Private
-export const createGroup = asyncHandler(async (req: Request, res: Response) => {
-  const { name, description, privacy, category } = req.body;
-  const creator = (req as any).user.id;
+interface AuthRequest extends Request {
+  user?: { id: string };
+}
 
-  const newGroup = new Group({
-    name,
-    description,
-    creator,
-    members: [creator], // Creator is the first member
-    privacy: privacy || GroupPrivacy.PUBLIC,
-    category: category || 'professional',
-    memberCount: 1, // Start with creator as member
-    lastActivity: new Date()
+const getGroupId = (req: Request) => req.params.groupId || req.params.id;
+
+const isUserMember = (members: Array<{ id: string }>, userId: string) =>
+  members.some((member) => member.id === userId);
+
+const getRequiredGroupId = (req: Request, res: Response): string | null => {
+  const groupId = getGroupId(req);
+  if (!groupId) {
+    res.status(400).json({ message: 'Group ID is required' });
+    return null;
+  }
+  return groupId;
+};
+
+export const createGroup = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+  const group = await prisma.group.create({
+    data: { ...req.body, creatorId: req.user.id, members: { connect: { id: req.user.id } } },
+    include: { creator: true, members: true }
   });
-
-  const group = await newGroup.save();
-
   res.status(201).json({ success: true, data: group });
 });
 
-// @desc    Get all groups with filtering
-// @route   GET /api/groups
-// @access  Private
-export const getGroups = asyncHandler(async (req: Request, res: Response) => {
-  const { page = 1, limit = 10, search, privacy } = req.query;
-  const userId = (req as any).user.id;
+export const getGroups = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
 
-  const query: any = {
-    $or: [
-      { privacy: GroupPrivacy.PUBLIC },
-      { members: userId },
-      { creator: userId } // Creator can always see their groups
-    ],
-  };
-
-  if (search) {
-    query.$and = [
-      query.$or ? { $or: query.$or } : {},
-      {
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } }
-        ]
-      }
-    ];
-    delete query.$or;
-  }
-
-  if (privacy && privacy !== 'all') {
-    query.privacy = privacy;
-  }
-
-  const pageNum = parseInt(page as string, 10);
-  const limitNum = parseInt(limit as string, 10);
-  const skip = (pageNum - 1) * limitNum;
-
-  const groups = await Group.find(query)
-    .populate('creator', 'name email profileImage')
-    .populate('members', 'name email profileImage')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limitNum);
-
-  const total = await Group.countDocuments(query);
-
-  // Format groups to have consistent id field
-  const formattedGroups = groups.map(group => {
-    const groupObj = group.toObject();
-    return {
-      ...groupObj,
-      id: (groupObj._id as any).toString(),
-      creator: groupObj.creator && {
-        ...groupObj.creator,
-        id: groupObj.creator._id ? (groupObj.creator._id as any).toString() : undefined
-      },
-      members: groupObj.members ? groupObj.members.map((member: any) => ({
-        ...member,
-        id: member._id ? member._id.toString() : undefined
-      })) : []
-    };
+  const groups = await prisma.group.findMany({
+    where: {
+      OR: [
+        { privacy: 'public' },
+        { creatorId: req.user.id },
+        { members: { some: { id: req.user.id } } }
+      ]
+    },
+    include: { creator: true, members: true },
+    orderBy: { createdAt: 'desc' }
   });
-
-  res.json({ 
-    success: true, 
-    data: formattedGroups,
-    pagination: {
-      page: pageNum,
-      limit: limitNum,
-      total,
-      pages: Math.ceil(total / limitNum)
-    }
-  });
+  res.status(200).json({ success: true, data: groups });
 });
 
-// @desc    Get a single group
-// @route   GET /api/groups/:groupId
-// @access  Private
-export const getGroup = asyncHandler(async (req: Request, res: Response) => {
-  const group = await Group.findById(req.params.groupId)
-    .populate('creator', 'name email')
-    .populate('members', 'name email');
+export const getGroupById = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
 
-  if (!group) {
-    res.status(404).json({ success: false, message: 'Group not found' });
-    return;
-  }
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
 
-  // Check if user can view the group
-  if (group.privacy === GroupPrivacy.PRIVATE && !group.members.includes((req as any).user.id)) {
-    res.status(403).json({ success: false, message: 'You do not have permission to view this group' });
-    return;
-  }
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: { creator: true, members: true, messages: { take: 20, orderBy: { createdAt: 'desc' } } }
+  });
+  if (!group) { res.status(404).json({ message: 'Group not found' }); return; }
 
-  res.json({ success: true, data: group });
+  const canAccess = group.privacy !== 'private' || group.creatorId === req.user.id || isUserMember(group.members, req.user.id);
+  if (!canAccess) { res.status(403).json({ message: 'Not authorized to access this group' }); return; }
+
+  res.status(200).json({ success: true, data: group });
 });
 
-// @desc    Join a group
-// @route   POST /api/groups/:groupId/join
-// @access  Private
-export const joinGroup = asyncHandler(async (req: Request, res: Response) => {
-  const groupId = req.params.groupId;
-  const userId = (req as any).user.id;
+export const updateGroup = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
 
-  const group = await Group.findById(groupId);
-
-  if (!group) {
-    res.status(404).json({ success: false, message: 'Group not found' });
-    return;
-  }
-
-  if (group.privacy === GroupPrivacy.PRIVATE) {
-    res.status(403).json({ success: false, message: 'This is a private group. You need an invitation to join.' });
-    return;
-  }
-
-  if (group.members.includes(userId)) {
-    res.status(400).json({ success: false, message: 'You are already a member of this group' });
-    return;
-  }
-
-  group.members.push(userId);
-  await group.save();
-
-  res.json({ success: true, message: 'Successfully joined the group', data: group });
+  const group = await prisma.group.findUnique({ where: { id: groupId } });
+  if (!group || group.creatorId !== req.user?.id) { res.status(403).json({ message: 'Not authorized' }); return; }
+  const updated = await prisma.group.update({ where: { id: groupId }, data: req.body, include: { creator: true, members: true } });
+  res.status(200).json({ success: true, data: updated });
 });
 
-// @desc    Leave a group
-// @route   POST /api/groups/:groupId/leave
-// @access  Private
-export const leaveGroup = asyncHandler(async (req: Request, res: Response) => {
-  const groupId = req.params.groupId;
-  const userId = (req as any).user.id;
+export const deleteGroup = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
 
-  const group = await Group.findById(groupId);
-
-  if (!group) {
-    res.status(404).json({ success: false, message: 'Group not found' });
-    return;
-  }
-
-  if (group.creator.toString() === userId.toString()) {
-    res.status(400).json({ success: false, message: 'Creator cannot leave the group. You can delete the group instead.' });
-    return;
-  }
-
-  if (!group.members.includes(userId)) {
-    res.status(400).json({ success: false, message: 'You are not a member of this group' });
-    return;
-  }
-
-  group.members = group.members.filter((memberId: any) => memberId.toString() !== userId.toString());
-  await group.save();
-
-  res.json({ success: true, message: 'Successfully left the group', data: group });
+  const group = await prisma.group.findUnique({ where: { id: groupId } });
+  if (!group || group.creatorId !== req.user?.id) { res.status(403).json({ message: 'Not authorized' }); return; }
+  await prisma.group.delete({ where: { id: groupId } });
+  res.status(200).json({ success: true, message: 'Group deleted' });
 });
 
-// @desc    Get messages from a group
-// @route   GET /api/groups/:groupId/messages
-// @access  Private (Members only)
-export const getGroupMessages = asyncHandler(async (req: Request, res: Response) => {
-  const { groupId } = req.params;
-  const { page = 1, limit = 50 } = req.query;
-  const userId = (req as any).user.id;
+export const joinGroup = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
 
-  const group = await Group.findById(groupId);
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: { members: { select: { id: true } } }
+  });
+  if (!group) { res.status(404).json({ message: 'Group not found' }); return; }
 
-  if (!group) {
-    res.status(404).json({ success: false, message: 'Group not found' });
+  if (group.privacy === 'private') {
+    res.status(403).json({ success: false, message: 'Private groups require an invitation to join' });
     return;
   }
 
-  // Check if user is a member or creator
-  const isMember = group.members.some((member: any) => member.toString() === userId.toString());
-  const isCreator = group.creator.toString() === userId.toString();
-
-  if (!isMember && !isCreator) {
-    res.status(403).json({ success: false, message: 'You must be a member to view messages' });
+  if (isUserMember(group.members, req.user.id)) {
+    res.status(200).json({ success: true, message: 'Already a member of this group' });
     return;
   }
 
-  const pageNum = parseInt(page as string, 10);
-  const limitNum = parseInt(limit as string, 10);
-  const skip = (pageNum - 1) * limitNum;
-
-  const messages = await GroupMessage.find({ group: groupId })
-    .populate('author', 'name email firstName lastName profileImage')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limitNum);
-
-  // Format messages with consistent id fields
-  const formattedMessages = messages.map(message => {
-    const messageObj = message.toObject();
-    return {
-      ...messageObj,
-      id: (messageObj._id as any).toString(),
-      author: messageObj.author ? {
-        ...messageObj.author,
-        id: (messageObj.author as any)._id ? (messageObj.author as any)._id.toString() : undefined
-      } : null
-    };
+  await prisma.group.update({
+    where: { id: groupId },
+    data: { members: { connect: { id: req.user.id } } }
   });
-
-  const totalMessages = await GroupMessage.countDocuments({ group: groupId });
-
-  res.json({ 
-    success: true, 
-    data: formattedMessages.reverse(), // Return in chronological order
-    pagination: {
-      page: pageNum,
-      limit: limitNum,
-      total: totalMessages,
-      pages: Math.ceil(totalMessages / limitNum)
-    }
-  });
+  res.status(200).json({ success: true, message: 'Joined group' });
 });
 
-// @desc    Post a message to a group
-// @route   POST /api/groups/:groupId/messages
-// @access  Private
-export const postGroupMessage = asyncHandler(async (req: Request, res: Response) => {
-  const { groupId } = req.params;
-  const { content, messageType = 'text' } = req.body;
-  const author = (req as any).user.id;
+export const leaveGroup = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
 
-  const group = await Group.findById(groupId);
-
-  if (!group) {
-    res.status(404).json({ success: false, message: 'Group not found' });
-    return;
-  }
-
-  if (!group.members.includes(author)) {
-    res.status(403).json({ success: false, message: 'You must be a member to post messages' });
-    return;
-  }
-
-  const message = new GroupMessage({
-    group: groupId,
-    author,
-    content,
-    messageType,
+  await prisma.group.update({
+    where: { id: groupId },
+    data: { members: { disconnect: { id: req.user.id } } }
   });
-
-  await message.save();
-
-  const populatedMessage = await GroupMessage.findById(message._id).populate('author', 'name email firstName lastName profileImage');
-
-  // Format the message with consistent id fields
-  const messageObj = populatedMessage?.toObject();
-  const formattedMessage = messageObj ? {
-    ...messageObj,
-    id: messageObj._id ? messageObj._id.toString() : undefined,
-    author: messageObj.author ? {
-      ...messageObj.author,
-      id: typeof messageObj.author === 'object' && (messageObj.author as any)._id 
-        ? (messageObj.author as any)._id.toString() 
-        : undefined
-    } : null
-  } : null;
-
-  res.status(201).json({ success: true, data: formattedMessage });
+  res.status(200).json({ success: true, message: 'Left group' });
 });
 
-// @desc    Get groups for current user
-// @route   GET /api/groups/user
-// @access  Private
-export const getUserGroups = asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user.id;
+export const getGroup = getGroupById;
 
-  const groups = await Group.find({
-    members: userId
-  })
-    .populate('creator', 'name email profileImage')
-    .populate('members', 'name email profileImage')
-    .sort({ lastActivity: -1 })
-    .limit(10); // Limit for dashboard display
+export const getUserGroups = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+  const groups = await prisma.group.findMany({
+    where: { members: { some: { id: req.user.id } } },
+    include: { creator: true, members: true },
+    orderBy: { createdAt: 'desc' }
+  });
+  res.status(200).json({ success: true, data: groups });
+});
 
-  // Format groups to have consistent id field
-  const formattedGroups = groups.map(group => {
-    const groupObj = group.toObject();
-    return {
-      ...groupObj,
-      id: (groupObj._id as any).toString(),
-      creator: groupObj.creator && {
-        ...groupObj.creator,
-        id: groupObj.creator._id ? (groupObj.creator._id as any).toString() : undefined
-      },
-      members: groupObj.members ? groupObj.members.map((member: any) => ({
-        ...member,
-        id: member._id ? member._id.toString() : undefined
-      })) : []
-    };
+export const getGroupMessages = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: { members: { select: { id: true } } }
+  });
+  if (!group) { res.status(404).json({ message: 'Group not found' }); return; }
+
+  const canRead = group.privacy !== 'private' || group.creatorId === req.user.id || isUserMember(group.members, req.user.id);
+  if (!canRead) { res.status(403).json({ message: 'Not authorized to view messages in this group' }); return; }
+
+  const messages = await prisma.groupMessage.findMany({
+    where: { groupId },
+    include: { author: { select: { id: true, name: true, profileImage: true } } },
+    orderBy: { createdAt: 'asc' },
+    take: 100
+  });
+  res.status(200).json({ success: true, data: messages });
+});
+
+export const postGroupMessage = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: { members: { select: { id: true } } }
+  });
+  if (!group) { res.status(404).json({ message: 'Group not found' }); return; }
+
+  if (!isUserMember(group.members, req.user.id)) {
+    res.status(403).json({ message: 'Join this group to post messages' });
+    return;
+  }
+
+  const content = String(req.body?.content || '').trim();
+  if (!content) { res.status(400).json({ message: 'Message content is required' }); return; }
+
+  const message = await prisma.groupMessage.create({
+    data: {
+      groupId,
+      authorId: req.user.id,
+      content
+    },
+    include: { author: { select: { id: true, name: true, profileImage: true } } }
   });
 
-  res.json({ 
-    success: true, 
-    data: formattedGroups
-  });
+  await prisma.group.update({ where: { id: groupId }, data: { lastActivity: new Date() } });
+
+  res.status(201).json({ success: true, data: message });
 });

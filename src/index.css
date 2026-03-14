@@ -94,11 +94,12 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Inter', sans-serif;
+    @apply tracking-tight font-semibold;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 }
 
@@ -139,7 +140,7 @@
 }
 
 .nav-link.active {
-  @apply bg-primary/10 text-primary font-medium;
+  @apply bg-primary/10 text-foreground font-medium;
 }
 
 /* Enhanced UI classes */

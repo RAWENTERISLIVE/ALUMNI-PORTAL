@@ -174,15 +174,25 @@ export default function ProfilePage() {
       } else {
         // If no ID provided, or ID matches current user, show current user's profile
         if (currentUser) {
-          // Ensure id property exists for consistency
-          const userData = {...currentUser};
-          if (currentUser.id && !userData.id) {
-            userData.id = currentUser.id;
-          }
-          setProfile(userData);
-          setIsOwnProfile(true);
-          setIsLoading(false);
+          setIsLoading(true);
           setIsError(false);
+
+          try {
+            const meResponse = await apiService.getCurrentUser();
+            const userData = meResponse.user || meResponse.data || currentUser;
+            setProfile({
+              ...userData,
+              id: userData.id || userData._id || currentUser.id,
+            });
+            setIsOwnProfile(true);
+          } catch (error) {
+            const fallbackUser = { ...currentUser, id: currentUser.id };
+            setProfile(fallbackUser);
+            setIsOwnProfile(true);
+          } finally {
+            setIsLoading(false);
+            setIsError(false);
+          }
         } else {
           // If no current user (not logged in), redirect to login
           navigate('/login', { state: { returnUrl: `/directory/profile/${id}` } });
@@ -368,13 +378,13 @@ export default function ProfilePage() {
         description={isOwnProfile ? "Manage your profile information visible to other alumni" : "View alumni profile information"}
       />
       
-      <Card className="mb-8 border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300">
+      <Card className="mb-8 border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300">
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row gap-6 items-start">
             <div className="flex flex-col items-center">
-              <Avatar className="h-32 w-32 mb-2 ring-4 ring-orange-100">
+              <Avatar className="h-32 w-32 mb-2 ring-4 ring-primary/10">
                 <AvatarImage src={profile.profileImage || undefined} alt={profile.name} />
-                <AvatarFallback className="text-3xl font-medium bg-orange-100 text-orange-800">
+                <AvatarFallback className="text-3xl font-medium bg-primary/10 text-foreground/90">
                   {profile.firstName?.[0] || profile.name?.charAt(0)}
                   {profile.lastName?.[0] || profile.name?.split(' ')?.[1]?.charAt(0) || ''}
                 </AvatarFallback>
@@ -384,7 +394,7 @@ export default function ProfilePage() {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="mt-2 border-orange-500 text-orange-500 hover:bg-orange-50 transition-colors"
+                  className="mt-2 border-primary text-foreground hover:bg-primary/5 transition-colors"
                   onClick={() => toast({
                     description: "Profile image upload feature coming soon"
                   })}
@@ -439,14 +449,14 @@ export default function ProfilePage() {
                 {profile.website && (
                   <div className="flex items-center gap-2">
                     <Globe className="h-4 w-4 text-muted-foreground" />
-                    <a href={profile.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{profile.website}</a>
+                    <a href={profile.website} target="_blank" rel="noopener noreferrer" className="text-foreground/90 hover:underline">{profile.website}</a>
                   </div>
                 )}
                 
                 {profile.linkedInProfile && (
                   <div className="flex items-center gap-2">
                     <Linkedin className="h-4 w-4 text-muted-foreground" />
-                    <a href={profile.linkedInProfile} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">LinkedIn Profile</a>
+                    <a href={profile.linkedInProfile} target="_blank" rel="noopener noreferrer" className="text-foreground/90 hover:underline">LinkedIn Profile</a>
                   </div>
                 )}
               </div>
@@ -474,28 +484,28 @@ export default function ProfilePage() {
       {isOwnProfile && (
         <div>
           <Tabs defaultValue="profile" className="mt-6">
-            <TabsList className="bg-gray-50 p-1 rounded-lg w-full">
+            <TabsList className="bg-muted/30 p-1 rounded-lg w-full">
               <TabsTrigger 
                 value="profile"
-                className="flex-1 data-[state=active]:bg-orange-500 data-[state=active]:text-white hover:text-orange-500"
+                className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white hover:text-foreground"
               >
                 Edit Profile
               </TabsTrigger>
               <TabsTrigger 
                 value="experiences"
-                className="flex-1 data-[state=active]:bg-orange-500 data-[state=active]:text-white hover:text-orange-500"
+                className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white hover:text-foreground"
               >
                 Experience
               </TabsTrigger>
               <TabsTrigger 
                 value="education"
-                className="flex-1 data-[state=active]:bg-orange-500 data-[state=active]:text-white hover:text-orange-500"
+                className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white hover:text-foreground"
               >
                 Education
               </TabsTrigger>
               <TabsTrigger 
                 value="skills"
-                className="flex-1 data-[state=active]:bg-orange-500 data-[state=active]:text-white hover:text-orange-500"
+                className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white hover:text-foreground"
               >
                 Skills & Interests
               </TabsTrigger>
@@ -516,7 +526,15 @@ export default function ProfilePage() {
                     <form onSubmit={form.handleSubmit((data) => {
                       if (isOwnProfile && profile) {
                         apiService.updateUserProfile(profile.id || profile._id, data)
-                          .then(() => {
+                          .then((response) => {
+                            const updatedProfile = response.user || response.data;
+                            if (updatedProfile) {
+                              setProfile((previous: any) => ({
+                                ...previous,
+                                ...updatedProfile,
+                                id: updatedProfile.id || previous?.id,
+                              }));
+                            }
                             toast({
                               title: "Profile updated",
                               description: "Your profile has been updated successfully."
@@ -683,7 +701,7 @@ export default function ProfilePage() {
                         <div className="flex justify-end">
                           <Button 
                             type="submit"
-                            className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                            className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
                           >
                             Save Changes
                           </Button>
@@ -702,7 +720,7 @@ export default function ProfilePage() {
                     <h3 className="text-lg font-medium">Work Experience</h3>
                     {isOwnProfile && (
                       <Button 
-                        className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                        className="bg-primary hover:bg-primary/90 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
                         onClick={handleAddExperience}
                       >
                         + Add Experience
@@ -715,10 +733,10 @@ export default function ProfilePage() {
                       <div key={experience.id} className="border-b pb-4">
                         <div className="flex justify-between">
                           <div>
-                            <h4 className="font-semibold text-gray-900">{experience.title}</h4>
-                            <p className="text-orange-600">{experience.company}</p>
-                            <p className="text-sm text-gray-500">{experience.startDate} - {experience.endDate} · {experience.location}</p>
-                            <p className="mt-2 text-gray-700">{experience.description}</p>
+                            <h4 className="font-semibold text-foreground">{experience.title}</h4>
+                            <p className="text-foreground/90">{experience.company}</p>
+                            <p className="text-sm text-muted-foreground/80">{experience.startDate} - {experience.endDate} · {experience.location}</p>
+                            <p className="mt-2 text-foreground/80">{experience.description}</p>
                           </div>
                           {isOwnProfile && (
                             <div className="flex gap-2">
@@ -754,7 +772,7 @@ export default function ProfilePage() {
                     <h3 className="text-lg font-medium">Education</h3>
                     {isOwnProfile && (
                       <Button
-                        className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                        className="bg-primary hover:bg-primary/90 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
                         onClick={() => {
                           setCurrentEducation(null);
                           setIsEducationModalOpen(true);
@@ -770,10 +788,10 @@ export default function ProfilePage() {
                       <div key={education.id} className="border-b pb-4">
                         <div className="flex justify-between">
                           <div>
-                            <h4 className="font-semibold text-gray-900">{education.degree}</h4>
-                            <p className="text-orange-600">{education.institution}</p>
-                            <p className="text-sm text-gray-500">{education.startYear} - {education.endYear}</p>
-                            <p className="mt-2 text-gray-700">{education.description}</p>
+                            <h4 className="font-semibold text-foreground">{education.degree}</h4>
+                            <p className="text-foreground/90">{education.institution}</p>
+                            <p className="text-sm text-muted-foreground/80">{education.startYear} - {education.endYear}</p>
+                            <p className="mt-2 text-foreground/80">{education.description}</p>
                           </div>
                           {isOwnProfile && (
                             <div className="flex gap-2">
@@ -821,7 +839,7 @@ export default function ProfilePage() {
                         <h3 className="text-lg font-medium">Skills</h3>
                         {isOwnProfile && (
                           <Button
-                            className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                            className="bg-primary hover:bg-primary/90 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
                             onClick={() => setIsSkillsModalOpen(true)}
                           >
                             + Add Skills
@@ -832,7 +850,7 @@ export default function ProfilePage() {
                       <div className="flex flex-wrap gap-2">
                         {skills.map((skill) => (
                           <div key={skill} className="relative group">
-                            <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-200 px-3 py-1 rounded-lg">
+                            <Badge className="bg-primary/10 text-foreground/90 hover:bg-primary/20 px-3 py-1 rounded-lg">
                               {skill}
                               {isOwnProfile && (
                                 <button 
@@ -856,7 +874,7 @@ export default function ProfilePage() {
                         <h3 className="text-lg font-medium">Interests</h3>
                         {isOwnProfile && (
                           <Button
-                            className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                            className="bg-primary hover:bg-primary/90 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
                             onClick={() => setIsSkillsModalOpen(true)}
                           >
                             + Add Interests
@@ -867,7 +885,7 @@ export default function ProfilePage() {
                       <div className="flex flex-wrap gap-2">
                         {interests.map((interest) => (
                           <div key={interest} className="relative group">
-                            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 px-3 py-1 rounded-lg">
+                            <Badge className="bg-primary/10 text-blue-800 hover:bg-blue-200 px-3 py-1 rounded-lg">
                               {interest}
                               {isOwnProfile && (
                                 <button 
@@ -891,7 +909,7 @@ export default function ProfilePage() {
                         <h3 className="text-lg font-medium">Languages</h3>
                         {isOwnProfile && (
                           <Button
-                            className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                            className="bg-primary hover:bg-primary/90 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
                             onClick={() => setIsSkillsModalOpen(true)}
                           >
                             + Add Languages
@@ -902,15 +920,15 @@ export default function ProfilePage() {
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="font-medium">English</span>
-                          <span className="text-sm text-gray-500">Native or Bilingual</span>
+                          <span className="text-sm text-muted-foreground/80">Native or Bilingual</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="font-medium">Spanish</span>
-                          <span className="text-sm text-gray-500">Professional Working</span>
+                          <span className="text-sm text-muted-foreground/80">Professional Working</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="font-medium">French</span>
-                          <span className="text-sm text-gray-500">Elementary</span>
+                          <span className="text-sm text-muted-foreground/80">Elementary</span>
                         </div>
                       </div>
                     </div>
@@ -1005,7 +1023,7 @@ export default function ProfilePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsExperienceModalOpen(false)}>Cancel</Button>
-            <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => {
+            <Button className="bg-primary hover:bg-primary/90" onClick={() => {
               const experienceData = {
                 title: (document.getElementById('title') as HTMLInputElement).value,
                 company: (document.getElementById('company') as HTMLInputElement).value,
@@ -1095,7 +1113,7 @@ export default function ProfilePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEducationModalOpen(false)}>Cancel</Button>
-            <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => {
+            <Button className="bg-primary hover:bg-primary/90" onClick={() => {
               const educationData = {
                 degree: (document.getElementById('degree') as HTMLInputElement).value,
                 institution: (document.getElementById('institution') as HTMLInputElement).value,
@@ -1115,7 +1133,7 @@ export default function ProfilePage() {
       {/* Skills Modal */}
       {isOwnProfile && isSkillsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+          <div className="bg-card rounded-lg shadow-lg w-full max-w-md p-6">
             <h3 className="text-lg font-medium mb-4">
               {newSkill ? "Add New Skill" : "Manage Skills"}
             </h3>
@@ -1136,12 +1154,12 @@ export default function ProfilePage() {
               className="space-y-4"
             >
               <div>
-                <label className="block text-sm font-medium text-gray-700">Skill</label>
+                <label className="block text-sm font-medium text-foreground/80">Skill</label>
                 <input
                   type="text"
                   value={newSkill}
                   onChange={(e) => setNewSkill(e.target.value)}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
                   placeholder="e.g. Python"
                   required
                 />
@@ -1157,7 +1175,7 @@ export default function ProfilePage() {
                 </Button>
                 <Button 
                   type="submit"
-                  className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300 w-full sm:w-auto"
+                  className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300 w-full sm:w-auto"
                 >
                   Add Skill
                 </Button>
@@ -1165,10 +1183,10 @@ export default function ProfilePage() {
             </form>
             
             <div className="mt-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Existing Skills</h4>
+              <h4 className="text-sm font-medium text-foreground/80 mb-2">Existing Skills</h4>
               <div className="flex flex-wrap gap-2">
                 {skills.map((skill) => (
-                  <Badge key={skill} className="bg-orange-100 text-orange-800 hover:bg-orange-200 px-3 py-1 rounded-lg">
+                  <Badge key={skill} className="bg-primary/10 text-foreground/90 hover:bg-primary/20 px-3 py-1 rounded-lg">
                     {skill}
                   </Badge>
                 ))}
@@ -1177,7 +1195,7 @@ export default function ProfilePage() {
             
             <button
               onClick={() => setIsSkillsModalOpen(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+              className="absolute top-4 right-4 text-muted-foreground/80 hover:text-foreground/80"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

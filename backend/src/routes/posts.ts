@@ -14,18 +14,13 @@ import {
   sharePost,
   getBookmarkedPosts,
   getFeedPosts
-} from '../controllers/postControllerNew';
+} from '../controllers/postController';
 import { authMiddleware, requireAdmin } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 
 const router = express.Router();
 
-// Validation rules for creating/updating a post
-const postValidationRules = [
-  body('content')
-    .trim()
-    .isLength({ min: 1, max: 2000 })
-    .withMessage('Content is required and must be between 1 and 2000 characters'),
+const commonPostValidationRules = [
   body('title')
     .optional()
     .trim()
@@ -71,8 +66,35 @@ const postValidationRules = [
     .withMessage('Mentions must be an array')
 ];
 
+const createPostValidationRules = [
+  body('content')
+    .optional()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('Content must not exceed 2000 characters'),
+  body().custom((value) => {
+    const hasContent = typeof value?.content === 'string' && value.content.trim().length > 0;
+    const hasAttachments = Array.isArray(value?.attachments) && value.attachments.length > 0;
+    const hasSharedPost = typeof value?.originalPostId === 'string' && value.originalPostId.trim().length > 0;
+    if (!hasContent && !hasAttachments && !hasSharedPost) {
+      throw new Error('Content, attachments, or shared post is required');
+    }
+    return true;
+  }),
+  ...commonPostValidationRules
+];
+
+const updatePostValidationRules = [
+  body('content')
+    .optional()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('Content must not exceed 2000 characters'),
+  ...commonPostValidationRules
+];
+
 // Create a new post
-router.post('/', authMiddleware, postValidationRules, validate, createPost);
+router.post('/', authMiddleware, createPostValidationRules, validate, createPost);
 
 // Get all posts (publicly accessible, filtering applied in controller)
 router.get('/', getAllPosts);
@@ -93,7 +115,7 @@ router.get('/school-updates', getSchoolUpdates);
 router.get('/:postId', getPostById);
 
 // Update a post (author or admin/super_admin)
-router.patch('/:postId', authMiddleware, postValidationRules, validate, updatePost);
+router.patch('/:postId', authMiddleware, updatePostValidationRules, validate, updatePost);
 
 // Delete a post (author or admin/super_admin)
 router.delete('/:postId', authMiddleware, deletePost);

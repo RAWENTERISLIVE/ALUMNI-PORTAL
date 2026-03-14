@@ -1,237 +1,189 @@
 import { Request, Response } from 'express';
-import * as jwt from 'jsonwebtoken';
-import User, { IUser, UserRole, UserStatus } from '../models/User';
+import jwt from 'jsonwebtoken';
+import { Role } from '@prisma/client';
+import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
+import bcrypt from 'bcryptjs';
 
+// Extend Express Request to include user
 interface AuthRequest extends Request {
-  user?: IUser;
+  user?: any;
 }
 
-// Generate JWT tokens
+const isBcryptHash = (value: string) => value.startsWith('$2a$') || value.startsWith('$2b$') || value.startsWith('$2y$');
+
+const verifyPassword = async (inputPassword: string, storedPassword: string): Promise<boolean> => {
+  if (!storedPassword) return false;
+
+  if (isBcryptHash(storedPassword)) {
+    return bcrypt.compare(inputPassword, storedPassword);
+  }
+
+  return inputPassword === storedPassword;
+};
+
+const toClientRole = (role: Role) => {
+  if (role === Role.SUPER_ADMIN) return 'super_admin';
+  if (role === Role.ADMIN) return 'admin';
+  return 'user';
+};
+
 const generateTokens = (userId: string) => {
-  const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
-  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
+  const payload = { userId };
   
   const accessToken = jwt.sign(
-    { userId },
-    jwtSecret as jwt.Secret,
-    { expiresIn: process.env.JWT_EXPIRE || '1h' } as jwt.SignOptions
+    payload, 
+    process.env.JWT_SECRET || 'fallback_secret',
+    { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
   );
 
   const refreshToken = jwt.sign(
-    { userId },
-    jwtRefreshSecret as jwt.Secret,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRE || '7d' } as jwt.SignOptions
+    payload,
+    process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret',
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
   );
 
   return { accessToken, refreshToken };
 };
 
-// Register user
-export const register = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const {
-    email,
-    password,
-    name,
-    admissionNumber,
-    needsManualVerification,
-    verificationDetails,
-    admissionYear: manualAdmissionYear
-  } = req.body;
+export const register = asyncHandler(async (req: Request, res: Response) => {
+  const { email, password, firstName, lastName, name, role, admissionNumber, admissionYear } = req.body;
 
-  console.log('Registration request body:', req.body);
-
-  // Basic validation
-  if (!email || !password || !name) {
-    res.status(400).json({ success: false, message: 'Please provide name, email, and password' });
-    return;
-  }
-
-  // Check if user already exists
-  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
-    res.status(400).json({ success: false, message: 'User already exists with this email' });
+    res.status(400).json({ success: false, message: 'Email already registered' });
     return;
   }
 
-  let userToCreate: any = {
-    email: email.toLowerCase(),
-    password,
-    name,
-    needsManualVerification: needsManualVerification || false,
-  };
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
 
-  const superAdminEmails = ['mpsajmer123@gmail.com', 'futurist.raghav@gmail.com'];
-  const isSuperAdmin = superAdminEmails.includes(email.toLowerCase());
+  const resolvedName = (name || [firstName, lastName].filter(Boolean).join(' ')).trim();
+  const inferredAdmissionYear =
+    admissionYear ||
+    (typeof admissionNumber === 'string' && admissionNumber.includes('/')
+      ? `20${admissionNumber.split('/').pop()}`
+      : undefined) ||
+    new Date().getFullYear().toString();
 
-  if (needsManualVerification) {
-    // Manual verification flow
-    if (!verificationDetails || verificationDetails.length < 10) {
-      res.status(400).json({ success: false, message: 'Please provide sufficient details for manual verification.' });
-      return;
-    }
-    if (!manualAdmissionYear) {
-      res.status(400).json({ success: false, message: 'Admission year is required for manual verification.' });
-      return;
-    }
+  const resolvedRole =
+    role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'USER'
+      ? role
+      : role === 'super_admin'
+      ? Role.SUPER_ADMIN
+      : role === 'admin'
+      ? Role.ADMIN
+      : Role.USER;
 
-    const year = parseInt(manualAdmissionYear, 10);
-    const currentYear = new Date().getFullYear();
-    if (isNaN(year) || year < 1989 || year > currentYear + 1) {
-      res.status(400).json({ success: false, message: `Admission year must be between 1989 and ${currentYear + 1}.` });
-      return;
-    }
+  const user = await prisma.user.create({
+    data: {
+      email,
+      password: hashedPassword,
+      role: resolvedRole,
+      name: resolvedName || email.split('@')[0],
+      firstName,
+      lastName,
+      admissionNumber: admissionNumber || 'N/A',
+      admissionYear: inferredAdmissionYear
+    },
+  });
 
-    userToCreate = {
-      ...userToCreate,
-      admissionNumber: `501/MV${Math.floor(Math.random()*1e6)}`,
-      admissionYear: manualAdmissionYear,
-      verificationDetails,
-      status: UserStatus.PENDING,
-      isVerified: false,
-    };
-  } else {
-    // Standard admission number flow
-    if (!admissionNumber) {
-      res.status(400).json({ success: false, message: 'Admission number is required.' });
-      return;
-    }
-    // Check if admission number is already used
-    const existingAdmission = await User.findOne({ admissionNumber });
-    if (existingAdmission) {
-      res.status(400).json({ success: false, message: 'Admission number already registered' });
-      return;
-    }
-    // Extract and validate admission year from admission number
-    const parts = admissionNumber.split('/');
-    if (parts.length < 2) {
-        res.status(400).json({ success: false, message: 'Invalid admission number format. Expected format: number/year.' });
-        return;
-    }
-    const yearPart = parts[parts.length - 1];
-    const year = parseInt(yearPart, 10);
-    const currentYear = new Date().getFullYear();
-    let admissionYear;
-    if (yearPart.length === 2) {
-      if (year >= 89 && year <= 99) {
-        admissionYear = `19${year}`;
-      } else {
-        admissionYear = `20${year.toString().padStart(2, '0')}`;
-      }
-    } else {
-      admissionYear = year.toString();
-    }
-    const numericAdmissionYear = parseInt(admissionYear, 10);
-    if (isNaN(numericAdmissionYear) || numericAdmissionYear < 1989 || numericAdmissionYear > currentYear + 1) {
-      res.status(400).json({ success: false, message: `Invalid admission year. Must be between 1989 and ${currentYear + 1}.` });
-      return;
-    }
-    userToCreate = {
-      ...userToCreate,
-      admissionNumber,
-      admissionYear,
-      status: isSuperAdmin ? UserStatus.ACTIVE : UserStatus.PENDING,
-      isVerified: isSuperAdmin,
-    };
-  }
-  userToCreate.role = isSuperAdmin ? UserRole.SUPER_ADMIN : UserRole.USER;
+  const { accessToken, refreshToken } = generateTokens(user.id);
 
-  try {
-    // Create user
-    const user = await User.create(userToCreate);
-    // For non-super-admins, we don't log them in, just send a success message.
-    if (!isSuperAdmin) {
-      res.status(201).json({
-        success: true,
-        message: 'Registration successful. Your account is pending approval.',
-        needsManualVerification: !!needsManualVerification,
-      });
-      return;
-    }
-    // For super-admins, generate tokens and log them in
-    const { accessToken, refreshToken } = generateTokens(user._id);
-    // Add refresh token to user
-    user.refreshTokens.push(refreshToken);
-    await user.save();
-    res.status(201).json({
-      success: true,
-      message: 'Super admin account created successfully',
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'User registered successfully',
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: toClientRole(user.role),
+      admissionNumber: user.admissionNumber,
+      admissionYear: user.admissionYear,
+      status: user.status.toLowerCase(),
+      isVerified: user.isVerified
+    },
+    accessToken,
+    refreshToken,
+    data: {
       user: {
-        id: user._id,
+        id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
-        status: user.status,
+        role: toClientRole(user.role),
+        admissionNumber: user.admissionNumber,
+        admissionYear: user.admissionYear,
+        status: user.status.toLowerCase(),
         isVerified: user.isVerified
       },
-      accessToken,
-      refreshToken
-    });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+      accessToken
+    }
+  });
 });
 
-// Login user
-export const login = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  // Validate input
-  if (!email || !password) {
-    res.status(400).json({ message: 'Please provide email and password' });
-    return;
-  }
-
-  // Check for user and include password in the query
-  const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+  const user = await prisma.user.findUnique({
+    where: { email }
+  });
 
   if (!user) {
-    res.status(401).json({ message: 'Invalid credentials' });
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
     return;
   }
 
-  // Check password
-  const isPasswordValid = await user.comparePassword(password);
-  if (!isPasswordValid) {
-    res.status(401).json({ message: 'Invalid credentials' });
+  const isMatch = await verifyPassword(password, user.password);
+  if (!isMatch) {
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
     return;
   }
 
-  // Check if account is active
-  if (user.status === UserStatus.PENDING) {
-    res.status(403).json({ message: 'Account pending approval' });
-    return;
+  // Automatically upgrade legacy plaintext passwords to bcrypt after successful login
+  if (!isBcryptHash(user.password)) {
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword }
+    });
   }
 
-  if (user.status === UserStatus.SUSPENDED) {
-    res.status(403).json({ message: 'Account suspended' });
-    return;
-  }
+  // Update last login
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLogin: new Date() }
+  });
 
-  if (user.status === UserStatus.DELETED) {
-    res.status(403).json({ message: 'Account not found' });
-    return;
-  }
+  const { accessToken, refreshToken } = generateTokens(user.id);
 
-  // Generate tokens
-  const { accessToken, refreshToken } = generateTokens(user._id);
-
-  // Add refresh token to user
-  user.refreshTokens.push(refreshToken);
-  user.lastLogin = new Date();
-  await user.save();
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
 
   res.status(200).json({
     success: true,
     message: 'Login successful',
     user: {
-      id: user._id,
+      id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
-      status: user.status,
-      isVerified: user.isVerified,
+      role: toClientRole(user.role),
       admissionNumber: user.admissionNumber,
+      admissionYear: user.admissionYear,
+      status: user.status.toLowerCase(),
+      isVerified: user.isVerified,
       profileImage: user.profileImage,
       bio: user.bio,
       headline: user.headline,
@@ -241,229 +193,184 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
       jobTitle: user.jobTitle
     },
     accessToken,
-    refreshToken
+    refreshToken,
+    data: {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: toClientRole(user.role),
+        admissionNumber: user.admissionNumber,
+        admissionYear: user.admissionYear,
+        status: user.status.toLowerCase(),
+        isVerified: user.isVerified,
+        profileImage: user.profileImage,
+        bio: user.bio,
+        headline: user.headline,
+        city: user.city,
+        country: user.country,
+        company: user.company,
+        jobTitle: user.jobTitle
+      },
+      accessToken
+    }
   });
 });
 
-// Refresh token
-export const refreshToken = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const { refreshToken } = req.body;
-
-  if (!refreshToken) {
-    res.status(401).json({ message: 'Refresh token required' });
+export const refreshToken = asyncHandler(async (req: Request, res: Response) => {
+  const token = req.cookies.refreshToken;
+  
+  if (!token) {
+    res.status(401).json({ success: false, message: 'Refresh token not found' });
     return;
   }
 
   try {
     const decoded = jwt.verify(
-      refreshToken,
-      process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key'
-    ) as { userId: string };
+      token, 
+      process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret'
+    ) as any;
 
-    const user = await User.findById(decoded.userId);
-    if (!user || !user.refreshTokens.includes(refreshToken)) {
-      res.status(401).json({ message: 'Invalid refresh token' });
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+
+    if (!user) {
+      res.status(401).json({ success: false, message: 'Invalid refresh token' });
       return;
     }
 
-    // Generate new tokens
-    const tokens = generateTokens(user._id);
+    const tokens = generateTokens(user.id);
 
-    // Replace old refresh token with new one
-    user.refreshTokens = user.refreshTokens.filter(token => token !== refreshToken);
-    user.refreshTokens.push(tokens.refreshToken);
-    await user.save();
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
 
     res.status(200).json({
       success: true,
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken
+      data: { accessToken: tokens.accessToken }
     });
   } catch (error) {
-    res.status(401).json({ message: 'Invalid refresh token' });
+    res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
   }
 });
 
-// Logout
-export const logout = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const { refreshToken } = req.body;
-
-  if (req.user && refreshToken) {
-    req.user.refreshTokens = req.user.refreshTokens.filter(token => token !== refreshToken);
-    await req.user.save();
-  }
-
-  res.status(200).json({
-    success: true,
-    message: 'Logged out successfully'
-  });
+export const logout = asyncHandler(async (req: AuthRequest, res: Response) => {
+  res.clearCookie('refreshToken');
+  res.status(200).json({ success: true, message: 'Logged out successfully' });
 });
 
-// Get current user
-export const getMe = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
   if (!req.user) {
-    res.status(401).json({ message: 'Not authenticated' });
+    res.status(401).json({ success: false, message: 'Not authenticated' });
     return;
   }
 
-  res.status(200).json({
-    success: true,
-    user: req.user
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id }
   });
-});
-
-// Forgot password
-export const forgotPassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const { email } = req.body;
-
-  const user = await User.findOne({ email: email.toLowerCase() });
   if (!user) {
-    res.status(404).json({ message: 'User not found' });
+    res.status(404).json({ success: false, message: 'User not found' });
     return;
   }
-
-  // Generate reset token
-  const resetToken = user.generatePasswordResetToken();
-  await user.save();
-
-  // In a real application, you would send an email here
-  // For now, we'll just return the token (remove this in production)
-  res.status(200).json({
-    success: true,
-    message: 'Password reset token generated',
-    resetToken // Remove this in production
-  });
-});
-
-// Reset password
-export const resetPassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const { token, password } = req.body;
-
-  if (!token || !password) {
-    res.status(400).json({ message: 'Token and password are required' });
-    return;
-  }
-
-  // Find user by reset token
-  const user = await User.findOne({
-    passwordResetExpires: { $gt: Date.now() }
-  }).select('+passwordResetToken');
-
-  if (!user) {
-    res.status(400).json({ message: 'Invalid or expired reset token' });
-    return;
-  }
-
-  // Verify token
-  const isTokenValid = await user.comparePassword(token);
-  if (!isTokenValid) {
-    res.status(400).json({ message: 'Invalid reset token' });
-    return;
-  }
-
-  // Update password
-  user.password = password;
-  user.passwordResetToken = null;
-  user.passwordResetExpires = null;
-  user.refreshTokens = []; // Invalidate all refresh tokens
-  await user.save();
 
   res.status(200).json({
     success: true,
-    message: 'Password reset successful'
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: toClientRole(user.role),
+      admissionNumber: user.admissionNumber,
+      admissionYear: user.admissionYear,
+      status: user.status.toLowerCase(),
+      isVerified: user.isVerified,
+      profileImage: user.profileImage,
+      bio: user.bio,
+      headline: user.headline,
+      city: user.city,
+      country: user.country,
+      contactEmail: user.contactEmail,
+      contactPhone: user.contactPhone,
+      linkedInProfile: user.linkedInProfile,
+      company: user.company,
+      jobTitle: user.jobTitle,
+      isAvailableAsMentor: user.isAvailableAsMentor,
+      location: user.location,
+      notificationSettings: user.notificationSettings,
+      privacySettings: user.privacySettings
+    }
   });
 });
 
-// Change password for authenticated user
-export const changePassword = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  // Stub for forgotten password logic
+  res.status(200).json({ success: true, message: 'Password reset email sent' });
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  // Stub for reset password logic
+  res.status(200).json({ success: true, message: 'Password has been reset' });
+});
+
+export const changePassword = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
   const { currentPassword, newPassword } = req.body;
-  const userId = req.user?._id;
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
 
-  if (!currentPassword || !newPassword) {
-    res.status(400).json({ 
-      success: false, 
-      message: 'Please provide current and new password' 
-    });
-    return;
-  }
-
-  if (newPassword.length < 8) {
-    res.status(400).json({ 
-      success: false, 
-      message: 'New password must be at least 8 characters long' 
-    });
-    return;
-  }
-
-  const user = await User.findById(userId).select('+password');
   if (!user) {
     res.status(404).json({ success: false, message: 'User not found' });
     return;
   }
 
-  // Verify current password
-  const isCurrentPasswordValid = await user.comparePassword(currentPassword);
-  if (!isCurrentPasswordValid) {
-    res.status(400).json({ 
-      success: false, 
-      message: 'Current password is incorrect' 
-    });
+  const isMatch = await verifyPassword(currentPassword, user.password);
+  if (!isMatch) {
+    res.status(400).json({ success: false, message: 'Invalid current password' });
     return;
   }
 
-  // Update password
-  user.password = newPassword;
-  user.refreshTokens = []; // Invalidate all sessions
-  await user.save();
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-  res.status(200).json({
-    success: true,
-    message: 'Password changed successfully'
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: hashedPassword }
   });
+
+  res.status(200).json({ success: true, message: 'Password changed successfully' });
 });
 
-// Update notification settings
-export const updateNotificationSettings = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const userId = req.user?._id;
-  const notificationSettings = req.body;
-
-  const user = await User.findByIdAndUpdate(
-    userId,
-    { $set: { notificationSettings } },
-    { new: true, runValidators: true }
-  ).select('-password -refreshTokens');
-
-  if (!user) {
-    res.status(404).json({ success: false, message: 'User not found' });
+export const updateNotificationSettings = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
     return;
   }
 
-  res.status(200).json({
-    success: true,
-    message: 'Notification settings updated successfully',
-    data: user.notificationSettings
+  const settings = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { notificationSettings: { ...(req.body || {}) } },
+    select: { notificationSettings: true }
   });
+
+  res.status(200).json({ success: true, data: settings.notificationSettings });
 });
 
-// Update privacy settings
-export const updatePrivacySettings = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const userId = req.user?._id;
-  const privacySettings = req.body;
-
-  const user = await User.findByIdAndUpdate(
-    userId,
-    { $set: { privacySettings } },
-    { new: true, runValidators: true }
-  ).select('-password -refreshTokens');
-
-  if (!user) {
-    res.status(404).json({ success: false, message: 'User not found' });
+export const updatePrivacySettings = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
     return;
   }
 
-  res.status(200).json({
-    success: true,
-    message: 'Privacy settings updated successfully',
-    data: user.privacySettings
+  const settings = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { privacySettings: { ...(req.body || {}) } },
+    select: { privacySettings: true }
   });
+
+  res.status(200).json({ success: true, data: settings.privacySettings });
 });

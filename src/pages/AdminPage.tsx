@@ -6,7 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Search, UserX, Check, X, UserCheck, Building, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw, Activity } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Search, UserX, Check, X, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -103,8 +114,13 @@ export default function AdminPage() {
 
   // Load initial data
   useEffect(() => {
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
+
     loadData();
-  }, [currentPage, statusFilter, roleFilter, searchTerm]);
+  }, [currentPage, statusFilter, roleFilter, searchTerm, isAdmin]);
 
   const loadData = async () => {
     try {
@@ -292,9 +308,9 @@ export default function AdminPage() {
       case 'super_admin':
         return 'bg-red-100 text-red-800';
       case 'admin':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-primary/10 text-blue-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground/90';
     }
   };
 
@@ -307,7 +323,7 @@ export default function AdminPage() {
       case 'suspended':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground/90';
     }
   };
 
@@ -323,8 +339,8 @@ export default function AdminPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
-          <p className="text-gray-600">You don't have permission to access this page.</p>
+          <h1 className="text-2xl font-bold text-foreground mb-4">Access Denied</h1>
+          <p className="text-muted-foreground">You don't have permission to access this page.</p>
         </div>
       </div>
     );
@@ -614,7 +630,7 @@ export default function AdminPage() {
             </CardHeader>
             <CardContent>
               {pendingUsers.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-muted/300">
                   No pending user approvals
                 </div>
               ) : (

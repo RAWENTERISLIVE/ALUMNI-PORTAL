@@ -222,8 +222,8 @@ export default function JobsPage() {
     <div className="container mx-auto px-4 sm:px-6 py-6">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-800">Alumni Job Board</h1>
-        <p className="text-md text-gray-500 mt-1">Find opportunities and connect with alumni employers.</p>
+        <h1 className="text-3xl md:text-4xl font-bold text-foreground/90">Alumni Job Board</h1>
+        <p className="text-md text-muted-foreground/80 mt-1">Find opportunities and connect with alumni employers.</p>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -231,21 +231,21 @@ export default function JobsPage() {
           {/* Search and Filters */}
           <div className="flex flex-col md:flex-row items-start gap-3 mb-6">
             <div className="relative flex-grow w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search job titles or keywords..."
-                className="pl-10 w-full rounded-lg border-gray-300 focus:ring-orange-300 focus:border-orange-300"
+                className="pl-10 w-full rounded-lg border-gray-300 focus:ring-primary/30 focus:border-primary/30"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <div className="relative flex-grow w-full">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Location..."
-                className="pl-10 w-full rounded-lg border-gray-300 focus:ring-orange-300 focus:border-orange-300"
+                className="pl-10 w-full rounded-lg border-gray-300 focus:ring-primary/30 focus:border-primary/30"
                 value={locationFilter}
                 onChange={(e) => setLocationFilter(e.target.value)}
               />
@@ -254,22 +254,22 @@ export default function JobsPage() {
           
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-            <TabsList className="w-full bg-gray-50 mb-2 p-1 rounded-lg">
+            <TabsList className="w-full bg-muted/30 mb-2 p-1 rounded-lg">
               <TabsTrigger 
                 value="all" 
-                className={`flex-1 ${activeTab === "all" ? "bg-orange-500 text-white" : "hover:text-orange-500"}`}
+                className={`flex-1 ${activeTab === "all" ? "bg-primary text-white" : "hover:text-foreground"}`}
               >
                 All Jobs
               </TabsTrigger>
               <TabsTrigger 
                 value="saved" 
-                className={`flex-1 ${activeTab === "saved" ? "bg-orange-500 text-white" : "hover:text-orange-500"}`}
+                className={`flex-1 ${activeTab === "saved" ? "bg-primary text-white" : "hover:text-foreground"}`}
               >
                 Saved Jobs
               </TabsTrigger>
               <TabsTrigger 
                 value="applied" 
-                className={`flex-1 ${activeTab === "applied" ? "bg-orange-500 text-white" : "hover:text-orange-500"}`}
+                className={`flex-1 ${activeTab === "applied" ? "bg-primary text-white" : "hover:text-foreground"}`}
               >
                 Applied Jobs
               </TabsTrigger>
@@ -280,7 +280,7 @@ export default function JobsPage() {
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <LoadingSpinner size="lg" />
-              <span className="ml-3 text-gray-600">Loading jobs...</span>
+              <span className="ml-3 text-muted-foreground">Loading jobs...</span>
             </div>
           ) : filteredJobs.length === 0 ? (
             <EmptyState
@@ -312,25 +312,25 @@ export default function JobsPage() {
                 const companyLogo = getCompanyLogo(job);
                 
                 return (
-                  <Card key={job.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 border border-gray-200 rounded-xl">
+                  <Card key={job.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 border border-border rounded-xl">
                     <CardContent className="p-6">
                       <div className="md:flex md:justify-between">
                         <div className="flex gap-4 mb-4 md:mb-0">
                           <Avatar className="h-14 w-14">
                             <AvatarImage src={companyLogo} alt={companyName} />
-                            <AvatarFallback className="bg-orange-100 text-orange-800 text-xl font-medium">
+                            <AvatarFallback className="bg-primary/10 text-foreground/90 text-xl font-medium">
                               {companyName.charAt(0)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
                             <h3 
-                              className="font-semibold text-lg text-gray-900 hover:text-orange-600 cursor-pointer transition-colors"
+                              className="font-semibold text-lg text-foreground hover:text-foreground/90 cursor-pointer transition-colors"
                               onClick={() => openJobDetails(job)}
                             >
                               {job.title}
                             </h3>
-                            <p className="text-gray-600 font-medium">{companyName}</p>
-                            <div className="flex items-center text-sm text-gray-500 mt-1">
+                            <p className="text-muted-foreground font-medium">{companyName}</p>
+                            <div className="flex items-center text-sm text-muted-foreground/80 mt-1">
                               <MapPin className="h-3 w-3 mr-1" />
                               <span>{job.location}</span>
                             </div>
@@ -342,7 +342,7 @@ export default function JobsPage() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleToggleSaveJob(job.id)}
-                            className={isSaved ? "text-orange-500 hover:text-orange-600" : "text-gray-400 hover:text-gray-500"}
+                            className={isSaved ? "text-foreground hover:text-foreground/90" : "text-muted-foreground hover:text-muted-foreground/80"}
                           >
                             {isSaved ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
                           </Button>
@@ -352,7 +352,7 @@ export default function JobsPage() {
                             variant={isApplied ? "outline" : "default"}
                             className={isApplied 
                               ? "border-green-500 text-green-700 hover:bg-green-50" 
-                              : "bg-orange-500 hover:bg-orange-600 text-white transform hover:scale-105 transition-transform"}
+                              : "bg-primary hover:bg-primary/90 text-white transform hover:scale-105 transition-transform"}
                             onClick={() => isApplied ? openJobDetails(job) : handleApplyJob(job.id)}
                           >
                             {isApplied ? "Applied" : "Apply"}
@@ -361,7 +361,7 @@ export default function JobsPage() {
                       </div>
                       
                       <div className="mt-4">
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">{job.description}</p>
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{job.description}</p>
                         
                         <div className="flex flex-wrap gap-2 mb-2">
                           {job.type && (
@@ -379,7 +379,7 @@ export default function JobsPage() {
                           )}
                           
                           {job.postedDate && (
-                            <span className="text-xs text-gray-500 flex items-center">
+                            <span className="text-xs text-muted-foreground/80 flex items-center">
                               <Clock className="h-3 w-3 mr-1 inline" />
                               Posted {new Date(job.postedDate).toLocaleDateString()}
                             </span>
@@ -387,12 +387,12 @@ export default function JobsPage() {
                         </div>
                       </div>
                     </CardContent>
-                    <CardFooter className="bg-gray-50 px-6 py-3 flex justify-between items-center border-t">
-                      <div className="flex items-center text-xs text-gray-600">
+                    <CardFooter className="bg-muted/30 px-6 py-3 flex justify-between items-center border-t">
+                      <div className="flex items-center text-xs text-muted-foreground">
                         <Users className="h-3 w-3 mr-1" />
                         <span>{job.applicationCount || job.applicants?.length || 0} applicants</span>
                         {job.alumni && job.alumni > 0 && (
-                          <span className="ml-2 text-orange-600">
+                          <span className="ml-2 text-foreground/90">
                             • {job.alumni} alumni work here
                           </span>
                         )}
@@ -419,7 +419,7 @@ export default function JobsPage() {
           <Card className="mb-6 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300">
             <CardContent className="p-6">
               <Button 
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                className="w-full bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
                 onClick={() => setIsPostJobModalOpen(true)}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -435,7 +435,7 @@ export default function JobsPage() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Job Type</label>
+                  <label className="text-sm font-medium text-foreground/80 mb-1 block">Job Type</label>
                   <div className="flex flex-wrap gap-2">
                     {JOB_TYPES.map(type => (
                       <Button
@@ -443,8 +443,8 @@ export default function JobsPage() {
                         size="sm"
                         variant={jobTypeFilter === type ? "default" : "outline"}
                         className={jobTypeFilter === type 
-                          ? "bg-orange-500 hover:bg-orange-600 text-white" 
-                          : "hover:bg-gray-100 text-gray-700"}
+                          ? "bg-primary hover:bg-primary/90 text-white" 
+                          : "hover:bg-muted/50 text-foreground/80"}
                         onClick={() => setJobTypeFilter(jobTypeFilter === type ? null : type)}
                       >
                         {type}
@@ -454,14 +454,14 @@ export default function JobsPage() {
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Experience Level</label>
+                  <label className="text-sm font-medium text-foreground/80 mb-1 block">Experience Level</label>
                   <div className="flex flex-wrap gap-2">
                     {EXPERIENCE_LEVELS.map(level => (
                       <Button
                         key={level}
                         size="sm"
                         variant={experienceLevelFilter === level ? "default" : "outline"}
-                        className={experienceLevelFilter === level ? "bg-orange-500" : ""}
+                        className={experienceLevelFilter === level ? "bg-primary" : ""}
                         onClick={() => setExperienceLevelFilter(experienceLevelFilter === level ? null : level)}
                       >
                         {level}
@@ -471,14 +471,14 @@ export default function JobsPage() {
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Salary Range</label>
+                  <label className="text-sm font-medium text-foreground/80 mb-1 block">Salary Range</label>
                   <div className="flex flex-wrap gap-2">
                     {SALARY_RANGES.map(range => (
                       <Button
                         key={range}
                         size="sm"
                         variant={salaryRangeFilter === range ? "default" : "outline"}
-                        className={salaryRangeFilter === range ? "bg-orange-500" : ""}
+                        className={salaryRangeFilter === range ? "bg-primary" : ""}
                         onClick={() => setSalaryRangeFilter(salaryRangeFilter === range ? null : range)}
                       >
                         {range}
@@ -488,14 +488,14 @@ export default function JobsPage() {
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Industry / Category</label>
+                  <label className="text-sm font-medium text-foreground/80 mb-1 block">Industry / Category</label>
                   <div className="flex flex-wrap gap-2">
                     {JOB_CATEGORIES.map(category => (
                       <Button
                         key={category}
                         size="sm"
                         variant={jobCategoryFilter === category ? "default" : "outline"}
-                        className={jobCategoryFilter === category ? "bg-orange-500" : ""}
+                        className={jobCategoryFilter === category ? "bg-primary" : ""}
                         onClick={() => setJobCategoryFilter(jobCategoryFilter === category ? null : category)}
                       >
                         {category}
@@ -509,7 +509,7 @@ export default function JobsPage() {
                     variant="ghost"
                     size="sm"
                     onClick={clearFilters}
-                    className="w-full text-orange-500 hover:text-orange-600"
+                    className="w-full text-foreground hover:text-foreground/90"
                   >
                     Clear all filters
                   </Button>
@@ -522,7 +522,7 @@ export default function JobsPage() {
           <Card>
             <CardContent className="p-6">
               <h3 className="font-medium text-lg mb-2">Alumni Job Services</h3>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Get personalized job recommendations and priority application reviews from alumni.
               </p>
               <Button variant="outline" className="w-full">

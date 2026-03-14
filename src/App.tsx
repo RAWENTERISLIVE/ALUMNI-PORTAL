@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { MainLayout } from "@/components/layout/MainLayout";
+import { MainLayout } from "@/shared/layout/MainLayout";
+import { ThemeProvider } from "@/components/theme-provider";
 
 // Public Pages
 import HomePage from "./pages/HomePage";
@@ -24,18 +25,20 @@ import JobsPage from "./pages/JobsPage";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import EventsPage from "./pages/EventsPage";
 
 const queryClient = new QueryClient();
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <Routes>
               {/* Public routes */}
               <Route path="/" element={
                 <ProtectedRoute requireAuth={false}>
@@ -65,20 +68,29 @@ function App() {
                 <Route path="/directory/profile/:id" element={<ProfilePage />} />
                 <Route path="/posts" element={<PostsPage />} />
                 <Route path="/groups" element={<GroupsPage />} />
+                <Route path="/events" element={<EventsPage />} />
                 <Route path="/mentorship" element={<MentorshipPage />} />
                 <Route path="/jobs" element={<JobsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/admin" element={<AdminPage />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute requireAdmin={true}>
+                      <AdminPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/analytics" element={<AnalyticsPage />} />
               </Route>
 
               {/* 404 route */}
               <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

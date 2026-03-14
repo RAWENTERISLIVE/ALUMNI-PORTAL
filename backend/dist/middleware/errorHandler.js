@@ -5,17 +5,17 @@ const errorHandler = (err, _req, res, _next) => {
     let error = { ...err };
     error.message = err.message;
     console.error(err);
-    if (err.name === 'CastError') {
-        const message = 'Resource not found';
-        error = { statusCode: 404, message };
-    }
-    if (err.name === 'MongoServerError' && err.code === 11000) {
+    if (err.code === 'P2002') {
         const message = 'Duplicate field value entered';
         error = { statusCode: 400, message };
     }
-    if (err.name === 'ValidationError') {
-        const message = Object.values(err.errors).map((val) => val.message);
-        error = { statusCode: 400, message: message.join(', ') };
+    if (err.code === 'P2025') {
+        const message = 'Resource not found';
+        error = { statusCode: 404, message };
+    }
+    if (err.code === 'P2023') {
+        const message = 'Invalid ID format';
+        error = { statusCode: 400, message };
     }
     res.status(error.statusCode || 500).json({
         success: false,

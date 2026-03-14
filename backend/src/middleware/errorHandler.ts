@@ -15,22 +15,22 @@ export const errorHandler = (
 
   console.error(err);
 
-  // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
-    const message = 'Resource not found';
-    error = { statusCode: 404, message } as ErrorWithStatus;
-  }
-
-  // Mongoose duplicate key
-  if (err.name === 'MongoServerError' && (err as any).code === 11000) {
+  // Prisma validation errors
+  if ((err as any).code === 'P2002') {
     const message = 'Duplicate field value entered';
     error = { statusCode: 400, message } as ErrorWithStatus;
   }
 
-  // Mongoose validation error
-  if (err.name === 'ValidationError') {
-    const message = Object.values((err as any).errors).map((val: any) => val.message);
-    error = { statusCode: 400, message: message.join(', ') } as ErrorWithStatus;
+  // Prisma not found errors
+  if ((err as any).code === 'P2025') {
+    const message = 'Resource not found';
+    error = { statusCode: 404, message } as ErrorWithStatus;
+  }
+
+  // Prisma invalid ID format
+  if ((err as any).code === 'P2023') {
+    const message = 'Invalid ID format';
+    error = { statusCode: 400, message } as ErrorWithStatus;
   }
 
   res.status(error.statusCode || 500).json({

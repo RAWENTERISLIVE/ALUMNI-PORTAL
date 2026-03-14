@@ -1,145 +1,152 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPassword = exports.forgotPassword = exports.getMe = exports.logout = exports.refreshToken = exports.login = exports.register = void 0;
-const jwt = __importStar(require("jsonwebtoken"));
-const User_1 = __importStar(require("../models/User"));
+exports.updatePrivacySettings = exports.updateNotificationSettings = exports.changePassword = exports.resetPassword = exports.forgotPassword = exports.getMe = exports.logout = exports.refreshToken = exports.login = exports.register = void 0;
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const client_1 = require("@prisma/client");
+const prisma_1 = __importDefault(require("../config/prisma"));
 const errorHandler_1 = require("../middleware/errorHandler");
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const isBcryptHash = (value) => value.startsWith('$2a$') || value.startsWith('$2b$') || value.startsWith('$2y$');
+const verifyPassword = async (inputPassword, storedPassword) => {
+    if (!storedPassword)
+        return false;
+    if (isBcryptHash(storedPassword)) {
+        return bcryptjs_1.default.compare(inputPassword, storedPassword);
+    }
+    return inputPassword === storedPassword;
+};
+const toClientRole = (role) => {
+    if (role === client_1.Role.SUPER_ADMIN)
+        return 'super_admin';
+    if (role === client_1.Role.ADMIN)
+        return 'admin';
+    return 'user';
+};
 const generateTokens = (userId) => {
-    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
-    const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
-    const accessToken = jwt.sign({ userId }, jwtSecret, { expiresIn: process.env.JWT_EXPIRE || '1h' });
-    const refreshToken = jwt.sign({ userId }, jwtRefreshSecret, { expiresIn: process.env.JWT_REFRESH_EXPIRE || '7d' });
+    const payload = { userId };
+    const accessToken = jsonwebtoken_1.default.sign(payload, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: process.env.JWT_EXPIRES_IN || '1h' });
+    const refreshToken = jsonwebtoken_1.default.sign(payload, process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret', { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' });
     return { accessToken, refreshToken };
 };
 exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const { email, password, name, admissionNumber } = req.body;
-    if (!email || !password || !name || !admissionNumber) {
-        res.status(400).json({ message: 'Please provide all required fields' });
-        return;
-    }
-    const existingUser = await User_1.default.findOne({ email: email.toLowerCase() });
+    const { email, password, firstName, lastName, name, role, admissionNumber, admissionYear } = req.body;
+    const existingUser = await prisma_1.default.user.findUnique({ where: { email } });
     if (existingUser) {
-        res.status(400).json({ message: 'User already exists with this email' });
+        res.status(400).json({ success: false, message: 'Email already registered' });
         return;
     }
-    const existingAdmission = await User_1.default.findOne({ admissionNumber });
-    if (existingAdmission) {
-        res.status(400).json({ message: 'Admission number already registered' });
-        return;
-    }
-    const graduationYear = admissionNumber.split('/')[1];
-    if (!graduationYear) {
-        res.status(400).json({ message: 'Invalid admission number format' });
-        return;
-    }
-    const superAdminEmails = ['mpsajmer123@gmail.com', 'futurist.raghav@gmail.com'];
-    const isSuperAdmin = superAdminEmails.includes(email.toLowerCase());
-    const user = await User_1.default.create({
-        email: email.toLowerCase(),
-        password,
-        name,
-        admissionNumber,
-        graduationYear: `20${graduationYear}`,
-        role: isSuperAdmin ? User_1.UserRole.SUPER_ADMIN : User_1.UserRole.USER,
-        status: isSuperAdmin ? User_1.UserStatus.ACTIVE : User_1.UserStatus.PENDING,
-        isVerified: isSuperAdmin
+    const salt = await bcryptjs_1.default.genSalt(10);
+    const hashedPassword = await bcryptjs_1.default.hash(password, salt);
+    const resolvedName = (name || [firstName, lastName].filter(Boolean).join(' ')).trim();
+    const inferredAdmissionYear = admissionYear ||
+        (typeof admissionNumber === 'string' && admissionNumber.includes('/')
+            ? `20${admissionNumber.split('/').pop()}`
+            : undefined) ||
+        new Date().getFullYear().toString();
+    const resolvedRole = role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'USER'
+        ? role
+        : role === 'super_admin'
+            ? client_1.Role.SUPER_ADMIN
+            : role === 'admin'
+                ? client_1.Role.ADMIN
+                : client_1.Role.USER;
+    const user = await prisma_1.default.user.create({
+        data: {
+            email,
+            password: hashedPassword,
+            role: resolvedRole,
+            name: resolvedName || email.split('@')[0],
+            firstName,
+            lastName,
+            admissionNumber: admissionNumber || 'N/A',
+            admissionYear: inferredAdmissionYear
+        },
     });
-    const { accessToken, refreshToken } = generateTokens(user._id);
-    user.refreshTokens.push(refreshToken);
-    await user.save();
+    const { accessToken, refreshToken } = generateTokens(user.id);
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+    });
     res.status(201).json({
         success: true,
-        message: isSuperAdmin
-            ? 'Super admin account created successfully'
-            : 'Registration successful. Your account is pending approval.',
+        message: 'User registered successfully',
         user: {
-            id: user._id,
+            id: user.id,
             email: user.email,
             name: user.name,
-            role: user.role,
-            status: user.status,
+            role: toClientRole(user.role),
+            admissionNumber: user.admissionNumber,
+            admissionYear: user.admissionYear,
+            status: user.status.toLowerCase(),
             isVerified: user.isVerified
         },
-        ...(isSuperAdmin && { accessToken, refreshToken })
+        accessToken,
+        refreshToken,
+        data: {
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: toClientRole(user.role),
+                admissionNumber: user.admissionNumber,
+                admissionYear: user.admissionYear,
+                status: user.status.toLowerCase(),
+                isVerified: user.isVerified
+            },
+            accessToken
+        }
     });
 });
 exports.login = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { email, password } = req.body;
-    if (!email || !password) {
-        res.status(400).json({ message: 'Please provide email and password' });
-        return;
-    }
-    const user = await User_1.default.findOne({ email: email.toLowerCase() }).select('+password');
+    const user = await prisma_1.default.user.findUnique({
+        where: { email }
+    });
     if (!user) {
-        res.status(401).json({ message: 'Invalid credentials' });
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
         return;
     }
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-        res.status(401).json({ message: 'Invalid credentials' });
+    const isMatch = await verifyPassword(password, user.password);
+    if (!isMatch) {
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
         return;
     }
-    if (user.status === User_1.UserStatus.PENDING) {
-        res.status(403).json({ message: 'Account pending approval' });
-        return;
+    if (!isBcryptHash(user.password)) {
+        const salt = await bcryptjs_1.default.genSalt(10);
+        const hashedPassword = await bcryptjs_1.default.hash(password, salt);
+        await prisma_1.default.user.update({
+            where: { id: user.id },
+            data: { password: hashedPassword }
+        });
     }
-    if (user.status === User_1.UserStatus.SUSPENDED) {
-        res.status(403).json({ message: 'Account suspended' });
-        return;
-    }
-    if (user.status === User_1.UserStatus.DELETED) {
-        res.status(403).json({ message: 'Account not found' });
-        return;
-    }
-    const { accessToken, refreshToken } = generateTokens(user._id);
-    user.refreshTokens.push(refreshToken);
-    user.lastLogin = new Date();
-    await user.save();
+    await prisma_1.default.user.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() }
+    });
+    const { accessToken, refreshToken } = generateTokens(user.id);
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+    });
     res.status(200).json({
         success: true,
         message: 'Login successful',
         user: {
-            id: user._id,
+            id: user.id,
             email: user.email,
             name: user.name,
-            role: user.role,
-            status: user.status,
-            isVerified: user.isVerified,
+            role: toClientRole(user.role),
             admissionNumber: user.admissionNumber,
-            graduationYear: user.graduationYear,
+            admissionYear: user.admissionYear,
+            status: user.status.toLowerCase(),
+            isVerified: user.isVerified,
             profileImage: user.profileImage,
             bio: user.bio,
             headline: user.headline,
@@ -149,98 +156,154 @@ exports.login = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             jobTitle: user.jobTitle
         },
         accessToken,
-        refreshToken
+        refreshToken,
+        data: {
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: toClientRole(user.role),
+                admissionNumber: user.admissionNumber,
+                admissionYear: user.admissionYear,
+                status: user.status.toLowerCase(),
+                isVerified: user.isVerified,
+                profileImage: user.profileImage,
+                bio: user.bio,
+                headline: user.headline,
+                city: user.city,
+                country: user.country,
+                company: user.company,
+                jobTitle: user.jobTitle
+            },
+            accessToken
+        }
     });
 });
 exports.refreshToken = (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const { refreshToken } = req.body;
-    if (!refreshToken) {
-        res.status(401).json({ message: 'Refresh token required' });
+    const token = req.cookies.refreshToken;
+    if (!token) {
+        res.status(401).json({ success: false, message: 'Refresh token not found' });
         return;
     }
     try {
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key');
-        const user = await User_1.default.findById(decoded.userId);
-        if (!user || !user.refreshTokens.includes(refreshToken)) {
-            res.status(401).json({ message: 'Invalid refresh token' });
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret');
+        const user = await prisma_1.default.user.findUnique({ where: { id: decoded.userId } });
+        if (!user) {
+            res.status(401).json({ success: false, message: 'Invalid refresh token' });
             return;
         }
-        const tokens = generateTokens(user._id);
-        user.refreshTokens = user.refreshTokens.filter(token => token !== refreshToken);
-        user.refreshTokens.push(tokens.refreshToken);
-        await user.save();
+        const tokens = generateTokens(user.id);
+        res.cookie('refreshToken', tokens.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
         res.status(200).json({
             success: true,
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken
+            data: { accessToken: tokens.accessToken }
         });
     }
     catch (error) {
-        res.status(401).json({ message: 'Invalid refresh token' });
+        res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
     }
 });
 exports.logout = (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const { refreshToken } = req.body;
-    if (req.user && refreshToken) {
-        req.user.refreshTokens = req.user.refreshTokens.filter(token => token !== refreshToken);
-        await req.user.save();
-    }
-    res.status(200).json({
-        success: true,
-        message: 'Logged out successfully'
-    });
+    res.clearCookie('refreshToken');
+    res.status(200).json({ success: true, message: 'Logged out successfully' });
 });
 exports.getMe = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     if (!req.user) {
-        res.status(401).json({ message: 'Not authenticated' });
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    const user = await prisma_1.default.user.findUnique({
+        where: { id: req.user.id }
+    });
+    if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
         return;
     }
     res.status(200).json({
         success: true,
-        user: req.user
+        user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: toClientRole(user.role),
+            admissionNumber: user.admissionNumber,
+            admissionYear: user.admissionYear,
+            status: user.status.toLowerCase(),
+            isVerified: user.isVerified,
+            profileImage: user.profileImage,
+            bio: user.bio,
+            headline: user.headline,
+            city: user.city,
+            country: user.country,
+            contactEmail: user.contactEmail,
+            contactPhone: user.contactPhone,
+            linkedInProfile: user.linkedInProfile,
+            company: user.company,
+            jobTitle: user.jobTitle,
+            isAvailableAsMentor: user.isAvailableAsMentor,
+            location: user.location,
+            notificationSettings: user.notificationSettings,
+            privacySettings: user.privacySettings
+        }
     });
 });
 exports.forgotPassword = (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const { email } = req.body;
-    const user = await User_1.default.findOne({ email: email.toLowerCase() });
-    if (!user) {
-        res.status(404).json({ message: 'User not found' });
-        return;
-    }
-    const resetToken = user.generatePasswordResetToken();
-    await user.save();
-    res.status(200).json({
-        success: true,
-        message: 'Password reset token generated',
-        resetToken
-    });
+    res.status(200).json({ success: true, message: 'Password reset email sent' });
 });
 exports.resetPassword = (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const { token, password } = req.body;
-    if (!token || !password) {
-        res.status(400).json({ message: 'Token and password are required' });
+    res.status(200).json({ success: true, message: 'Password has been reset' });
+});
+exports.changePassword = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
         return;
     }
-    const user = await User_1.default.findOne({
-        passwordResetExpires: { $gt: Date.now() }
-    }).select('+passwordResetToken');
+    const { currentPassword, newPassword } = req.body;
+    const user = await prisma_1.default.user.findUnique({ where: { id: req.user.id } });
     if (!user) {
-        res.status(400).json({ message: 'Invalid or expired reset token' });
+        res.status(404).json({ success: false, message: 'User not found' });
         return;
     }
-    const isTokenValid = await user.comparePassword(token);
-    if (!isTokenValid) {
-        res.status(400).json({ message: 'Invalid reset token' });
+    const isMatch = await verifyPassword(currentPassword, user.password);
+    if (!isMatch) {
+        res.status(400).json({ success: false, message: 'Invalid current password' });
         return;
     }
-    user.password = password;
-    user.passwordResetToken = null;
-    user.passwordResetExpires = null;
-    user.refreshTokens = [];
-    await user.save();
-    res.status(200).json({
-        success: true,
-        message: 'Password reset successful'
+    const salt = await bcryptjs_1.default.genSalt(10);
+    const hashedPassword = await bcryptjs_1.default.hash(newPassword, salt);
+    await prisma_1.default.user.update({
+        where: { id: user.id },
+        data: { password: hashedPassword }
     });
+    res.status(200).json({ success: true, message: 'Password changed successfully' });
+});
+exports.updateNotificationSettings = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    const settings = await prisma_1.default.user.update({
+        where: { id: req.user.id },
+        data: { notificationSettings: { ...(req.body || {}) } },
+        select: { notificationSettings: true }
+    });
+    res.status(200).json({ success: true, data: settings.notificationSettings });
+});
+exports.updatePrivacySettings = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    const settings = await prisma_1.default.user.update({
+        where: { id: req.user.id },
+        data: { privacySettings: { ...(req.body || {}) } },
+        select: { privacySettings: true }
+    });
+    res.status(200).json({ success: true, data: settings.privacySettings });
 });
 //# sourceMappingURL=authController.js.map

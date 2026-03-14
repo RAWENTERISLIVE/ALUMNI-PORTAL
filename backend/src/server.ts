@@ -5,11 +5,9 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import { connectDB } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 // Import middleware
 import './middleware/auth';
-import User from './models/User';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -21,7 +19,6 @@ import groupRoutes from './routes/groups';
 import mentorshipRoutes from './routes/mentorship';
 import commentRoutes from './routes/comments';
 import uploadRoutes from './routes/uploads';
-import uploadRoutesNew from './routes/uploadsNew';
 import reportRoutes from './routes/reports';
 import statusRoutes from './routes/status';
 
@@ -45,9 +42,6 @@ const initializeApp = async () => {
     console.log('🚀 Starting Alma Connect Sphere Backend...');
     console.log('📋 Phase 1: Core Authentication & Security + Profiles');
     
-    await connectDB();
-    await User.createSuperAdmins();
-    
     console.log('✅ Application initialized successfully');
   } catch (error) {
     console.error('❌ Failed to initialize application:', error);
@@ -60,9 +54,21 @@ initializeApp();
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : ['http://localhost:8080', 'http://localhost:8081'],
+  origin: (origin, callback) => {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      const allowedOrigin = process.env.FRONTEND_URL;
+      callback(null, !!allowedOrigin && origin === allowedOrigin);
+      return;
+    }
+
+    const isLocalhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    callback(null, isLocalhostOrigin);
+  },
   credentials: true
 }));
 
@@ -91,9 +97,7 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/mentorship', mentorshipRoutes);
 app.use('/api', commentRoutes); // Comments routes (includes /posts/:postId/comments)
 app.use('/api/uploads', uploadRoutes); // Added uploads routes
-app.use('/api/upload', uploadRoutesNew); // New upload route for file handling
 app.use('/api/reports', reportRoutes); // Reports routes
-app.use('/api/status', statusRoutes); // Status routes
 
 // Error handling middleware
 app.use(errorHandler);

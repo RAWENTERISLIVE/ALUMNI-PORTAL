@@ -1,101 +1,137 @@
 import { Request, Response } from 'express';
-import MentorshipProfile from '../models/MentorshipProfile';
-import User from '../models/User';
+import prisma from '../config/prisma';
 
-// Get all available mentors
+interface AuthRequest extends Request {
+  user?: {
+    id: string;
+  };
+}
+
 export const getMentors = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const mentors = await MentorshipProfile.find({ isMentor: true, isActive: true })
-      .populate('userId', 'name firstName lastName email profileImage');
-    
-    // Format the response to match what frontend expects
-    const formattedMentors = mentors.map(mentor => {
-      const user = mentor.userId as any;
-      return {
-        ...mentor.toJSON(),
-        userId: {
-          _id: user._id,
-          firstName: user.firstName || (user.name ? user.name.split(' ')[0] : ''),
-          lastName: user.lastName || (user.name ? user.name.split(' ').slice(1).join(' ') : ''),
-          email: user.email,
-          profilePicture: user.profileImage
+    const search = typeof _req.query.search === 'string' ? _req.query.search.trim() : '';
+    const expertise = typeof _req.query.expertise === 'string' ? _req.query.expertise.trim() : '';
+
+    const where: any = { isMentor: true, isActive: true };
+    if (expertise) {
+      where.expertise = { has: expertise };
+    }
+
+    const mentors = await prisma.mentorshipProfile.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            profileImage: true,
+            jobTitle: true,
+            admissionYear: true,
+            company: true
+          }
         }
-      };
+      }
     });
-    
+
+    const formattedMentors = mentors
+      .map((mentor) => ({
+        id: mentor.id,
+        bio: mentor.bio || '',
+        expertise: mentor.expertise || [],
+        experience: mentor.experience || '',
+        availability: mentor.availability || 'medium',
+        rating: mentor.rating || 0,
+        reviewCount: mentor.totalRatings || 0,
+        user: {
+          id: mentor.user.id,
+          name: mentor.user.name,
+          title: mentor.user.jobTitle || 'Alumni Mentor',
+          graduationYear: mentor.user.admissionYear,
+          profileImage: mentor.user.profileImage,
+          company: mentor.user.company
+        }
+      }))
+      .filter((mentor) => {
+        if (!search) return true;
+
+        const haystack = [
+          mentor.user.name,
+          mentor.user.title,
+          mentor.bio,
+          ...(mentor.expertise || [])
+        ]
+          .join(' ')
+          .toLowerCase();
+
+        return haystack.includes(search.toLowerCase());
+      });
+
     res.json({ success: true, data: formattedMentors });
   } catch (error) {
+    console.error('Error fetching mentors:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
-// Become a mentor
-export const becomeMentor = async (req: Request, res: Response): Promise<void> => {
+export const becomeMentor = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Authentication required' });
+      return;
+    }
+
     const profileData = req.body;
 
-    console.log('becomeMentor request:', { userId, profileData });
-
-    // First check if user exists
-    const existingUser = await User.findById(userId);
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!existingUser) {
       res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
-    let profile = await MentorshipProfile.findOne({ userId });
-
-    if (profile) {
-      profile.isMentor = true;
-      // Only update fields that are provided in the request
-      Object.keys(profileData).forEach(key => {
-        if (profileData[key] !== undefined && key in profile!) {
-          (profile as any)[key] = profileData[key];
-        }
-      });
-    } else {
-      // Set default values for required fields if not provided
-      const defaultValues = {
-        expertise: [],
-        experience: '',
-        industry: '',
-        yearsOfExperience: 0,
-        bio: '',
-        availability: 'medium',
-        preferredMenteeLevel: ['new_graduate'],
-        maxMentees: 3,
-        currentMentees: 0,
-        communicationPreferences: ['email']
-      };
-      
-      profile = new MentorshipProfile({ 
-        ...defaultValues,
-        ...profileData, 
-        userId, 
+    const profile = await prisma.mentorshipProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        isMentor: true,
+        isActive: true,
+        expertise: profileData.expertise || [],
+        experience: profileData.experience || '',
+        industry: profileData.industry || '',
+        yearsOfExperience: profileData.yearsOfExperience || 0,
+        bio: profileData.bio || '',
+        availability: profileData.availability || 'medium',
+        preferredMenteeLevel: profileData.preferredMenteeLevel || ['new_graduate'],
+        maxMentees: profileData.maxMentees || 3,
+        currentMentees: profileData.currentMentees || 0,
+        communicationPreferences: profileData.communicationPreferences || ['email']
+      },
+      update: {
+        ...profileData,
         isMentor: true,
         isActive: true
-      });
-    }
+      }
+    });
 
-    await profile.save();
-    
-    // Update user record to mark as available for mentorship
-    await existingUser.updateOne({ isAvailableAsMentor: true });
-    
-    // Format the response to match frontend expectations
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isAvailableAsMentor: true }
+    });
+
     const formattedProfile = {
-      ...profile.toObject(),
-      id: profile._id.toString(),
+      ...profile,
+      id: profile.id,
       userId: {
-        id: existingUser._id.toString(),
+        id: existingUser.id,
         firstName: existingUser.firstName || (existingUser.name ? existingUser.name.split(' ')[0] : ''),
         lastName: existingUser.lastName || (existingUser.name ? existingUser.name.split(' ').slice(1).join(' ') : ''),
         email: existingUser.email
       }
     };
-    
-    console.log('becomeMentor response:', { success: true, formattedProfile });
+
     res.json({ success: true, data: formattedProfile });
   } catch (error) {
     console.error('Error becoming mentor:', error);
@@ -103,17 +139,70 @@ export const becomeMentor = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// Get user's mentorship profile
-export const getMentorshipProfile = async (req: Request, res: Response): Promise<void> => {
+export const getMentorshipProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
-    const profile = await MentorshipProfile.findOne({ userId }).populate('userId', 'name email firstName lastName profileImage');
-    
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Authentication required' });
+      return;
+    }
+
+    const profile = await prisma.mentorshipProfile.findUnique({
+      where: { userId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            profileImage: true,
+            name: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      }
+    });
+
+    const requests = await prisma.mentorshipRequest.findMany({
+      where: {
+        menteeId: userId,
+        status: 'accepted'
+      },
+      include: {
+        mentor: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                jobTitle: true,
+                profileImage: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    const formattedRequests = requests.map((request) => ({
+      id: request.id,
+      nextSession: request.updatedAt,
+      topics: request.mentor.expertise || [],
+      mentor: {
+        user: {
+          id: request.mentor.user.id,
+          name: request.mentor.user.name,
+          title: request.mentor.user.jobTitle || 'Alumni Mentor',
+          profileImage: request.mentor.user.profileImage
+        }
+      }
+    }));
+
     if (!profile) {
-      // Return an empty profile with default values if none exists
-      res.json({ 
-        success: true, 
-        data: { 
+      res.json({
+        success: true,
+        data: {
           userId,
           isMentor: false,
           isActive: false,
@@ -121,28 +210,27 @@ export const getMentorshipProfile = async (req: Request, res: Response): Promise
           experience: '',
           industry: '',
           yearsOfExperience: 0,
-          availability: ''
+          availability: '',
+          requests: formattedRequests
         }
       });
       return;
     }
-    
-    // Format the response
-    const formattedProfile = profile.toObject();
-    (formattedProfile as any).id = profile._id.toString();
 
-    if (profile.userId && 'email' in profile.userId) {
-      const user = profile.userId as any;
-      (formattedProfile as any).userId = {
-        id: user._id.toString(),
-        email: user.email,
-        profileImage: user.profileImage,
-        name: user.name,
-        firstName: user.firstName,
-        lastName: user.lastName,
-      };
-    }
-    
+    const formattedProfile = {
+      ...profile,
+      id: profile.id,
+      userId: {
+        id: profile.user.id,
+        email: profile.user.email,
+        profileImage: profile.user.profileImage,
+        name: profile.user.name,
+        firstName: profile.user.firstName,
+        lastName: profile.user.lastName
+      },
+      requests: formattedRequests
+    };
+
     res.json({ success: true, data: formattedProfile });
   } catch (error) {
     console.error('Error getting mentorship profile:', error);
@@ -150,24 +238,103 @@ export const getMentorshipProfile = async (req: Request, res: Response): Promise
   }
 };
 
-// Request mentorship from a mentor
-export const requestMentorship = async (req: Request, res: Response) => {
-  // This is a placeholder. In a real application, you would create a MentorshipRequest model
-  // and handle the request lifecycle (pending, accepted, rejected).
+export const requestMentorship = async (req: AuthRequest, res: Response) => {
   const { mentorId } = req.params;
-  const menteeId = (req as any).user.id;
+  const menteeId = req.user?.id;
+  const { message } = req.body;
 
-  console.log(`Mentorship request from ${menteeId} to ${mentorId}`);
+  if (!menteeId) {
+    res.status(401).json({ success: false, message: 'Authentication required' });
+    return;
+  }
+
+  if (!mentorId) {
+    res.status(400).json({ success: false, message: 'Mentor ID is required' });
+    return;
+  }
+
+  const mentorProfile = await prisma.mentorshipProfile.findUnique({
+    where: { id: mentorId },
+    select: { id: true, userId: true, isMentor: true, isActive: true }
+  });
+
+  if (!mentorProfile || !mentorProfile.isMentor || !mentorProfile.isActive) {
+    res.status(404).json({ success: false, message: 'Mentor not found' });
+    return;
+  }
+
+  if (mentorProfile.userId === menteeId) {
+    res.status(400).json({ success: false, message: 'You cannot request mentorship from yourself' });
+    return;
+  }
+
+  const existing = await prisma.mentorshipRequest.findFirst({
+    where: {
+      menteeId,
+      mentorProfileId: mentorId,
+      status: {
+        in: ['pending', 'accepted']
+      }
+    },
+    select: { id: true, status: true }
+  });
+
+  if (existing) {
+    res.status(400).json({ success: false, message: `Mentorship request already ${existing.status}` });
+    return;
+  }
+
+  await prisma.mentorshipRequest.create({
+    data: {
+      menteeId,
+      mentorProfileId: mentorId,
+      message: message || null,
+      status: 'pending'
+    }
+  });
 
   res.json({ success: true, message: 'Mentorship request sent' });
 };
 
-// Respond to a mentorship request
-export const respondToRequest = async (req: Request, res: Response) => {
-  // This is a placeholder.
-  const { requestId, action } = req.params; // action can be 'accept' or 'reject'
+export const respondToRequest = async (req: AuthRequest, res: Response) => {
+  const { requestId, action } = req.params;
 
-  console.log(`Responding to request ${requestId} with action ${action}`);
+  if (!req.user?.id) {
+    res.status(401).json({ success: false, message: 'Authentication required' });
+    return;
+  }
+
+  if (!requestId || !action) {
+    res.status(400).json({ success: false, message: 'Request ID and action are required' });
+    return;
+  }
+
+  if (!['accept', 'reject'].includes(action)) {
+    res.status(400).json({ success: false, message: 'Invalid action' });
+    return;
+  }
+
+  const request = await prisma.mentorshipRequest.findUnique({
+    where: { id: requestId },
+    include: { mentor: { select: { userId: true } } }
+  });
+
+  if (!request) {
+    res.status(404).json({ success: false, message: 'Mentorship request not found' });
+    return;
+  }
+
+  if (request.mentor.userId !== req.user.id) {
+    res.status(403).json({ success: false, message: 'Not authorized to respond to this request' });
+    return;
+  }
+
+  await prisma.mentorshipRequest.update({
+    where: { id: requestId },
+    data: {
+      status: action === 'accept' ? 'accepted' : 'rejected'
+    }
+  });
 
   res.json({ success: true, message: 'Responded to request' });
 };

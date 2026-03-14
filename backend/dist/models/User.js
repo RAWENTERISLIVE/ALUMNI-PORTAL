@@ -1,44 +1,12 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserStatus = exports.UserRole = void 0;
-const mongoose_1 = __importStar(require("mongoose"));
+exports.User = exports.UserStatus = exports.UserRole = void 0;
+const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const prisma_1 = __importDefault(require("../config/prisma"));
 var UserRole;
 (function (UserRole) {
     UserRole["USER"] = "user";
@@ -52,248 +20,286 @@ var UserStatus;
     UserStatus["SUSPENDED"] = "suspended";
     UserStatus["DELETED"] = "deleted";
 })(UserStatus || (exports.UserStatus = UserStatus = {}));
-const userSchema = new mongoose_1.Schema({
-    email: {
-        type: String,
-        required: true,
-        unique: true,
-        lowercase: true,
-        trim: true,
-        validate: {
-            validator: function (email) {
-                return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
-            },
-            message: 'Please enter a valid email address'
-        }
-    },
-    password: {
-        type: String,
-        required: true,
-        minlength: 6,
-        select: false
-    },
-    name: {
-        type: String,
-        required: true,
-        trim: true,
-        maxlength: 100
-    },
-    admissionNumber: {
-        type: String,
-        required: true,
-        unique: true,
-        validate: {
-            validator: function (admissionNumber) {
-                return /^\d+\/\d{2}$/.test(admissionNumber);
-            },
-            message: 'Admission number must be in format: 12345/23'
-        }
-    },
-    graduationYear: {
-        type: String,
-        required: true,
-        validate: {
-            validator: function (year) {
-                const yearNum = parseInt(year);
-                const currentYear = new Date().getFullYear();
-                return yearNum >= 1900 && yearNum <= currentYear + 10;
-            },
-            message: 'Invalid graduation year'
-        }
-    },
-    role: {
-        type: String,
-        enum: Object.values(UserRole),
-        default: UserRole.USER
-    },
-    status: {
-        type: String,
-        enum: Object.values(UserStatus),
-        default: UserStatus.PENDING
-    },
-    isVerified: {
-        type: Boolean,
-        default: false
-    },
-    profileImage: {
-        type: String,
-        validate: {
-            validator: function (url) {
-                return !url || /^https?:\/\//.test(url);
-            },
-            message: 'Profile image must be a valid URL'
-        }
-    },
-    bio: {
-        type: String,
-        maxlength: 500
-    },
-    headline: {
-        type: String,
-        maxlength: 100
-    },
-    city: {
-        type: String,
-        maxlength: 50
-    },
-    country: {
-        type: String,
-        maxlength: 50
-    },
-    contactEmail: {
-        type: String,
-        validate: {
-            validator: function (email) {
-                return !email || /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
-            },
-            message: 'Please enter a valid contact email address'
-        }
-    },
-    contactPhone: {
-        type: String,
-        validate: {
-            validator: function (phone) {
-                return !phone || /^[\+]?[1-9][\d]{0,15}$/.test(phone);
-            },
-            message: 'Please enter a valid phone number'
-        }
-    },
-    linkedInProfile: {
-        type: String,
-        validate: {
-            validator: function (url) {
-                return !url || /^https?:\/\/(www\.)?linkedin\.com\//.test(url);
-            },
-            message: 'LinkedIn profile must be a valid LinkedIn URL'
-        }
-    },
-    company: {
-        type: String,
-        maxlength: 100
-    },
-    jobTitle: {
-        type: String,
-        maxlength: 100
-    },
-    isAvailableAsMentor: {
-        type: Boolean,
-        default: false
-    },
-    lastLogin: {
-        type: Date
-    },
-    refreshTokens: [{
-            type: String
-        }],
-    passwordResetToken: {
-        type: String,
-        select: false
-    },
-    passwordResetExpires: {
-        type: Date,
-        select: false
-    },
-    emailVerificationToken: {
-        type: String,
-        select: false
-    },
-    emailVerificationExpires: {
-        type: Date,
-        select: false
-    }
-}, {
-    timestamps: true,
-    toJSON: {
-        transform: function (_doc, ret) {
-            ret.id = ret._id;
-            delete ret._id;
-            delete ret.__v;
-            delete ret.password;
-            delete ret.refreshTokens;
-            delete ret.passwordResetToken;
-            delete ret.passwordResetExpires;
-            delete ret.emailVerificationToken;
-            delete ret.emailVerificationExpires;
-            return ret;
-        }
-    }
-});
-userSchema.index({ role: 1 });
-userSchema.index({ status: 1 });
-userSchema.index({ graduationYear: 1 });
-userSchema.index({ createdAt: -1 });
-userSchema.pre('save', async function (next) {
-    if (!this.isModified('password'))
-        return next();
-    try {
-        const salt = await bcryptjs_1.default.genSalt(12);
-        this.password = await bcryptjs_1.default.hash(this.password, salt);
-        next();
-    }
-    catch (error) {
-        next(error);
-    }
-});
-userSchema.methods.comparePassword = async function (candidatePassword) {
-    return bcryptjs_1.default.compare(candidatePassword, this.password);
+const toDbRole = (role) => {
+    const normalized = (role || UserRole.USER).toLowerCase();
+    if (normalized === UserRole.ADMIN)
+        return 'ADMIN';
+    if (normalized === UserRole.SUPER_ADMIN)
+        return 'SUPER_ADMIN';
+    return 'USER';
 };
-userSchema.methods.generatePasswordResetToken = function () {
-    const resetToken = Math.random().toString(36).substring(2, 15) +
-        Math.random().toString(36).substring(2, 15);
-    this.passwordResetToken = bcryptjs_1.default.hashSync(resetToken, 10);
-    this.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000);
-    return resetToken;
+const toDbStatus = (status) => {
+    const normalized = (status || UserStatus.PENDING).toLowerCase();
+    if (normalized === UserStatus.ACTIVE)
+        return 'ACTIVE';
+    if (normalized === UserStatus.SUSPENDED)
+        return 'SUSPENDED';
+    if (normalized === UserStatus.DELETED)
+        return 'DELETED';
+    return 'PENDING';
 };
-userSchema.methods.generateEmailVerificationToken = function () {
-    const verificationToken = Math.random().toString(36).substring(2, 15) +
-        Math.random().toString(36).substring(2, 15);
-    this.emailVerificationToken = bcryptjs_1.default.hashSync(verificationToken, 10);
-    this.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    return verificationToken;
-};
-userSchema.pre('save', function (next) {
-    if (this.isModified('admissionNumber') && this.admissionNumber) {
-        const yearMatch = this.admissionNumber.match(/\/(\d{2})$/);
-        if (yearMatch && yearMatch[1]) {
-            const shortYear = parseInt(yearMatch[1]);
-            const fullYear = shortYear < 50 ? 2000 + shortYear : 1900 + shortYear;
-            this.graduationYear = fullYear.toString();
+const fromDbRole = (role) => role.toLowerCase();
+const fromDbStatus = (status) => status.toLowerCase();
+const applySelect = (user, selectSpec) => {
+    if (!selectSpec)
+        return user;
+    const parts = selectSpec.split(' ').map((part) => part.trim()).filter(Boolean);
+    const include = parts.filter((part) => part.startsWith('+')).map((part) => part.slice(1));
+    const exclude = parts.filter((part) => part.startsWith('-')).map((part) => part.slice(1));
+    const result = { ...user };
+    if (include.length > 0) {
+        for (const key of include) {
+            if (!(key in result)) {
+                result[key] = undefined;
+            }
         }
     }
-    next();
-});
-userSchema.statics.createSuperAdmins = async function () {
-    const superAdminCredentials = [
-        {
-            email: 'mpsajmer123@gmail.com',
-            password: 'bajmav-1qojmu-qoKkod',
-            name: 'Super Admin 1',
-            admissionNumber: '00001/24'
-        },
-        {
-            email: 'futurist.raghav@gmail.com',
-            password: 'bajmav-1qojmu-qoKkod',
-            name: 'Super Admin 2',
-            admissionNumber: '00002/24'
+    for (const key of exclude) {
+        delete result[key];
+    }
+    return result;
+};
+class UserDocument {
+    constructor(data) {
+        this._id = data.id || data._id;
+        this.id = this._id;
+        this.email = data.email;
+        this.password = data.password;
+        this.name = data.name;
+        this.firstName = data.firstName;
+        this.lastName = data.lastName;
+        this.admissionNumber = data.admissionNumber;
+        this.admissionYear = data.admissionYear;
+        this.role = data.role ? fromDbRole(data.role) : UserRole.USER;
+        this.status = data.status ? fromDbStatus(data.status) : UserStatus.PENDING;
+        this.isVerified = Boolean(data.isVerified);
+        this.refreshTokens = data.refreshTokens || [];
+        this.needsManualVerification = Boolean(data.needsManualVerification);
+        this.verificationDetails = data.verificationDetails;
+        this.passwordResetToken = data.passwordResetToken;
+        this.passwordResetExpires = data.passwordResetExpires;
+        this.emailVerificationToken = data.emailVerificationToken;
+        this.emailVerificationExpires = data.emailVerificationExpires;
+        this.profileImage = data.profileImage;
+        this.bio = data.bio;
+        this.headline = data.headline;
+        this.city = data.city;
+        this.country = data.country;
+        this.company = data.company;
+        this.jobTitle = data.jobTitle;
+        this.notificationSettings = data.notificationSettings;
+        this.privacySettings = data.privacySettings;
+        this.createdAt = data.createdAt;
+        this.updatedAt = data.updatedAt;
+        this.lastLogin = data.lastLogin;
+    }
+    async save() {
+        const password = this.password?.startsWith('$2') ? this.password : await bcryptjs_1.default.hash(this.password, 10);
+        const updated = await prisma_1.default.user.update({
+            where: { id: this._id },
+            data: {
+                email: this.email,
+                password,
+                name: this.name,
+                firstName: this.firstName,
+                lastName: this.lastName,
+                admissionNumber: this.admissionNumber,
+                admissionYear: this.admissionYear,
+                role: toDbRole(this.role),
+                status: toDbStatus(this.status),
+                isVerified: this.isVerified,
+                refreshTokens: this.refreshTokens || [],
+                needsManualVerification: this.needsManualVerification || false,
+                verificationDetails: this.verificationDetails || null,
+                passwordResetToken: this.passwordResetToken || null,
+                passwordResetExpires: this.passwordResetExpires || null,
+                emailVerificationToken: this.emailVerificationToken || null,
+                emailVerificationExpires: this.emailVerificationExpires || null,
+                profileImage: this.profileImage || null,
+                bio: this.bio || null,
+                headline: this.headline || null,
+                city: this.city || null,
+                country: this.country || null,
+                company: this.company || null,
+                jobTitle: this.jobTitle || null,
+                notificationSettings: this.notificationSettings,
+                privacySettings: this.privacySettings,
+                lastLogin: this.lastLogin || null
+            }
+        });
+        return new UserDocument(updated);
+    }
+    async comparePassword(candidatePassword) {
+        const isPasswordMatch = await bcryptjs_1.default.compare(candidatePassword, this.password || '');
+        if (isPasswordMatch)
+            return true;
+        if (this.passwordResetToken) {
+            return bcryptjs_1.default.compare(candidatePassword, this.passwordResetToken);
         }
-    ];
-    for (const admin of superAdminCredentials) {
-        const existingAdmin = await this.findOne({ email: admin.email });
-        if (!existingAdmin) {
-            await this.create({
-                ...admin,
-                graduationYear: '2024',
-                role: UserRole.SUPER_ADMIN,
-                status: UserStatus.ACTIVE,
-                isVerified: true
+        return false;
+    }
+    generatePasswordResetToken() {
+        const resetToken = crypto_1.default.randomBytes(20).toString('hex');
+        this.passwordResetToken = bcryptjs_1.default.hashSync(resetToken, 10);
+        this.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000);
+        return resetToken;
+    }
+    async updateOne(data) {
+        const updated = await prisma_1.default.user.update({
+            where: { id: this._id },
+            data: data
+        });
+        return new UserDocument(updated);
+    }
+    toObject() {
+        return {
+            ...this,
+            id: this._id
+        };
+    }
+}
+class UserQuery {
+    constructor(where) {
+        this.where = where;
+    }
+    select(value) {
+        this.selectSpec = value;
+        return this;
+    }
+    sort(value) {
+        this.sortSpec = value;
+        return this;
+    }
+    limit(value) {
+        this.limitValue = value;
+        return this;
+    }
+    skip(value) {
+        this.skipValue = value;
+        return this;
+    }
+    async executeMany() {
+        const orderBy = this.sortSpec
+            ? Object.fromEntries(Object.entries(this.sortSpec).map(([key, direction]) => [key, direction === 1 ? 'asc' : 'desc']))
+            : undefined;
+        const users = await prisma_1.default.user.findMany({
+            where: this.where,
+            orderBy: orderBy,
+            take: this.limitValue,
+            skip: this.skipValue
+        });
+        return users.map((user) => new UserDocument(applySelect(user, this.selectSpec)));
+    }
+    async executeOne() {
+        const user = await prisma_1.default.user.findFirst({ where: this.where });
+        return user ? new UserDocument(applySelect(user, this.selectSpec)) : null;
+    }
+    then(onfulfilled, onrejected) {
+        if (this.limitValue === 1) {
+            return this.executeOne().then(onfulfilled, onrejected);
+        }
+        return this.executeMany().then(onfulfilled, onrejected);
+    }
+    catch(onrejected) {
+        if (this.limitValue === 1) {
+            return this.executeOne().catch(onrejected);
+        }
+        return this.executeMany().catch(onrejected);
+    }
+}
+const toWhere = (query = {}) => {
+    const where = {};
+    for (const [key, value] of Object.entries(query)) {
+        if (key === '$or' && Array.isArray(value)) {
+            where.OR = value.map((item) => {
+                const [[field, expression]] = Object.entries(item);
+                if (expression && typeof expression === 'object' && '$regex' in expression) {
+                    return {
+                        [field]: {
+                            contains: String(expression.$regex),
+                            mode: 'insensitive'
+                        }
+                    };
+                }
+                return { [field]: expression };
             });
-            console.log(`Super admin created: ${admin.email}`);
+            continue;
         }
-        else {
-            console.log(`Super admin already exists: ${admin.email}`);
+        if (key === 'role') {
+            where.role = toDbRole(String(value));
+            continue;
         }
+        if (key === 'status') {
+            where.status = toDbStatus(String(value));
+            continue;
+        }
+        if (key === 'admissionNumber' && value && typeof value === 'object' && '$regex' in value) {
+            where.admissionNumber = {
+                startsWith: String(value.$regex).replace('^', '').replace('$', '')
+            };
+            continue;
+        }
+        if (key === 'passwordResetExpires' && value && typeof value === 'object' && '$gt' in value) {
+            where.passwordResetExpires = { gt: new Date(value.$gt) };
+            continue;
+        }
+        where[key] = value;
+    }
+    return where;
+};
+const UserModel = {
+    findById(id) {
+        const query = new UserQuery({ id });
+        query.limit(1);
+        return query;
+    },
+    findOne(query) {
+        const userQuery = new UserQuery(toWhere(query));
+        userQuery.limit(1);
+        return userQuery;
+    },
+    find(query = {}) {
+        return new UserQuery(toWhere(query));
+    },
+    async create(data) {
+        const hashedPassword = await bcryptjs_1.default.hash(data.password, 10);
+        const created = await prisma_1.default.user.create({
+            data: {
+                email: data.email,
+                password: hashedPassword,
+                name: data.name,
+                firstName: data.firstName || null,
+                lastName: data.lastName || null,
+                admissionNumber: data.admissionNumber,
+                admissionYear: data.admissionYear,
+                role: toDbRole(data.role),
+                status: toDbStatus(data.status),
+                isVerified: Boolean(data.isVerified),
+                refreshTokens: data.refreshTokens || [],
+                needsManualVerification: Boolean(data.needsManualVerification),
+                verificationDetails: data.verificationDetails || null
+            }
+        });
+        return new UserDocument(created);
+    },
+    async countDocuments(query = {}) {
+        return prisma_1.default.user.count({ where: toWhere(query) });
+    },
+    async findByIdAndUpdate(id, data) {
+        const updated = await prisma_1.default.user.update({
+            where: { id },
+            data: {
+                ...data,
+                role: data.role ? toDbRole(data.role) : undefined,
+                status: data.status ? toDbStatus(data.status) : undefined
+            }
+        });
+        return new UserDocument(updated);
+    },
+    async findByIdAndDelete(id) {
+        return prisma_1.default.user.delete({ where: { id } });
     }
 };
-const User = mongoose_1.default.model('User', userSchema);
-exports.default = User;
+exports.default = UserModel;
+exports.User = UserModel;
 //# sourceMappingURL=User.js.map

@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { LoadingSpinner } from "@/shared/components/LoadingSpinner";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -49,17 +50,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gray-50">
-      <div className="w-full max-w-md mx-auto space-y-6">
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 bg-muted/30">
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
+      <div className="w-full max-w-md mx-auto space-y-5 sm:space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-gray-800">Alumni Connect</h1>
-          <h2 className="text-2xl font-semibold text-orange-500 mb-2">Welcome Back</h2>
-          <p className="text-gray-600">
+          <h1 className="text-3xl sm:text-4xl font-bold text-foreground/90">Alumni Connect</h1>
+          <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-2">Welcome Back</h2>
+          <p className="text-muted-foreground">
             Enter your credentials to access your alumni network
           </p>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-lg">
+        <div className="bg-card border border-border rounded-xl p-5 sm:p-8 shadow-lg">
           {authError && (
             <div className="bg-destructive/10 text-destructive p-3 rounded-md mb-4 text-sm">
               {authError}
@@ -73,12 +78,12 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-700 font-medium">Email</FormLabel>
+                    <FormLabel className="text-foreground/80 font-medium">Email</FormLabel>
                     <FormControl>
                       <Input 
                         placeholder="your.email@example.com" 
                         {...field} 
-                        className="text-gray-900 placeholder:text-gray-400"
+                        className="text-foreground placeholder:text-muted-foreground"
                       />
                     </FormControl>
                     <FormMessage />
@@ -90,13 +95,13 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-700 font-medium">Password</FormLabel>
+                    <FormLabel className="text-foreground/80 font-medium">Password</FormLabel>
                     <FormControl>
                       <Input 
                         type="password" 
                         placeholder="••••••••" 
                         {...field} 
-                        className="text-gray-900 placeholder:text-gray-400"
+                        className="text-foreground placeholder:text-muted-foreground"
                       />
                     </FormControl>
                     <FormMessage />
@@ -105,7 +110,7 @@ export default function LoginPage() {
               />
               <Button 
                 type="submit" 
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white" 
+                className="w-full bg-primary hover:bg-primary/90 text-white" 
                 disabled={isLoading}
               >
                 {isLoading ? <LoadingSpinner size="sm" /> : "Sign in"}
@@ -114,9 +119,9 @@ export default function LoginPage() {
           </Form>
 
           <div className="mt-6 text-center text-sm">
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               Don't have an account?{" "}
-              <Link to="/register" className="text-orange-500 hover:text-orange-600 font-medium hover:underline">
+              <Link to="/register" className="text-foreground hover:text-foreground/90 font-medium hover:underline">
                 Create an account
               </Link>
             </p>

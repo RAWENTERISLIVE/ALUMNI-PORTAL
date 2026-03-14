@@ -293,7 +293,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
     const canDelete = isAuthor || currentUser?.role === 'admin';
 
     return (
-      <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+      <div className="flex items-center gap-2 text-xs text-muted/300 mt-1">
         <button 
           onClick={() => handleLikeComment(comment._id, isLiked)}
           className={`flex items-center gap-1 hover:text-pink-500 ${isLiked ? 'text-pink-500' : ''}`}
@@ -308,7 +308,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
               setReplyingTo(comment._id);
               handleLoadReplies(comment._id);
             }}
-            className="flex items-center gap-1 hover:text-blue-500"
+            className="flex items-center gap-1 hover:text-foreground"
           >
             <Reply className="h-3 w-3" />
             <span>Reply</span>
@@ -318,7 +318,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
         {canDelete && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="hover:text-gray-700">
+              <button className="hover:text-foreground/80">
                 <MoreHorizontal className="h-3 w-3" />
               </button>
             </DropdownMenuTrigger>
@@ -350,10 +350,10 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
               <div>
                 <span className="font-medium text-sm">{comment.author.name}</span>
                 {comment.author.role && (
-                  <span className="ml-2 text-xs text-gray-500">{comment.author.role}</span>
+                  <span className="ml-2 text-xs text-muted/300">{comment.author.role}</span>
                 )}
               </div>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-muted/300">
                 {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
               </span>
             </div>
@@ -406,7 +406,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
           </div>
         </div>
       ) : (
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-muted/300 mb-4">
           Sign in to leave a comment
         </p>
       )}
@@ -423,7 +423,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
             </div>
           ))
         ) : comments.length === 0 ? (
-          <p className="text-gray-500 text-center py-4">No comments yet. Be the first to comment!</p>
+          <p className="text-muted/300 text-center py-4">No comments yet. Be the first to comment!</p>
         ) : (
           <>
             {comments.map(comment => (

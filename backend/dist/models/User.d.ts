@@ -1,4 +1,3 @@
-import mongoose, { Document } from 'mongoose';
 export declare enum UserRole {
     USER = "user",
     ADMIN = "admin",
@@ -10,42 +9,45 @@ export declare enum UserStatus {
     SUSPENDED = "suspended",
     DELETED = "deleted"
 }
-export interface IUser extends Document {
+export interface IUser {
     _id: string;
+    id: string;
     email: string;
     password: string;
     name: string;
+    firstName?: string | null;
+    lastName?: string | null;
     admissionNumber: string;
-    graduationYear: string;
-    role: UserRole;
-    status: UserStatus;
+    admissionYear: string;
+    role: UserRole | string;
+    status: UserStatus | string;
     isVerified: boolean;
-    profileImage?: string;
-    bio?: string;
-    headline?: string;
-    city?: string;
-    country?: string;
-    contactEmail?: string;
-    contactPhone?: string;
-    linkedInProfile?: string;
-    company?: string;
-    jobTitle?: string;
-    isAvailableAsMentor: boolean;
-    lastLogin?: Date;
     refreshTokens: string[];
+    needsManualVerification?: boolean;
+    verificationDetails?: string | null;
     passwordResetToken?: string | null;
     passwordResetExpires?: Date | null;
-    emailVerificationToken?: string;
-    emailVerificationExpires?: Date;
+    emailVerificationToken?: string | null;
+    emailVerificationExpires?: Date | null;
+    profileImage?: string | null;
+    bio?: string | null;
+    headline?: string | null;
+    city?: string | null;
+    country?: string | null;
+    company?: string | null;
+    jobTitle?: string | null;
+    notificationSettings?: unknown;
+    privacySettings?: unknown;
     createdAt: Date;
     updatedAt: Date;
-    comparePassword(candidatePassword: string): Promise<boolean>;
-    generatePasswordResetToken(): string;
-    generateEmailVerificationToken(): string;
+    lastLogin?: Date | null;
+    save: () => Promise<IUser>;
+    comparePassword: (candidatePassword: string) => Promise<boolean>;
+    generatePasswordResetToken: () => string;
+    updateOne: (data: Record<string, unknown>) => Promise<IUser>;
+    toObject: () => Record<string, unknown>;
 }
-export interface IUserModel extends mongoose.Model<IUser> {
-    createSuperAdmins(): Promise<void>;
-}
-declare const User: IUserModel;
-export default User;
+declare const UserModel: any;
+export default UserModel;
+export declare const User: any;
 //# sourceMappingURL=User.d.ts.map

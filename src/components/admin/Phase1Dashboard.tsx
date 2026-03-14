@@ -23,6 +23,40 @@ interface Phase1StatusData {
   readyForNextPhase: boolean;
 }
 
+const DEFAULT_CHECKS = {
+  superAdminsCreated: false,
+  authenticationWorking: false,
+  databaseConnected: false,
+  uploadsDirectoryExists: false,
+  rateLimitingActive: false,
+};
+
+const normalizePhase1Status = (response: any): Phase1StatusData => {
+  const checks = response?.checks ?? DEFAULT_CHECKS;
+  const completionPercentage = typeof response?.completionPercentage === 'number'
+    ? response.completionPercentage
+    : Object.values(checks).filter(Boolean).length * 20;
+
+  return {
+    success: Boolean(response?.success),
+    phase: response?.phase || 'phase1',
+    title: response?.title || 'Phase 1 Status',
+    status: (response?.status === 'completed' || response?.status === 'in_progress' || response?.status === 'failed')
+      ? response.status
+      : 'in_progress',
+    completionPercentage,
+    checks: {
+      superAdminsCreated: Boolean(checks.superAdminsCreated),
+      authenticationWorking: Boolean(checks.authenticationWorking),
+      databaseConnected: Boolean(checks.databaseConnected),
+      uploadsDirectoryExists: Boolean(checks.uploadsDirectoryExists),
+      rateLimitingActive: Boolean(checks.rateLimitingActive),
+    },
+    message: response?.message || 'Phase 1 status endpoint is reachable.',
+    readyForNextPhase: Boolean(response?.readyForNextPhase),
+  };
+};
+
 interface SystemStats {
   users: {
     total: number;
@@ -49,13 +83,16 @@ export default function Phase1Dashboard() {
       // Fetch Phase 1 status
       const phase1Response = await apiService.request('/status/phase1');
       if (phase1Response.success) {
-        setStatus(phase1Response);
+        setStatus(normalizePhase1Status(phase1Response));
       }
 
       // Fetch system stats
       const systemResponse = await apiService.request('/status/system');
       if (systemResponse.success) {
-        setSystemStats(systemResponse.statistics);
+        const stats = systemResponse.statistics || systemResponse.data?.statistics;
+        if (stats) {
+          setSystemStats(stats);
+        }
       }
     } catch (error: any) {
       console.error('Failed to fetch Phase 1 status:', error);
@@ -76,7 +113,7 @@ export default function Phase1Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -106,7 +143,7 @@ export default function Phase1Dashboard() {
       case 'failed':
         return <Badge className="bg-red-100 text-red-800">Failed</Badge>;
       default:
-        return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>;
+        return <Badge className="bg-gray-100 text-foreground/90">Unknown</Badge>;
     }
   };
 
@@ -115,8 +152,8 @@ export default function Phase1Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Phase 1 Dashboard</h1>
-          <p className="text-gray-600">Core Authentication & Security + Profiles</p>
+          <h1 className="text-3xl font-bold text-foreground">Phase 1 Dashboard</h1>
+          <p className="text-muted-foreground">Core Authentication & Security + Profiles</p>
         </div>
         <Button onClick={fetchData} variant="outline">
           <Activity className="h-4 w-4 mr-2" />
@@ -128,7 +165,7 @@ export default function Phase1Dashboard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-orange-500" />
+            <Shield className="h-5 w-5 text-foreground" />
             Phase 1 Status
           </CardTitle>
           <CardDescription>
@@ -142,19 +179,19 @@ export default function Phase1Dashboard() {
                 <h3 className="text-lg font-semibold">{status.title}</h3>
                 {getStatusBadge(status.status)}
               </div>
-              <p className="text-gray-600">{status.message}</p>
+              <p className="text-muted-foreground">{status.message}</p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-orange-500">
+              <div className="text-2xl font-bold text-foreground">
                 {status.completionPercentage}%
               </div>
-              <div className="text-sm text-gray-500">Complete</div>
+              <div className="text-sm text-muted/300">Complete</div>
             </div>
           </div>
 
           <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
             <div 
-              className="bg-orange-500 h-3 rounded-full transition-all duration-300"
+              className="bg-primary h-3 rounded-full transition-all duration-300"
               style={{ width: `${status.completionPercentage}%` }}
             />
           </div>
@@ -176,7 +213,7 @@ export default function Phase1Dashboard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-blue-500" />
+            <Database className="h-5 w-5 text-foreground" />
             System Health Checks
           </CardTitle>
           <CardDescription>
@@ -215,7 +252,7 @@ export default function Phase1Dashboard() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Users className="h-4 w-4 text-blue-500" />
+                <Users className="h-4 w-4 text-foreground" />
                 Total Users
               </CardTitle>
             </CardHeader>
@@ -280,7 +317,7 @@ export default function Phase1Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold mb-3 text-green-700">✅ Authentication & Security</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>• JWT-based login (1h access / 7d refresh)</li>
                 <li>• Role-based access control (RBAC)</li>
                 <li>• Admission number verification</li>
@@ -291,7 +328,7 @@ export default function Phase1Dashboard() {
             </div>
             <div>
               <h4 className="font-semibold mb-3 text-green-700">✅ User Management</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>• User registration (standard + manual)</li>
                 <li>• Admin approval workflow</li>
                 <li>• User suspension/reactivation</li>
@@ -301,7 +338,7 @@ export default function Phase1Dashboard() {
             </div>
             <div>
               <h4 className="font-semibold mb-3 text-green-700">✅ Profiles & Directory</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>• Rich user profiles with bio & headline</li>
                 <li>• Privacy controls per section</li>
                 <li>• Profile picture support</li>
@@ -311,7 +348,7 @@ export default function Phase1Dashboard() {
             </div>
             <div>
               <h4 className="font-semibold mb-3 text-blue-700">🚀 Ready for Phase 2</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>• Social Feed implementation</li>
                 <li>• Connections system</li>
                 <li>• Posts with rich media</li>

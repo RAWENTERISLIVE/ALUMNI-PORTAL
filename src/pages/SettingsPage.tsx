@@ -163,7 +163,7 @@ export default function SettingsPage() {
 
     try {
       setLoading(true);
-      const response = await apiService.updateUserProfile(currentUser.id, profileForm);
+      const response = await apiService.updateProfile(profileForm);
       
       if (response.success) {
         toast({ 
@@ -307,10 +307,9 @@ export default function SettingsPage() {
   };
 
   const handleAccountDeactivation = async () => {
-    if (window.confirm("Are you sure you want to deactivate your account? This action cannot be undone.")) {
+    if (globalThis.confirm("Are you sure you want to deactivate your account? This action cannot be undone.")) {
       try {
         setLoading(true);
-        // TODO: Implement account deactivation API call
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         toast({ 
@@ -340,18 +339,18 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-7xl">
+    <div className="container mx-auto px-3 sm:px-4 py-4 max-w-7xl">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Account Settings</h1>
-        <p className="text-gray-600 mt-2">Manage your profile, notifications, privacy, and account security.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground/90">Account Settings</h1>
+        <p className="text-muted-foreground mt-2">Manage your profile, notifications, privacy, and account security.</p>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Main Content */}
         <div className="flex-1 max-w-4xl">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto gap-1">
               <TabsTrigger value="profile" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
                 <span className="hidden sm:inline">Profile</span>
@@ -387,7 +386,7 @@ export default function SettingsPage() {
                         <div className="flex flex-col items-center space-y-4">
                           <Avatar className="h-24 w-24">
                             <AvatarImage src={currentUser.profileImage} />
-                            <AvatarFallback className="bg-orange-100 text-orange-800 text-xl">
+                            <AvatarFallback className="bg-primary/10 text-foreground/90 text-xl">
                               {currentUser.name?.charAt(0) || "U"}
                             </AvatarFallback>
                           </Avatar>
@@ -399,16 +398,18 @@ export default function SettingsPage() {
                         <div className="flex-1 space-y-4 w-full">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">Full Name</label>
+                              <label htmlFor="settings-full-name" className="text-sm font-medium">Full Name</label>
                               <Input
+                                id="settings-full-name"
                                 value={profileForm.name}
                                 onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                                 required
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">Email</label>
+                              <label htmlFor="settings-email" className="text-sm font-medium">Email</label>
                               <Input
+                                id="settings-email"
                                 type="email"
                                 value={profileForm.email}
                                 onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
@@ -419,16 +420,18 @@ export default function SettingsPage() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">Job Title</label>
+                              <label htmlFor="settings-job-title" className="text-sm font-medium">Job Title</label>
                               <Input
+                                id="settings-job-title"
                                 value={profileForm.jobTitle}
                                 onChange={(e) => setProfileForm({ ...profileForm, jobTitle: e.target.value })}
                                 placeholder="Software Engineer, Product Manager, etc."
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">Company</label>
+                              <label htmlFor="settings-company" className="text-sm font-medium">Company</label>
                               <Input
+                                id="settings-company"
                                 value={profileForm.company}
                                 onChange={(e) => setProfileForm({ ...profileForm, company: e.target.value })}
                                 placeholder="Company or Organization"
@@ -438,16 +441,18 @@ export default function SettingsPage() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">City</label>
+                              <label htmlFor="settings-city" className="text-sm font-medium">City</label>
                               <Input
+                                id="settings-city"
                                 value={profileForm.city}
                                 onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
                                 placeholder="San Francisco"
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">Country</label>
+                              <label htmlFor="settings-country" className="text-sm font-medium">Country</label>
                               <Input
+                                id="settings-country"
                                 value={profileForm.country}
                                 onChange={(e) => setProfileForm({ ...profileForm, country: e.target.value })}
                                 placeholder="United States"
@@ -457,16 +462,18 @@ export default function SettingsPage() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">Phone</label>
+                              <label htmlFor="settings-phone" className="text-sm font-medium">Phone</label>
                               <Input
+                                id="settings-phone"
                                 value={profileForm.contactPhone}
                                 onChange={(e) => setProfileForm({ ...profileForm, contactPhone: e.target.value })}
                                 placeholder="(555) 123-4567"
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">LinkedIn Profile</label>
+                              <label htmlFor="settings-linkedin" className="text-sm font-medium">LinkedIn Profile</label>
                               <Input
+                                id="settings-linkedin"
                                 value={profileForm.linkedInProfile}
                                 onChange={(e) => setProfileForm({ ...profileForm, linkedInProfile: e.target.value })}
                                 placeholder="https://linkedin.com/in/username"
@@ -475,15 +482,16 @@ export default function SettingsPage() {
                           </div>
 
                           <div className="space-y-2">
-                            <label className="text-sm font-medium">Bio</label>
+                            <label htmlFor="settings-bio" className="text-sm font-medium">Bio</label>
                             <textarea
-                              className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-vertical"
+                              id="settings-bio"
+                              className="w-full min-h-[100px] p-3 border border-input bg-background rounded-md focus:ring-2 focus:ring-ring focus:border-ring resize-y"
                               value={profileForm.bio}
                               onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
                               placeholder="Tell others about yourself, your interests, and your professional background..."
                               maxLength={500}
                             />
-                            <p className="text-xs text-gray-500">{profileForm.bio.length}/500 characters</p>
+                            <p className="text-xs text-muted-foreground">{profileForm.bio.length}/500 characters</p>
                           </div>
                         </div>
                       </div>
@@ -492,7 +500,7 @@ export default function SettingsPage() {
                         <Button
                           type="submit"
                           disabled={loading}
-                          className="bg-orange-500 hover:bg-orange-600 min-w-[120px]"
+                          className="bg-primary hover:bg-primary/90 min-w-[120px]"
                         >
                           {loading ? <LoadingSpinner size="sm" className="mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                           Save Profile
@@ -520,7 +528,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Direct Messages</p>
-                              <p className="text-sm text-gray-500">Receive email when someone sends you a message</p>
+                              <p className="text-sm text-muted-foreground">Receive email when someone sends you a message</p>
                             </div>
                             <Switch
                               checked={notificationSettings.emailMessages}
@@ -533,7 +541,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Job Recommendations</p>
-                              <p className="text-sm text-gray-500">Get notified about job opportunities matching your profile</p>
+                              <p className="text-sm text-muted-foreground">Get notified about job opportunities matching your profile</p>
                             </div>
                             <Switch
                               checked={notificationSettings.emailJobs}
@@ -546,7 +554,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Events & Announcements</p>
-                              <p className="text-sm text-gray-500">Stay informed about upcoming alumni events</p>
+                              <p className="text-sm text-muted-foreground">Stay informed about upcoming alumni events</p>
                             </div>
                             <Switch
                               checked={notificationSettings.emailEvents}
@@ -559,7 +567,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Group Activities</p>
-                              <p className="text-sm text-gray-500">Updates from groups you've joined</p>
+                              <p className="text-sm text-muted-foreground">Updates from groups you've joined</p>
                             </div>
                             <Switch
                               checked={notificationSettings.emailGroups}
@@ -577,7 +585,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Direct Messages</p>
-                              <p className="text-sm text-gray-500">Receive push notifications for new messages</p>
+                              <p className="text-sm text-muted-foreground">Receive push notifications for new messages</p>
                             </div>
                             <Switch
                               checked={notificationSettings.pushMessages}
@@ -590,7 +598,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Job Recommendations</p>
-                              <p className="text-sm text-gray-500">Get push notifications for job opportunities</p>
+                              <p className="text-sm text-muted-foreground">Get push notifications for job opportunities</p>
                             </div>
                             <Switch
                               checked={notificationSettings.pushJobs}
@@ -603,7 +611,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Events & Announcements</p>
-                              <p className="text-sm text-gray-500">Event reminders and announcements</p>
+                              <p className="text-sm text-muted-foreground">Event reminders and announcements</p>
                             </div>
                             <Switch
                               checked={notificationSettings.pushEvents}
@@ -616,7 +624,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Group Activities</p>
-                              <p className="text-sm text-gray-500">Notifications from your groups</p>
+                              <p className="text-sm text-muted-foreground">Notifications from your groups</p>
                             </div>
                             <Switch
                               checked={notificationSettings.pushGroups}
@@ -632,7 +640,7 @@ export default function SettingsPage() {
                         <Button
                           type="submit"
                           disabled={loading}
-                          className="bg-orange-500 hover:bg-orange-600 min-w-[140px]"
+                          className="bg-primary hover:bg-primary/90 min-w-[140px]"
                         >
                           {loading ? <LoadingSpinner size="sm" className="mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                           Save Preferences
@@ -665,13 +673,13 @@ export default function SettingsPage() {
                               value="public"
                               checked={privacySettings.profileVisibility === "public"}
                               onChange={() => setPrivacySettings({ ...privacySettings, profileVisibility: "public" })}
-                              className="h-4 w-4 text-orange-500"
+                              className="h-4 w-4 text-foreground"
                             />
                             <div className="flex-1">
                               <label htmlFor="visibility-public" className="block font-medium">Public</label>
-                              <p className="text-sm text-gray-500">Anyone on the internet can view your profile</p>
+                              <p className="text-sm text-muted-foreground">Anyone on the internet can view your profile</p>
                             </div>
-                            <Globe className="h-5 w-5 text-gray-500" />
+                            <Globe className="h-5 w-5 text-muted-foreground" />
                           </div>
 
                           <div className="flex items-center gap-4">
@@ -682,13 +690,13 @@ export default function SettingsPage() {
                               value="alumni"
                               checked={privacySettings.profileVisibility === "alumni"}
                               onChange={() => setPrivacySettings({ ...privacySettings, profileVisibility: "alumni" })}
-                              className="h-4 w-4 text-orange-500"
+                              className="h-4 w-4 text-foreground"
                             />
                             <div className="flex-1">
                               <label htmlFor="visibility-alumni" className="block font-medium">Alumni Only</label>
-                              <p className="text-sm text-gray-500">Only alumni from your school can view your profile</p>
+                              <p className="text-sm text-muted-foreground">Only alumni from your school can view your profile</p>
                             </div>
-                            <GraduationCap className="h-5 w-5 text-gray-500" />
+                            <GraduationCap className="h-5 w-5 text-muted-foreground" />
                           </div>
 
                           <div className="flex items-center gap-4">
@@ -699,13 +707,13 @@ export default function SettingsPage() {
                               value="connections"
                               checked={privacySettings.profileVisibility === "connections"}
                               onChange={() => setPrivacySettings({ ...privacySettings, profileVisibility: "connections" })}
-                              className="h-4 w-4 text-orange-500"
+                              className="h-4 w-4 text-foreground"
                             />
                             <div className="flex-1">
                               <label htmlFor="visibility-connections" className="block font-medium">Connections Only</label>
-                              <p className="text-sm text-gray-500">Only people you've connected with can view your full profile</p>
+                              <p className="text-sm text-muted-foreground">Only people you've connected with can view your full profile</p>
                             </div>
-                            <Users className="h-5 w-5 text-gray-500" />
+                            <Users className="h-5 w-5 text-muted-foreground" />
                           </div>
                         </div>
                       </div>
@@ -716,7 +724,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Show Email Address</p>
-                              <p className="text-sm text-gray-500">Allow others to see your email address</p>
+                              <p className="text-sm text-muted-foreground">Allow others to see your email address</p>
                             </div>
                             <Switch
                               checked={privacySettings.showEmail}
@@ -729,7 +737,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Show Phone Number</p>
-                              <p className="text-sm text-gray-500">Allow others to see your phone number</p>
+                              <p className="text-sm text-muted-foreground">Allow others to see your phone number</p>
                             </div>
                             <Switch
                               checked={privacySettings.showPhone}
@@ -747,7 +755,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Allow Messaging</p>
-                              <p className="text-sm text-gray-500">Let others send you direct messages</p>
+                              <p className="text-sm text-muted-foreground">Let others send you direct messages</p>
                             </div>
                             <Switch
                               checked={privacySettings.allowMessaging}
@@ -760,7 +768,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Allow Connection Requests</p>
-                              <p className="text-sm text-gray-500">Let others send you connection requests</p>
+                              <p className="text-sm text-muted-foreground">Let others send you connection requests</p>
                             </div>
                             <Switch
                               checked={privacySettings.allowConnection}
@@ -773,7 +781,7 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">Appear in Search Results</p>
-                              <p className="text-sm text-gray-500">Allow your profile to appear in the alumni directory</p>
+                              <p className="text-sm text-muted-foreground">Allow your profile to appear in the alumni directory</p>
                             </div>
                             <Switch
                               checked={privacySettings.allowProfileSearch}
@@ -789,7 +797,7 @@ export default function SettingsPage() {
                         <Button
                           type="submit"
                           disabled={loading}
-                          className="bg-orange-500 hover:bg-orange-600 min-w-[160px]"
+                          className="bg-primary hover:bg-primary/90 min-w-[160px]"
                         >
                           {loading ? <LoadingSpinner size="sm" className="mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                           Save Privacy Settings
@@ -812,8 +820,9 @@ export default function SettingsPage() {
                   <CardContent>
                     <form onSubmit={handlePasswordChange} className="space-y-4">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Current Password</label>
+                        <label htmlFor="settings-current-password" className="text-sm font-medium">Current Password</label>
                         <Input
+                          id="settings-current-password"
                           type="password"
                           value={passwordForm.currentPassword}
                           onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
@@ -822,21 +831,23 @@ export default function SettingsPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">New Password</label>
+                        <label htmlFor="settings-new-password" className="text-sm font-medium">New Password</label>
                         <Input
+                          id="settings-new-password"
                           type="password"
                           value={passwordForm.newPassword}
                           onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                           required
                         />
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           Must be at least 8 characters with a mix of letters, numbers, and symbols.
                         </p>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Confirm New Password</label>
+                        <label htmlFor="settings-confirm-password" className="text-sm font-medium">Confirm New Password</label>
                         <Input
+                          id="settings-confirm-password"
                           type="password"
                           value={passwordForm.confirmPassword}
                           onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
@@ -848,7 +859,7 @@ export default function SettingsPage() {
                         <Button
                           type="submit"
                           disabled={loading}
-                          className="bg-orange-500 hover:bg-orange-600 min-w-[140px]"
+                          className="bg-primary hover:bg-primary/90 min-w-[140px]"
                         >
                           {loading ? <LoadingSpinner size="sm" className="mr-2" /> : <Key className="h-4 w-4 mr-2" />}
                           Update Password
@@ -867,11 +878,11 @@ export default function SettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {sessionActivity.map((session, i) => (
-                        <div key={i} className="flex items-center justify-between py-3 border-b last:border-0">
+                      {sessionActivity.map((session) => (
+                        <div key={`${session.device}-${session.time}`} className="flex items-center justify-between py-3 border-b last:border-0">
                           <div className="flex items-center gap-3">
                             <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
                                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
                                 <line x1="8" y1="21" x2="16" y2="21"/>
                                 <line x1="12" y1="17" x2="12" y2="21"/>
@@ -884,7 +895,7 @@ export default function SettingsPage() {
                                   <Badge className="bg-green-100 text-green-800 text-xs">Current</Badge>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <span>{session.browser}</span>
                                 <span>•</span>
                                 <span>{session.location}</span>
@@ -923,14 +934,14 @@ export default function SettingsPage() {
               <div className="flex items-center mb-6">
                 <Avatar className="h-16 w-16 mr-4">
                   <AvatarImage src={currentUser.profileImage} />
-                  <AvatarFallback className="bg-orange-100 text-orange-800 text-xl">
+                  <AvatarFallback className="bg-primary/10 text-foreground/90 text-xl">
                     {currentUser.name?.charAt(0) || "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <h3 className="font-medium">{currentUser.name || "User"}</h3>
-                  <p className="text-sm text-gray-500">{currentUser.email || "user@example.com"}</p>
-                  <Badge className="mt-1 bg-orange-100 text-orange-800">Alumni</Badge>
+                  <p className="text-sm text-muted-foreground">{currentUser.email || "user@example.com"}</p>
+                  <Badge className="mt-1 bg-primary/10 text-foreground/90">Alumni</Badge>
                 </div>
               </div>
 
@@ -966,7 +977,7 @@ export default function SettingsPage() {
           <Card>
             <CardContent className="p-6">
               <h3 className="font-medium text-red-500 mb-2">Danger Zone</h3>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Actions here are permanent and cannot be undone. Please be careful.
               </p>
               <Button
@@ -983,7 +994,7 @@ export default function SettingsPage() {
           <Card>
             <CardContent className="p-6">
               <h3 className="font-medium mb-2">Need Help?</h3>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 If you're having trouble with your account settings, our support team is here to help.
               </p>
               <Button

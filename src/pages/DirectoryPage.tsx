@@ -1,28 +1,23 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
-import { 
-  Briefcase, 
-  MapPin, 
+import {
+  MapPin,
   Search,
   GraduationCap,
   User,
   Filter,
   SortAsc,
-  Calendar,
   MessageSquare,
   Users,
   Building,
-  Bookmark
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import apiService from "@/services/apiService";
 import { useToast } from "@/hooks/use-toast";
 
@@ -42,8 +37,8 @@ interface AlumniUser {
 
 export default function DirectoryPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
-  const { currentUser } = useAuth();
   const [alumni, setAlumni] = useState<AlumniUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -72,89 +67,65 @@ export default function DirectoryPage() {
   ];
 
   useEffect(() => {
-    loadAlumni();
-  }, []);
+    const urlSearch = searchParams.get('search') || "";
+    setSearchQuery(urlSearch);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      loadAlumni();
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [searchQuery, filterYear, filterLocation]);
+
+  useEffect(() => {
+    const currentSearch = searchParams.get('search') || '';
+    const normalizedSearch = searchQuery.trim();
+
+    if (currentSearch === normalizedSearch) {
+      return;
+    }
+
+    const next = new URLSearchParams(searchParams);
+    if (normalizedSearch) {
+      next.set('search', normalizedSearch);
+    } else {
+      next.delete('search');
+    }
+    setSearchParams(next, { replace: true });
+  }, [searchQuery, searchParams, setSearchParams]);
 
   const loadAlumni = async () => {
     try {
       setLoading(true);
-      // In a real implementation, we'd call the API
-      const response = await new Promise<{success: boolean; data: AlumniUser[]}>(resolve => {
-        setTimeout(() => {
-          resolve({
-            success: true,
-            data: [
-              {
-                id: "user1",
-                name: "Emily Rodriguez",
-                profileImage: "",
-                title: "Product Manager",
-                company: "Google",
-                location: "San Francisco, CA",
-                graduationYear: 2020,
-                skills: ["Product Strategy", "User Research", "Agile"],
-                industry: "Technology",
-                connectionStatus: "connected"
-              },
-              {
-                id: "user2",
-                name: "Michael Chen",
-                profileImage: "",
-                title: "Investment Analyst",
-                company: "Goldman Sachs",
-                location: "New York, NY",
-                graduationYear: 2019,
-                skills: ["Financial Modeling", "Valuation", "Data Analysis"],
-                industry: "Finance",
-                connectionStatus: "none"
-              },
-              {
-                id: "user3",
-                name: "Sophia Williams",
-                profileImage: "",
-                title: "Software Engineer",
-                company: "Microsoft",
-                location: "Seattle, WA",
-                graduationYear: 2021,
-                skills: ["JavaScript", "React", "Node.js"],
-                industry: "Technology",
-                connectionStatus: "pending"
-              },
-              {
-                id: "user4",
-                name: "David Kim",
-                profileImage: "",
-                title: "Medical Researcher",
-                company: "Mayo Clinic",
-                location: "Chicago, IL",
-                graduationYear: 2018,
-                skills: ["Clinical Trials", "Biostatistics", "Research Methods"],
-                industry: "Healthcare",
-                connectionStatus: "none"
-              },
-              {
-                id: "user5",
-                name: "Olivia Johnson",
-                profileImage: "",
-                title: "Marketing Director",
-                company: "Nike",
-                location: "Austin, TX",
-                graduationYear: 2017,
-                skills: ["Brand Strategy", "Digital Marketing", "Consumer Insights"],
-                industry: "Retail",
-                connectionStatus: "none"
-              }
-            ]
-          });
-        }, 1000);
-      });
+      const query: any = {
+        limit: 100,
+      };
+      if (searchQuery) query.search = searchQuery;
+      if (filterYear) query.graduationYear = String(filterYear);
+      if (filterLocation) query.location = filterLocation;
+      const response = await apiService.getAlumniDirectory(query);
       
       if (response.success) {
-        setAlumni(response.data);
+        const users = response.data || response.users || [];
+        setAlumni(users.map((u: any) => ({
+          ...u,
+          id: u.id || u._id,
+          name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Alumni Member',
+          profileImage: u.profileImage,
+          title: u.jobTitle || u.headline || u.currentRole || u.title,
+          company: u.company,
+          location: u.location,
+          graduationYear: u.graduationYear || (u.admissionYear ? Number(u.admissionYear) : undefined),
+          skills: u.skills || [],
+          industry: u.industry,
+          bio: u.bio
+        })));
       }
     } catch (error) {
       console.error("Error loading alumni:", error);
-      toast({ title: "Error", description: "Failed to load alumni directory.", variant: "destructive" });
+      toast({ description: "Failed to load directory", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -162,10 +133,11 @@ export default function DirectoryPage() {
 
   const filteredAlumni = useMemo(() => 
     alumni.filter(person => {
+      const normalizedQuery = searchQuery.toLowerCase();
       const matchesSearch = !searchQuery || 
-        person.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        (person.title && person.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (person.company && person.company.toLowerCase().includes(searchQuery.toLowerCase()));
+        (person.name || '').toLowerCase().includes(normalizedQuery) || 
+        person.title?.toLowerCase().includes(normalizedQuery) ||
+        person.company?.toLowerCase().includes(normalizedQuery);
       
       const matchesIndustry = !filterIndustry || person.industry === filterIndustry;
       const matchesYear = !filterYear || person.graduationYear === filterYear;
@@ -202,14 +174,14 @@ export default function DirectoryPage() {
     <div className="container mx-auto p-4 sm:p-6">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-800">Alumni Directory</h1>
-        <p className="text-md text-gray-500 mt-1">Connect with alumni from your school across different industries and graduating classes.</p>
+        <h1 className="text-3xl md:text-4xl font-bold text-foreground/90">Alumni Directory</h1>
+        <p className="text-md text-muted/300 mt-1">Connect with alumni from your school across different industries and graduating classes.</p>
       </div>
 
       {/* Search and Filters */}
       <div className="mb-8 flex flex-col md:flex-row gap-4">
         <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search by name, title, or company..."
@@ -244,14 +216,14 @@ export default function DirectoryPage() {
       <div className="mb-8">
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Filter by Industry</h3>
+            <h3 className="text-sm font-medium text-muted/300 mb-2">Filter by Industry</h3>
             <div className="flex flex-wrap gap-2">
               {industries.map(industry => (
                 <Button
                   key={industry}
                   variant={filterIndustry === industry ? "default" : "outline"}
                   size="sm"
-                  className={filterIndustry === industry ? "bg-orange-500 hover:bg-orange-600" : ""}
+                  className={filterIndustry === industry ? "bg-primary hover:bg-primary/90" : ""}
                   onClick={() => setFilterIndustry(filterIndustry === industry ? null : industry)}
                 >
                   {industry}
@@ -263,14 +235,14 @@ export default function DirectoryPage() {
 
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Graduation Year</h3>
+            <h3 className="text-sm font-medium text-muted/300 mb-2">Graduation Year</h3>
             <div className="flex flex-wrap gap-2">
               {graduationYears.slice(0, 5).map(year => (
                 <Button
                   key={year}
                   variant={filterYear === year ? "default" : "outline"}
                   size="sm"
-                  className={filterYear === year ? "bg-orange-500 hover:bg-orange-600" : ""}
+                  className={filterYear === year ? "bg-primary hover:bg-primary/90" : ""}
                   onClick={() => setFilterYear(filterYear === year ? null : year)}
                 >
                   {year}
@@ -280,14 +252,14 @@ export default function DirectoryPage() {
           </div>
           
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Location</h3>
+            <h3 className="text-sm font-medium text-muted/300 mb-2">Location</h3>
             <div className="flex flex-wrap gap-2">
               {locations.map(location => (
                 <Button
                   key={location}
                   variant={filterLocation === location ? "default" : "outline"}
                   size="sm"
-                  className={filterLocation === location ? "bg-orange-500 hover:bg-orange-600" : ""}
+                  className={filterLocation === location ? "bg-primary hover:bg-primary/90" : ""}
                   onClick={() => setFilterLocation(filterLocation === location ? null : location)}
                 >
                   {location}
@@ -302,7 +274,7 @@ export default function DirectoryPage() {
             variant="ghost"
             size="sm"
             onClick={handleClearFilters}
-            className="text-orange-500 hover:text-orange-600"
+            className="text-foreground hover:text-foreground/90"
           >
             Clear all filters
           </Button>
@@ -313,7 +285,7 @@ export default function DirectoryPage() {
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <LoadingSpinner size="lg" />
-          <span className="ml-3 text-gray-600">Loading alumni directory...</span>
+          <span className="ml-3 text-muted-foreground">Loading alumni directory...</span>
         </div>
       ) : filteredAlumni.length === 0 ? (
         <EmptyState
@@ -332,13 +304,13 @@ export default function DirectoryPage() {
                 <div className="flex items-center gap-4 mb-4">
                   <Avatar className="h-14 w-14">
                     <AvatarImage src={person.profileImage} />
-                    <AvatarFallback className="bg-orange-100 text-orange-800">
+                    <AvatarFallback className="bg-primary/10 text-foreground/90">
                       {person.name.split(' ').map(n => n[0]).join('')}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h3 className="font-semibold text-gray-800">{person.name}</h3>
-                    <p className="text-sm text-gray-600">{person.title}</p>
+                    <h3 className="font-semibold text-foreground/90">{person.name}</h3>
+                    <p className="text-sm text-muted-foreground">{person.title}</p>
                     {person.industry && (
                       <Badge variant="secondary" className="mt-1 text-xs">
                         {person.industry}
@@ -349,21 +321,21 @@ export default function DirectoryPage() {
                 
                 <div className="space-y-3 mb-4">
                   {person.company && (
-                    <div className="flex items-center text-sm text-gray-600">
+                    <div className="flex items-center text-sm text-muted-foreground">
                       <Building className="h-4 w-4 mr-2" />
                       <span>{person.company}</span>
                     </div>
                   )}
                   
                   {person.location && (
-                    <div className="flex items-center text-sm text-gray-600">
+                    <div className="flex items-center text-sm text-muted-foreground">
                       <MapPin className="h-4 w-4 mr-2" />
                       <span>{person.location}</span>
                     </div>
                   )}
                   
                   {person.graduationYear && (
-                    <div className="flex items-center text-sm text-gray-600">
+                    <div className="flex items-center text-sm text-muted-foreground">
                       <GraduationCap className="h-4 w-4 mr-2" />
                       <span>Class of {person.graduationYear}</span>
                     </div>
@@ -372,7 +344,7 @@ export default function DirectoryPage() {
                 
                 {person.skills && person.skills.length > 0 && (
                   <div className="mb-4">
-                    <div className="text-sm font-medium text-gray-600 mb-1">Skills</div>
+                    <div className="text-sm font-medium text-muted-foreground mb-1">Skills</div>
                     <div className="flex flex-wrap gap-1">
                       {person.skills.map(skill => (
                         <Badge key={skill} variant="outline" className="text-xs">

@@ -57,12 +57,12 @@ const updateProfileValidation = [
     .isLength({ max: 100 })
     .withMessage('Job title must not exceed 100 characters'),
   body('contactEmail')
-    .optional()
+    .optional({ checkFalsy: true })
     .isEmail()
     .normalizeEmail()
     .withMessage('Please provide a valid contact email'),
   body('linkedInProfile')
-    .optional()
+    .optional({ checkFalsy: true })
     .isURL()
     .withMessage('Please provide a valid LinkedIn URL')
 ];
@@ -95,6 +95,15 @@ router.get('/me', authMiddleware, async (req: any, res: any, next: any) => {
     // Use the current user's ID from the auth middleware
     req.params.userId = req.user._id || req.user.id;
     await getUserById(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/me', authMiddleware, updateProfileValidation, validate, async (req: any, res: any, next: any) => {
+  try {
+    req.params.userId = req.user._id || req.user.id;
+    await updateUserProfile(req, res, next);
   } catch (error) {
     next(error);
   }

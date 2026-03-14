@@ -59,7 +59,6 @@ export interface Company {
 
 export interface Job {
   id: string;
-  _id?: string; // For MongoDB compatibility
   title: string;
   company: string | Company;
   location: string;

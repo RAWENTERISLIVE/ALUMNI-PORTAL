@@ -1,0 +1,203 @@
+{
+  "tasks": [
+    {
+      "id": "TASK-mghjqfpl-52q9s",
+      "title": "1. Test User Registration Backend Endpoint",
+      "description": "Verify that the user registration endpoint at /api/auth/register is working correctly by testing with valid and invalid data. Check if the backend server is running and properly connected to MongoDB.",
+      "details": "- Start the backend server if not running\n- Test registration with valid admission number\n- Test registration with manual verification\n- Test duplicate email validation\n- Test invalid admission number format\n- Check database connection and user creation\n- Verify response status codes and error messages",
+      "testStrategy": "Run backend server, send POST requests to /api/auth/register endpoint with various test cases, verify responses and database entries",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": [],
+      "createdAt": "2025-10-08T05:26:38.601Z",
+      "updatedAt": "2025-10-08T05:26:38.601Z"
+    },
+    {
+      "id": "TASK-mghjqfw7-au37u",
+      "title": "2. Verify Frontend-Backend API Connection",
+      "description": "Check that the frontend can successfully communicate with the backend API. Verify CORS settings, API base URL configuration, and network connectivity.",
+      "details": "- Check VITE_API_URL environment variable in frontend\n- Verify backend CORS configuration allows frontend origin\n- Test OPTIONS preflight requests\n- Check network tab in browser devtools\n- Verify API base URL matches backend server port\n- Test with both localhost and 127.0.0.1",
+      "testStrategy": "Start both frontend and backend servers, monitor network requests in browser devtools, verify successful API calls",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": [
+        "1. Test User Registration Backend Endpoint"
+      ],
+      "createdAt": "2025-10-08T05:26:38.839Z",
+      "updatedAt": "2025-10-08T05:26:38.839Z"
+    },
+    {
+      "id": "TASK-mghjqg29-51epf",
+      "title": "3. Test Frontend Registration Form Integration",
+      "description": "Test the complete registration flow from the frontend UI, ensuring form data is properly sent to the backend and responses are correctly handled.",
+      "details": "- Test RegisterPage.tsx form submission\n- Verify form validation (email, password, name)\n- Test admission number input\n- Test manual verification flow\n- Check AuthContext register function\n- Verify apiService.register() method\n- Test success/error toast notifications\n- Check navigation after registration",
+      "testStrategy": "Fill out registration form in browser, submit, verify API calls in network tab, check toast notifications and navigation",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": [
+        "2. Verify Frontend-Backend API Connection"
+      ],
+      "createdAt": "2025-10-08T05:26:39.057Z",
+      "updatedAt": "2025-10-08T05:26:39.057Z"
+    },
+    {
+      "id": "TASK-mghjqg7p-no0xa",
+      "title": "4. Test User Login Flow",
+      "description": "Verify complete login functionality including authentication, token management, and user session handling.",
+      "details": "- Test login endpoint /api/auth/login\n- Verify JWT token generation and storage\n- Test access token and refresh token flow\n- Check user data storage in localStorage\n- Test AuthContext login function\n- Verify navigation based on user role\n- Test \"remember me\" functionality if exists\n- Check protected route access after login",
+      "testStrategy": "Register a test user, login with credentials, verify tokens in localStorage, check protected routes access",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": [
+        "3. Test Frontend Registration Form Integration"
+      ],
+      "createdAt": "2025-10-08T05:26:39.253Z",
+      "updatedAt": "2025-10-08T05:26:39.253Z"
+    },
+    {
+      "id": "TASK-mghjqgf2-1hsyu",
+      "title": "5. Integrate User Profile Management",
+      "description": "Connect frontend profile pages with backend profile APIs to allow users to view and update their profiles.",
+      "details": "- Test GET /api/auth/me endpoint\n- Test GET /api/users/:id endpoint\n- Test PUT /api/users/:id endpoint\n- Connect ProfilePage.tsx with backend APIs\n- Implement profile image upload\n- Test profile update functionality\n- Verify authorization for profile updates\n- Handle profile data validation",
+      "testStrategy": "Login as user, navigate to profile page, update profile fields, verify changes persist in database",
+      "status": "pending",
+      "priority": "medium",
+      "dependencies": [
+        "4. Test User Login Flow"
+      ],
+      "createdAt": "2025-10-08T05:26:39.518Z",
+      "updatedAt": "2025-10-08T05:26:39.518Z"
+    },
+    {
+      "id": "TASK-mghjqgnh-0yr3q",
+      "title": "6. Integrate Posts/Feed Functionality",
+      "description": "Connect frontend posts/feed UI with backend posts API for creating, reading, updating, and deleting posts.",
+      "details": "- Test GET /api/posts endpoint (list posts)\n- Test POST /api/posts endpoint (create post)\n- Test PUT /api/posts/:id endpoint (update post)\n- Test DELETE /api/posts/:id endpoint (delete post)\n- Connect PostsPage.tsx with backend APIs\n- Implement post creation form\n- Implement post editing functionality\n- Add post deletion with confirmation\n- Test pagination and filtering",
+      "testStrategy": "Create, read, update, and delete posts through UI, verify operations in database, test pagination",
+      "status": "pending",
+      "priority": "medium",
+      "dependencies": [
+        "4. Test User Login Flow"
+      ],
+      "createdAt": "2025-10-08T05:26:39.821Z",
+      "updatedAt": "2025-10-08T05:26:39.821Z"
+    },
+    {
+      "id": "TASK-mghjqgvo-7r2ig",
+      "title": "7. Integrate Jobs Functionality",
+      "description": "Connect frontend jobs pages with backend jobs API for job posting and searching.",
+      "details": "- Test GET /api/jobs endpoint\n- Test POST /api/jobs endpoint\n- Test PUT /api/jobs/:id endpoint\n- Test DELETE /api/jobs/:id endpoint\n- Connect JobsPage.tsx with backend APIs\n- Implement job creation form\n- Implement job search and filter\n- Test job application flow if exists\n- Verify job ownership and permissions",
+      "testStrategy": "Post jobs, search/filter jobs, apply to jobs, verify all operations work correctly",
+      "status": "pending",
+      "priority": "medium",
+      "dependencies": [
+        "4. Test User Login Flow"
+      ],
+      "createdAt": "2025-10-08T05:26:40.116Z",
+      "updatedAt": "2025-10-08T05:26:40.116Z"
+    },
+    {
+      "id": "TASK-mghjqh2g-m4ref",
+      "title": "8. Integrate Events Functionality",
+      "description": "Connect frontend events pages with backend events API for event management.",
+      "details": "- Test GET /api/events endpoint\n- Test POST /api/events endpoint\n- Test PUT /api/events/:id endpoint\n- Test DELETE /api/events/:id endpoint\n- Connect events UI components with backend\n- Implement event creation form\n- Test event RSVP functionality\n- Verify event permissions",
+      "testStrategy": "Create events, RSVP to events, update/delete events, verify all operations",
+      "status": "pending",
+      "priority": "low",
+      "dependencies": [
+        "4. Test User Login Flow"
+      ],
+      "createdAt": "2025-10-08T05:26:40.360Z",
+      "updatedAt": "2025-10-08T05:26:40.360Z"
+    },
+    {
+      "id": "TASK-mghjqh9g-ch49r",
+      "title": "9. Integrate Groups Functionality",
+      "description": "Connect frontend groups pages with backend groups API for group management and membership.",
+      "details": "- Test GET /api/groups endpoint\n- Test POST /api/groups endpoint\n- Test PUT /api/groups/:id endpoint\n- Test DELETE /api/groups/:id endpoint\n- Connect GroupsPage.tsx with backend APIs\n- Implement group creation form\n- Test group join/leave functionality\n- Verify group membership and roles",
+      "testStrategy": "Create groups, join/leave groups, post in groups, verify group permissions",
+      "status": "pending",
+      "priority": "low",
+      "dependencies": [
+        "4. Test User Login Flow"
+      ],
+      "createdAt": "2025-10-08T05:26:40.612Z",
+      "updatedAt": "2025-10-08T05:26:40.612Z"
+    },
+    {
+      "id": "TASK-mghjqhg4-1oy9l",
+      "title": "10. Integrate Mentorship Functionality",
+      "description": "Connect frontend mentorship pages with backend mentorship API for mentor-mentee connections.",
+      "details": "- Test GET /api/mentorship endpoint\n- Test POST /api/mentorship endpoint\n- Connect MentorshipPage.tsx with backend APIs\n- Implement mentor search/filter\n- Test mentorship request flow\n- Verify mentorship status updates",
+      "testStrategy": "Search mentors, send mentorship requests, accept/decline requests, verify all flows",
+      "status": "pending",
+      "priority": "low",
+      "dependencies": [
+        "4. Test User Login Flow"
+      ],
+      "createdAt": "2025-10-08T05:26:40.852Z",
+      "updatedAt": "2025-10-08T05:26:40.852Z"
+    },
+    {
+      "id": "TASK-mghjqhn7-phac6",
+      "title": "11. Test Admin Dashboard Integration",
+      "description": "Verify admin functionality for user approval, role management, and system monitoring.",
+      "details": "- Test GET /api/admin/users endpoint\n- Test PUT /api/admin/users/:id/approve endpoint\n- Test PUT /api/admin/users/:id/role endpoint\n- Connect AdminPage.tsx with backend APIs\n- Test user approval workflow\n- Test role assignment\n- Verify admin-only access\n- Test analytics and reporting features",
+      "testStrategy": "Login as super admin, approve users, assign roles, verify permissions and restrictions",
+      "status": "pending",
+      "priority": "medium",
+      "dependencies": [
+        "4. Test User Login Flow"
+      ],
+      "createdAt": "2025-10-08T05:26:41.107Z",
+      "updatedAt": "2025-10-08T05:26:41.107Z"
+    },
+    {
+      "id": "TASK-mghjqhug-bf2sg",
+      "title": "12. Comprehensive End-to-End Testing",
+      "description": "Perform complete end-to-end testing of all integrated features to ensure the entire application works seamlessly.",
+      "details": "- Test complete user journey: register → login → profile → posts → jobs → events → groups → mentorship\n- Test error handling across all features\n- Test token refresh mechanism\n- Test logout and session management\n- Verify responsive design on different devices\n- Test edge cases and boundary conditions\n- Check console for errors\n- Verify all API calls succeed\n- Test concurrent operations",
+      "testStrategy": "Manual testing of complete user flows, automated test execution if tests exist, cross-browser testing, performance monitoring",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": [
+        "5. Integrate User Profile Management",
+        "6. Integrate Posts/Feed Functionality",
+        "7. Integrate Jobs Functionality",
+        "8. Integrate Events Functionality",
+        "9. Integrate Groups Functionality",
+        "10. Integrate Mentorship Functionality",
+        "11. Test Admin Dashboard Integration"
+      ],
+      "createdAt": "2025-10-08T05:26:41.368Z",
+      "updatedAt": "2025-10-08T05:26:41.368Z"
+    },
+    {
+      "id": "TASK-mghk771k-accc1",
+      "title": "TASK 1 COMPLETED: Registration Backend Working",
+      "description": "Backend registration endpoint has been tested and verified working. All validation scenarios pass correctly including: valid admission number, manual verification, duplicate email detection, and missing fields validation.",
+      "details": "✅ Tested scenarios:\n- Valid registration with admission number: SUCCESS\n- Manual verification registration: SUCCESS\n- Duplicate email validation: SUCCESS (properly rejected)\n- Invalid format validation: Working\n- MongoDB connection: WORKING\n- Both servers running on ports 5000 (backend) and 8080 (frontend)",
+      "testStrategy": "Completed - All curl tests passed successfully",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": [],
+      "createdAt": "2025-10-08T05:39:40.520Z",
+      "updatedAt": "2025-10-08T05:39:40.520Z"
+    },
+    {
+      "id": "TASK-mghmdcn1-5d1pk",
+      "title": "Frontend-backend integration pass",
+      "description": "Review each frontend feature, ensure API calls hit the backend, update services/components as needed, and verify flows end-to-end.",
+      "details": "",
+      "testStrategy": "",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": [],
+      "createdAt": "2025-10-08T06:40:26.941Z",
+      "updatedAt": "2025-10-08T06:40:26.941Z"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2025-10-08T06:40:26.941Z"
+  }
+}

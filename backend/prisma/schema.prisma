@@ -1,0 +1,350 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Status {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum Visibility {
+  PUBLIC
+  ALUMNI
+  CONNECTIONS
+  ALUMNI_ONLY
+  FACULTY_ONLY
+  CONNECTIONS_ONLY
+}
+
+model User {
+  id                       String    @id @default(uuid())
+  email                    String    @unique
+  password                 String
+  name                     String
+  firstName                String?
+  lastName                 String?
+  admissionNumber          String
+  admissionYear            String
+  role                     Role      @default(USER)
+  status                   Status    @default(PENDING)
+  isVerified               Boolean   @default(false)
+  profileImage             String?
+  bio                      String?
+  headline                 String?
+  city                     String?
+  country                  String?
+  contactEmail             String?
+  contactPhone             String?
+  linkedInProfile          String?
+  company                  String?
+  jobTitle                 String?
+  isAvailableAsMentor      Boolean   @default(false)
+  location                 String?
+  lastLogin                DateTime?
+  refreshTokens            String[]
+  passwordResetToken       String?
+  passwordResetExpires     DateTime?
+  emailVerificationToken   String?
+  emailVerificationExpires DateTime?
+  needsManualVerification  Boolean   @default(false)
+  verificationDetails      String?
+
+  // Settings as JSON or separate relationships (using JSON for simplicity with Prisma/Postgres)
+  notificationSettings Json?
+  privacySettings      Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  posts         Post[]         @relation("UserPosts")
+  jobsPosted    Job[]          @relation("JobPostedBy")
+  savedJobs     Job[]          @relation("SavedJobs")
+  comments      Comment[]      @relation("UserComments")
+  commentLikes  Comment[]      @relation("CommentLikes")
+  postReactions PostReaction[]
+  postBookmarks Post[]         @relation("BookmarkedPosts")
+  postMentions  Post[]         @relation("PostMentions")
+
+  // Connections (self-relation)
+  connections User[] @relation("UserConnections")
+  connectedTo User[] @relation("UserConnections")
+
+  // Additional relationships
+  mentorshipProfile MentorshipProfile? @relation("UserMentorshipProfile")
+  mentorshipRequestsAsMentee MentorshipRequest[] @relation("MenteeRequests")
+  eventsOrganized   Event[]            @relation("EventOrganizer")
+  eventsAttended    Event[]            @relation("EventAttendees")
+  groupsCreated     Group[]            @relation("GroupCreator")
+  groupsJoined      Group[]            @relation("GroupMembers")
+  groupMessages     GroupMessage[]     @relation("GroupMessageAuthor")
+  reportsSubmitted  Report[]           @relation("ReportedBy")
+  reportsAgainst    Report[]           @relation("ReportedUser")
+  reportsReviewed   Report[]           @relation("ReviewedBy")
+  filesUploaded     File[]             @relation("FileUploader")
+}
+
+model Post {
+  id             String   @id @default(uuid())
+  title          String?
+  content        String
+  authorId       String
+  author         User     @relation("UserPosts", fields: [authorId], references: [id])
+  category       String   @default("general")
+  isFeatured     Boolean  @default(false)
+  isSchoolUpdate Boolean  @default(false)
+  visibility     String   @default("public")
+  tags           String[]
+  attachments    Json? // [{type, url, name, size, extension}]
+  externalLinks  String[]
+
+  // Shared post
+  sharedPostId String?
+  sharedPost   Post?   @relation("SharedPost", fields: [sharedPostId], references: [id])
+  sharedBy     Post[]  @relation("SharedPost")
+  shareType    String?
+  shareCount   Int     @default(0)
+
+  // Computed/cached
+  commentCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  reactions PostReaction[]
+  bookmarks User[]         @relation("BookmarkedPosts")
+  comments  Comment[]      @relation("PostComments")
+  mentions  User[]         @relation("PostMentions")
+}
+
+model PostReaction {
+  id     String @id @default(uuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   String @default("like") // 'like', 'love', 'celebrate', etc.
+
+  @@unique([postId, userId]) // User can only react once per post
+}
+
+model Comment {
+  id       String @id @default(uuid())
+  content  String
+  authorId String
+  author   User   @relation("UserComments", fields: [authorId], references: [id])
+  postId   String
+  post     Post   @relation("PostComments", fields: [postId], references: [id], onDelete: Cascade)
+
+  // Recursive replies
+  parentCommentId String?
+  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id])
+  replies         Comment[] @relation("CommentReplies")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  likes User[] @relation("CommentLikes")
+}
+
+model Job {
+  id                  String    @id @default(uuid())
+  title               String
+  company             String
+  location            String
+  type                String // 'full-time', 'part-time', etc.
+  salaryRangeMin      Float?
+  salaryRangeMax      Float?
+  salaryCurrency      String    @default("USD")
+  description         String
+  requirements        String[]
+  benefits            String[]
+  postedById          String
+  postedBy            User      @relation("JobPostedBy", fields: [postedById], references: [id])
+  postedByName        String
+  applicationUrl      String?
+  contactEmail        String?
+  isAlumniReferral    Boolean   @default(true)
+  applicationDeadline DateTime?
+  isActive            Boolean   @default(true)
+  applicationCount    Int       @default(0)
+  tags                String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  savedBy User[] @relation("SavedJobs")
+}
+
+model MentorshipProfile {
+  id              String  @id @default(uuid())
+  userId          String  @unique
+  user            User    @relation("UserMentorshipProfile", fields: [userId], references: [id], onDelete: Cascade)
+  isMentor        Boolean @default(false)
+  isSeekingMentor Boolean @default(false)
+
+  // Mentor fields
+  expertise            String[]
+  experience           String?
+  industry             String?
+  company              String?
+  position             String?
+  yearsOfExperience    Int      @default(0)
+  bio                  String?
+  availability         String   @default("medium")
+  preferredMenteeLevel String[]
+  maxMentees           Int      @default(3)
+  currentMentees       Int      @default(0)
+
+  // Mentee fields
+  careerGoals               String[]
+  currentLevel              String?
+  interestedFields          String[]
+  mentorshipGoals           String?
+  preferredMentorExperience String?
+
+  // Common fields
+  communicationPreferences String[]
+  timezone                 String   @default("UTC")
+  linkedInUrl              String?
+  portfolioUrl             String?
+
+  isActive          Boolean @default(true)
+  rating            Float   @default(0)
+  totalRatings      Int     @default(0)
+  successfulMatches Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  mentorshipRequests MentorshipRequest[] @relation("MentorRequests")
+}
+
+model Event {
+  id            String    @id @default(uuid())
+  title         String
+  description   String
+  date          DateTime
+  endDate       DateTime?
+  time          String
+  location      String
+  organizerId   String
+  organizer     User      @relation("EventOrganizer", fields: [organizerId], references: [id])
+  attendees     User[]    @relation("EventAttendees")
+  maxAttendees  Int?
+  isVirtual     Boolean   @default(false)
+  meetingLink   String?
+  category      String    @default("other")
+  status        String    @default("upcoming")
+  imageUrl      String?
+  isSchoolEvent Boolean   @default(false)
+  tags          String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Group {
+  id           String   @id @default(uuid())
+  name         String
+  description  String
+  creatorId    String
+  creator      User     @relation("GroupCreator", fields: [creatorId], references: [id])
+  members      User[]   @relation("GroupMembers")
+  privacy      String   @default("public")
+  memberCount  Int      @default(0) // Although we can count members, caching it is fine
+  category     String   @default("professional")
+  lastActivity DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages GroupMessage[] @relation("GroupMessages")
+}
+
+model GroupMessage {
+  id          String   @id @default(uuid())
+  groupId     String
+  group       Group    @relation("GroupMessages", fields: [groupId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User     @relation("GroupMessageAuthor", fields: [authorId], references: [id])
+  content     String
+  messageType String   @default("text")
+  attachments String[]
+
+  replyToId String?
+  replyTo   GroupMessage?  @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies   GroupMessage[] @relation("MessageReplies")
+
+  reactions Json? // [{emoji: string, users: string[]}]
+  isEdited  Boolean   @default(false)
+  editedAt  DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id             String  @id @default(uuid())
+  type           String
+  description    String
+  reason         String
+  reportedById   String
+  reportedBy     User    @relation("ReportedBy", fields: [reportedById], references: [id])
+  reportedUserId String?
+  reportedUser   User?   @relation("ReportedUser", fields: [reportedUserId], references: [id])
+
+  // To avoid circular or complex polymorphism in Prisma, we use string IDs for other types, or optional relations.
+  reportedPostId    String?
+  reportedCommentId String?
+  reportedGroupId   String?
+  reportedJobId     String?
+
+  status       String    @default("pending")
+  adminNotes   String?
+  reviewedById String?
+  reviewedBy   User?     @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model File {
+  id           String @id @default(uuid())
+  filename     String @unique
+  originalName String
+  mimetype     String
+  size         Int
+  path         String
+  url          String
+  uploadedById String
+  uploadedBy   User   @relation("FileUploader", fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MentorshipRequest {
+  id               String            @id @default(uuid())
+  menteeId         String
+  mentee           User              @relation("MenteeRequests", fields: [menteeId], references: [id], onDelete: Cascade)
+  mentorProfileId  String
+  mentor           MentorshipProfile @relation("MentorRequests", fields: [mentorProfileId], references: [id], onDelete: Cascade)
+  message          String?
+  status           String            @default("pending") // pending, accepted, rejected, completed
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}

@@ -100,7 +100,7 @@ export function PostReactions({ postId, userReaction, reactionsCount, onReaction
   const getReactionIcon = (reactionType: ReactionType | null) => {
     switch(reactionType) {
       case REACTIONS.LIKE:
-        return <ThumbsUp className={`h-4 w-4 ${userReaction === REACTIONS.LIKE ? 'text-blue-500 fill-blue-500' : ''}`} />;
+        return <ThumbsUp className={`h-4 w-4 ${userReaction === REACTIONS.LIKE ? 'text-foreground fill-primary' : ''}`} />;
       case REACTIONS.LOVE:
         return <Heart className={`h-4 w-4 ${userReaction === REACTIONS.LOVE ? 'text-red-500 fill-red-500' : ''}`} />;
       case REACTIONS.CELEBRATE:
@@ -110,7 +110,7 @@ export function PostReactions({ postId, userReaction, reactionsCount, onReaction
       case REACTIONS.FUNNY:
         return <Laugh className={`h-4 w-4 ${userReaction === REACTIONS.FUNNY ? 'text-green-500 fill-green-500' : ''}`} />;
       case REACTIONS.INSIGHTFUL:
-        return <LightbulbIcon className={`h-4 w-4 ${userReaction === REACTIONS.INSIGHTFUL ? 'text-orange-500 fill-orange-500' : ''}`} />;
+        return <LightbulbIcon className={`h-4 w-4 ${userReaction === REACTIONS.INSIGHTFUL ? 'text-foreground fill-primary' : ''}`} />;
       default:
         return <ThumbsUp className="h-4 w-4" />;
     }
@@ -130,13 +130,13 @@ export function PostReactions({ postId, userReaction, reactionsCount, onReaction
   // Get reaction color
   const getReactionColor = (type: string) => {
     switch(type) {
-      case REACTIONS.LIKE: return 'text-blue-500 bg-blue-50';
+      case REACTIONS.LIKE: return 'text-foreground bg-primary/5';
       case REACTIONS.LOVE: return 'text-red-500 bg-red-50';
       case REACTIONS.CELEBRATE: return 'text-yellow-500 bg-yellow-50';
       case REACTIONS.SUPPORT: return 'text-purple-500 bg-purple-50';
       case REACTIONS.FUNNY: return 'text-green-500 bg-green-50';
-      case REACTIONS.INSIGHTFUL: return 'text-orange-500 bg-orange-50';
-      default: return 'text-gray-500 bg-gray-50';
+      case REACTIONS.INSIGHTFUL: return 'text-foreground bg-primary/5';
+      default: return 'text-muted/300 bg-muted/30';
     }
   };
 
@@ -153,7 +153,7 @@ export function PostReactions({ postId, userReaction, reactionsCount, onReaction
             disabled={isSubmitting}
           >
             {getReactionIcon(userReaction)}
-            <span className={userReaction ? 'font-medium' : 'text-gray-600'}>
+            <span className={userReaction ? 'font-medium' : 'text-muted-foreground'}>
               {userReaction ? userReaction.charAt(0).toUpperCase() + userReaction.slice(1) : 'Like'}
             </span>
           </Button>
@@ -166,10 +166,10 @@ export function PostReactions({ postId, userReaction, reactionsCount, onReaction
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="p-2 hover:bg-blue-50 rounded-full"
+                    className="p-2 hover:bg-primary/5 rounded-full"
                     onClick={() => handleReaction(REACTIONS.LIKE as ReactionType)}
                   >
-                    <ThumbsUp className="h-6 w-6 text-blue-500 hover:scale-125 transition-transform" />
+                    <ThumbsUp className="h-6 w-6 text-foreground hover:scale-125 transition-transform" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
@@ -256,10 +256,10 @@ export function PostReactions({ postId, userReaction, reactionsCount, onReaction
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="p-2 hover:bg-orange-50 rounded-full"
+                    className="p-2 hover:bg-primary/5 rounded-full"
                     onClick={() => handleReaction(REACTIONS.INSIGHTFUL as ReactionType)}
                   >
-                    <LightbulbIcon className="h-6 w-6 text-orange-500 hover:scale-125 transition-transform" />
+                    <LightbulbIcon className="h-6 w-6 text-foreground hover:scale-125 transition-transform" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
@@ -286,7 +286,7 @@ export function PostReactions({ postId, userReaction, reactionsCount, onReaction
                     </div>
                   ))}
                 </div>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-muted/300">
                   {totalReactions}
                 </span>
               </div>

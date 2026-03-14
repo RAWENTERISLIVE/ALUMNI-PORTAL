@@ -47,10 +47,10 @@ export function PostList({
   if (posts.length === 0) {
     return (
       <EmptyState
-        icon={<MessageSquare className="h-12 w-12 text-orange-500" />}
+        icon={<MessageSquare className="h-12 w-12 text-foreground" />}
         title={emptyMessage}
         description={emptyDescription}
-        className="bg-gray-50 rounded-xl p-8 border border-gray-200"
+        className="bg-muted/30 rounded-xl p-8 border border-border"
       />
     );
   }

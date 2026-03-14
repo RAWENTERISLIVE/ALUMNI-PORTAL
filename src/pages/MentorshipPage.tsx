@@ -10,10 +10,8 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { BecomeMentorForm } from "@/components/mentorship/BecomeMentorForm";
 import { RequestMentorshipModal } from "@/components/mentorship/RequestMentorshipModal";
-import { Search, Calendar, MessageSquare, Filter, GraduationCap, Users, Briefcase, Tag, Star, Clock } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { Search, Calendar, MessageSquare, GraduationCap, Briefcase, Star, Clock } from "lucide-react";
 import apiService from "@/services/apiService";
-import { ApiResponse } from "@/types";
 
 // Mock data for mentors until we can fetch from API
 const CATEGORIES = ["Career Guidance", "Industry Insights", "Technical Skills", "Entrepreneurship", "Leadership", "Graduate Studies"];
@@ -21,7 +19,6 @@ const YEARS_OF_EXPERIENCE = ["1-3 years", "3-5 years", "5-10 years", "10+ years"
 
 function MentorshipPage() {
   const { toast } = useToast();
-  const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedExperience, setSelectedExperience] = useState<string | null>(null);
@@ -40,64 +37,12 @@ function MentorshipPage() {
   const loadMentors = async () => {
     try {
       setLoading(true);
-      // In a real implementation, we'd call the API
-      const response = await new Promise<ApiResponse>(resolve => {
-        setTimeout(() => {
-          resolve({
-            success: true,
-            data: [
-              {
-                id: "1",
-                user: {
-                  id: "u1",
-                  name: "Alex Johnson",
-                  profileImage: "",
-                  title: "Senior Software Engineer at TechCorp",
-                  graduationYear: 2018,
-                },
-                expertise: ["Career Guidance", "Technical Skills"],
-                experience: "5-10 years",
-                bio: "Experienced software engineer specializing in cloud architecture and distributed systems. Happy to help recent grads navigate the tech industry.",
-                availability: "Weekday evenings",
-                rating: 4.8,
-                reviewCount: 24
-              },
-              {
-                id: "2",
-                user: {
-                  id: "u2",
-                  name: "Priya Patel",
-                  profileImage: "",
-                  title: "Product Manager at Innovation Inc",
-                  graduationYear: 2016,
-                },
-                expertise: ["Leadership", "Industry Insights"],
-                experience: "3-5 years",
-                bio: "Product leader with experience in taking products from concept to market. Can provide guidance on transitioning from engineering to product roles.",
-                availability: "Weekend mornings",
-                rating: 4.9,
-                reviewCount: 32
-              },
-              {
-                id: "3",
-                user: {
-                  id: "u3",
-                  name: "Marcus Williams",
-                  profileImage: "",
-                  title: "Founder & CEO at StartUp",
-                  graduationYear: 2012,
-                },
-                expertise: ["Entrepreneurship", "Leadership"],
-                experience: "10+ years",
-                bio: "Serial entrepreneur with multiple successful exits. Passionate about helping the next generation of business leaders.",
-                availability: "Flexible scheduling",
-                rating: 4.7,
-                reviewCount: 18
-              }
-            ]
-          });
-        }, 1000);
-      });
+      const query: any = {};
+      if (searchQuery) query.search = searchQuery;
+      if (selectedCategory) query.expertise = selectedCategory;
+      if (selectedExperience) query.experience = selectedExperience;
+      
+      const response = await apiService.getMentors(query);
       
       if (response.success) {
         setMentors(response.data || []);
@@ -112,54 +57,23 @@ function MentorshipPage() {
 
   const loadMyMentorships = async () => {
     try {
-      // In a real implementation, we'd call the API
-      const response = await new Promise<ApiResponse>(resolve => {
-        setTimeout(() => {
-          resolve({
-            success: true,
-            data: [
-              {
-                id: "m1",
-                mentor: {
-                  id: "2",
-                  user: {
-                    id: "u2",
-                    name: "Priya Patel",
-                    profileImage: "",
-                    title: "Product Manager at Innovation Inc",
-                  },
-                },
-                mentee: {
-                  id: currentUser?.id || "current-user",
-                  name: currentUser?.name || "Current User",
-                },
-                status: "active",
-                topics: ["Product Management", "Career Transition"],
-                nextSession: "2025-06-22T15:00:00Z",
-                createdAt: "2025-05-01T10:30:00Z"
-              }
-            ]
-          });
-        }, 1000);
-      });
-      
-      if (response.success) {
-        setMyMentorships(response.data || []);
+      const response = await apiService.getMentorshipProfile();
+      if (response.success && response.data) {
+        setMyMentorships(response.data.requests || []);
       }
     } catch (error) {
       console.error("Error loading mentorships:", error);
-      toast({ description: "Failed to load your mentorships", variant: "destructive" });
     }
   };
 
   const filteredMentors = mentors.filter(mentor => {
     const matchesQuery = !searchQuery || 
-      mentor.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      mentor.bio.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      mentor.user.title.toLowerCase().includes(searchQuery.toLowerCase());
+      mentor.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      mentor.bio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      mentor.user?.title?.toLowerCase().includes(searchQuery.toLowerCase());
       
     const matchesCategory = !selectedCategory || 
-      mentor.expertise.some((expertise: string) => expertise === selectedCategory);
+      mentor.expertise?.some((expertise: string) => expertise === selectedCategory);
       
     const matchesExperience = !selectedExperience || mentor.experience === selectedExperience;
     
@@ -168,8 +82,10 @@ function MentorshipPage() {
 
   const handleBecomeMentor = async (data: any) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiService.becomeMentor(data);
+      if (!response.success) {
+        throw new Error(response.message || "Failed to become mentor");
+      }
       
       toast({ 
         title: "Success", 
@@ -187,41 +103,44 @@ function MentorshipPage() {
 
   const handleRequestMentorship = async (data: any) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiService.requestMentorship(data.mentorId, data.message);
       
+      if (response.success) {
+        toast({ 
+          title: "Request Sent", 
+          description: "Your mentorship request has been sent. You will be notified when they respond." 
+        });
+        setIsRequestModalOpen(false);
+      } else {
+        throw new Error(response.message || "Failed to send request");
+      }
+    } catch (error: any) {
       toast({ 
-        title: "Request Sent", 
-        description: "Your mentorship request has been sent. You will be notified when they respond." 
+        title: "Error", 
+        description: error.message || "Failed to send mentorship request.",
+        variant: "destructive"
       });
-      setIsRequestModalOpen(false);
-      
-      // Refresh the list
-      loadMyMentorships();
-    } catch (error) {
-      console.error("Error requesting mentorship:", error);
-      toast({ description: "Failed to send mentorship request", variant: "destructive" });
     }
   };
 
   return (
     <div className="container mx-auto px-4 sm:px-6 py-6">
       <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-800">Alumni Mentorship Network</h1>
-        <p className="text-md text-gray-500 mt-1">Connect with experienced alumni for career guidance and professional growth.</p>
+        <h1 className="text-3xl md:text-4xl font-bold text-foreground/90">Alumni Mentorship Network</h1>
+        <p className="text-md text-muted-foreground/80 mt-1">Connect with experienced alumni for career guidance and professional growth.</p>
       </div>
       
       <Tabs defaultValue="find" className="mb-6">
-        <TabsList className="w-full bg-gray-50 mb-2 p-1 rounded-lg">
+        <TabsList className="w-full bg-muted/30 mb-2 p-1 rounded-lg">
           <TabsTrigger 
             value="find" 
-            className="flex-1 data-[state=active]:bg-orange-500 data-[state=active]:text-white hover:text-orange-500"
+            className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white hover:text-foreground"
           >
             Find a Mentor
           </TabsTrigger>
           <TabsTrigger 
             value="my" 
-            className="flex-1 data-[state=active]:bg-orange-500 data-[state=active]:text-white hover:text-orange-500"
+            className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white hover:text-foreground"
           >
             My Mentorships
           </TabsTrigger>
@@ -246,7 +165,7 @@ function MentorshipPage() {
               {loading ? (
                 <div className="flex items-center justify-center py-20">
                   <LoadingSpinner size="lg" />
-                  <span className="ml-3 text-gray-600">Looking for mentors...</span>
+                  <span className="ml-3 text-muted-foreground">Looking for mentors...</span>
                 </div>
               ) : filteredMentors.length === 0 ? (
                 <EmptyState
@@ -264,34 +183,34 @@ function MentorshipPage() {
               ) : (
                 <div className="space-y-4">
                   {filteredMentors.map(mentor => (
-                    <Card key={mentor.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 border border-gray-200 rounded-xl">
+                    <Card key={mentor.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 border border-border rounded-xl">
                       <CardContent className="p-6">
                         <div className="md:flex md:justify-between">
                           <div className="flex gap-4 mb-4 md:mb-0">
                             <Avatar className="h-16 w-16">
                               <AvatarImage src={mentor.user.profileImage} />
-                              <AvatarFallback className="bg-orange-100 text-orange-800 text-xl font-medium">
+                              <AvatarFallback className="bg-primary/10 text-foreground/90 text-xl font-medium">
                                 {mentor.user.name.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <h3 className="font-semibold text-lg text-gray-900">{mentor.user.name}</h3>
-                              <p className="text-gray-600">{mentor.user.title}</p>
-                              <div className="flex items-center text-sm text-gray-500 mt-1">
+                              <h3 className="font-semibold text-lg text-foreground">{mentor.user.name}</h3>
+                              <p className="text-muted-foreground">{mentor.user.title}</p>
+                              <div className="flex items-center text-sm text-muted-foreground/80 mt-1">
                                 <GraduationCap className="h-3 w-3 mr-1" />
                                 <span>Class of {mentor.user.graduationYear}</span>
                               </div>
                               <div className="flex items-center mt-1">
                                 <Star className="h-3 w-3 text-yellow-400" />
                                 <span className="text-sm font-medium ml-1">{mentor.rating}</span>
-                                <span className="text-xs text-gray-500 ml-1">({mentor.reviewCount} reviews)</span>
+                                <span className="text-xs text-muted-foreground/80 ml-1">({mentor.reviewCount} reviews)</span>
                               </div>
                             </div>
                           </div>
                           
                           <div>
                             <Button
-                              className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300 mt-2"
+                              className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300 mt-2"
                               onClick={() => {
                                 setSelectedMentor(mentor);
                                 setIsRequestModalOpen(true);
@@ -303,7 +222,7 @@ function MentorshipPage() {
                         </div>
                         
                         <div className="mt-4">
-                          <p className="text-sm text-gray-600 mb-3">{mentor.bio}</p>
+                          <p className="text-sm text-muted-foreground mb-3">{mentor.bio}</p>
                           
                           <div className="flex flex-wrap gap-2 mb-2">
                             {mentor.expertise.map((expertise: string) => (
@@ -311,13 +230,13 @@ function MentorshipPage() {
                             ))}
                           </div>
                           
-                          <div className="flex items-center gap-4 mt-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
                             <div className="flex items-center">
-                              <Briefcase className="h-3 w-3 mr-1 text-gray-400" />
+                              <Briefcase className="h-3 w-3 mr-1 text-muted-foreground" />
                               <span>{mentor.experience}</span>
                             </div>
                             <div className="flex items-center">
-                              <Clock className="h-3 w-3 mr-1 text-gray-400" />
+                              <Clock className="h-3 w-3 mr-1 text-muted-foreground" />
                               <span>{mentor.availability}</span>
                             </div>
                           </div>
@@ -330,10 +249,10 @@ function MentorshipPage() {
             </div>
             
             <div className="lg:col-span-1">
-              <Card className="mb-6 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-gray-200 rounded-xl">
+              <Card className="mb-6 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-border rounded-xl">
                 <CardContent className="p-6">
                   <Button 
-                    className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
+                    className="w-full bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
                     onClick={() => setIsMentorModalOpen(true)}
                   >
                     Become a Mentor
@@ -347,7 +266,7 @@ function MentorshipPage() {
                   
                   <div className="space-y-4">
                     <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">Expertise</label>
+                      <label className="text-sm font-medium text-foreground/80 mb-1 block">Expertise</label>
                       <div className="flex flex-wrap gap-2">
                         {CATEGORIES.map(cat => (
                           <Button
@@ -355,8 +274,8 @@ function MentorshipPage() {
                             size="sm"
                             variant={selectedCategory === cat ? "default" : "outline"}
                             className={selectedCategory === cat 
-                              ? "bg-orange-500 hover:bg-orange-600 text-white" 
-                              : "hover:bg-gray-100 text-gray-700"}
+                              ? "bg-primary hover:bg-primary/90 text-white" 
+                              : "hover:bg-muted/50 text-foreground/80"}
                             onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
                           >
                             {cat}
@@ -366,14 +285,14 @@ function MentorshipPage() {
                     </div>
                     
                     <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">Experience Level</label>
+                      <label className="text-sm font-medium text-foreground/80 mb-1 block">Experience Level</label>
                       <div className="flex flex-wrap gap-2">
                         {YEARS_OF_EXPERIENCE.map(exp => (
                           <Button
                             key={exp}
                             size="sm"
                             variant={selectedExperience === exp ? "default" : "outline"}
-                            className={selectedExperience === exp ? "bg-orange-500" : ""}
+                            className={selectedExperience === exp ? "bg-primary" : ""}
                             onClick={() => setSelectedExperience(selectedExperience === exp ? null : exp)}
                           >
                             {exp}
@@ -390,7 +309,7 @@ function MentorshipPage() {
                           setSelectedCategory(null);
                           setSelectedExperience(null);
                         }}
-                        className="w-full text-orange-500 hover:text-orange-600"
+                        className="w-full text-foreground hover:text-foreground/90"
                       >
                         Clear all filters
                       </Button>
@@ -402,7 +321,7 @@ function MentorshipPage() {
               <Card>
                 <CardContent className="p-6">
                   <h3 className="font-medium text-lg mb-2">Why Find a Mentor?</h3>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <p className="text-sm text-muted-foreground mb-4">
                     Mentoring relationships can help you navigate career challenges, expand your network, and gain valuable insights from experienced alumni.
                   </p>
                   <Button 
@@ -423,7 +342,7 @@ function MentorshipPage() {
         <TabsContent value="my">
           <div className="mb-6">
             <h2 className="text-xl font-semibold mb-2">Your Mentorship Relationships</h2>
-            <p className="text-gray-600">Manage your ongoing mentorship connections and scheduled sessions.</p>
+            <p className="text-muted-foreground">Manage your ongoing mentorship connections and scheduled sessions.</p>
           </div>
           
           {myMentorships.length === 0 ? (
@@ -440,18 +359,18 @@ function MentorshipPage() {
           ) : (
             <div className="grid gap-6 md:grid-cols-2">
               {myMentorships.map(mentorship => (
-                <Card key={mentorship.id} className="border border-gray-200 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 rounded-xl overflow-hidden">
+                <Card key={mentorship.id} className="border border-border hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 rounded-xl overflow-hidden">
                   <CardContent className="p-6">
                     <div className="flex gap-4 mb-4">
                       <Avatar className="h-14 w-14">
                         <AvatarImage src={mentorship.mentor.user.profileImage} />
-                        <AvatarFallback className="bg-orange-100 text-orange-800 text-lg font-medium">
+                        <AvatarFallback className="bg-primary/10 text-foreground/90 text-lg font-medium">
                           {mentorship.mentor.user.name.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <h4 className="font-semibold text-lg">{mentorship.mentor.user.name}</h4>
-                        <p className="text-sm text-gray-600">{mentorship.mentor.user.title}</p>
+                        <p className="text-sm text-muted-foreground">{mentorship.mentor.user.title}</p>
                         <Badge className="mt-1 bg-green-100 text-green-800 hover:bg-green-100">
                           Active Mentorship
                         </Badge>
@@ -459,25 +378,25 @@ function MentorshipPage() {
                     </div>
                     
                     <div>
-                      <h5 className="text-sm font-medium text-gray-700 mb-1">Focus Areas:</h5>
+                      <h5 className="text-sm font-medium text-foreground/80 mb-1">Focus Areas:</h5>
                       <div className="flex flex-wrap gap-1 mb-3">
                         {mentorship.topics.map((topic: string) => (
                           <Badge key={topic} variant="outline" className="text-xs">{topic}</Badge>
                         ))}
                       </div>
                       
-                      <div className="text-sm text-gray-600 flex items-center mt-4">
+                      <div className="text-sm text-muted-foreground flex items-center mt-4">
                         <Calendar className="h-4 w-4 mr-1" />
                         <span>Next Session: {new Date(mentorship.nextSession).toLocaleDateString()} at {new Date(mentorship.nextSession).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="bg-gray-50 px-6 py-3 flex justify-between gap-2 border-t">
+                  <CardFooter className="bg-muted/30 px-6 py-3 flex justify-between gap-2 border-t">
                     <Button variant="outline" size="sm">
                       <MessageSquare className="h-4 w-4 mr-1" />
                       Send Message
                     </Button>
-                    <Button variant="default" size="sm" className="bg-orange-500 hover:bg-orange-600">
+                    <Button variant="default" size="sm" className="bg-primary hover:bg-primary/90">
                       <Calendar className="h-4 w-4 mr-1" />
                       Schedule Session
                     </Button>

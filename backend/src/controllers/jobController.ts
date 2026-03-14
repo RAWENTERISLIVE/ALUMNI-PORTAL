@@ -1,579 +1,490 @@
-import { Request, Response, NextFunction } from 'express';
-import Job, { IJob } from '../models/Job';
-import mongoose from 'mongoose';
+import { Request, Response } from 'express';
+import { Role } from '@prisma/client';
+import prisma from '../config/prisma';
+import { asyncHandler } from '../middleware/errorHandler';
 
 interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     role: string;
     email: string;
-    name: string;
+    name?: string;
   };
 }
 
-// Get all jobs
-export const getJobs = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const {
-      page = 1,
-      limit = 10,
-      type,
-      location,
-      company,
-      isActive = 'true',
-      postedBy,
-      tags,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
+const isAdminRole = (role?: string) => {
+  const normalized = (role || '').toLowerCase();
+  return normalized === 'admin' || normalized === 'super_admin' || role === Role.ADMIN || role === Role.SUPER_ADMIN;
+};
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
+const formatJob = (job: any) => ({
+  ...job,
+  salaryRange:
+    job.salaryRangeMin !== null && job.salaryRangeMin !== undefined &&
+    job.salaryRangeMax !== null && job.salaryRangeMax !== undefined
+      ? {
+          min: job.salaryRangeMin,
+          max: job.salaryRangeMax,
+          currency: job.salaryCurrency || 'USD'
+        }
+      : undefined,
+  postedDate: job.createdAt,
+  applicants: []
+});
 
-    // Build filter object
-    const filter: any = {};
-    
-    if (isActive !== 'all') {
-      filter.isActive = isActive === 'true';
-    }
-    
-    if (type) {
-      filter.type = type;
-    }
-    
-    if (location) {
-      filter.location = { $regex: location, $options: 'i' };
-    }
-    
-    if (company) {
-      filter.company = { $regex: company, $options: 'i' };
-    }
-    
-    if (postedBy) {
-      filter.postedBy = postedBy;
-    }
-    
-    if (tags) {
-      const tagArray = (tags as string).split(',').map(tag => tag.trim());
-      filter.tags = { $in: tagArray };
-    }
+export const getJobs = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const page = Number.parseInt(req.query.page as string, 10) || 1;
+  const limit = Number.parseInt(req.query.limit as string, 10) || 10;
+  const skip = (page - 1) * limit;
 
-    // Build sort object
-    const sortField = sortBy as string;
-    const sortDirection = sortOrder === 'desc' ? -1 : 1;
-    const sort: any = { [sortField]: sortDirection };
+  const {
+    type,
+    location,
+    company,
+    isActive = 'true',
+    postedBy,
+    tags,
+    sortBy = 'createdAt',
+    sortOrder = 'desc'
+  } = req.query;
 
-    const jobs = await Job.find(filter)
-      .populate('postedBy', 'name email profileImage')
-      .sort(sort)
-      .skip(skip)
-      .limit(limitNum)
-      .lean();
+  const where: any = {};
+  
+  if (isActive !== 'all') where.isActive = isActive === 'true';
+  if (type) where.type = type as string;
+  if (location) where.location = { contains: location as string, mode: 'insensitive' };
+  if (company) where.company = { contains: company as string, mode: 'insensitive' };
+  if (postedBy) where.postedById = postedBy as string;
+  if (tags) {
+    const tagArray = (tags as string).split(',').map(tag => tag.trim());
+    where.tags = { hasSome: tagArray };
+  }
 
-    const total = await Job.countDocuments(filter);
+  const orderBy: any = {};
+  if (sortBy) orderBy[sortBy as string] = sortOrder === 'asc' ? 'asc' : 'desc';
 
-    // Format jobs to ensure consistent id field
-    const formattedJobs = jobs.map(job => ({
-      ...job,
-      id: job._id.toString(),
-      postedBy: job.postedBy ? {
-        ...job.postedBy,
-        id: job.postedBy._id ? job.postedBy._id.toString() : undefined
-      } : job.postedBy
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formattedJobs,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        pages: Math.ceil(total / limitNum)
+  const [jobs, total] = await Promise.all([
+    prisma.job.findMany({
+      where,
+      orderBy: Object.keys(orderBy).length > 0 ? orderBy : { createdAt: 'desc' },
+      skip,
+      take: limit,
+      include: {
+        postedBy: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            profileImage: true
+          }
+        }
       }
-    });
-  } catch (error) {
-    next(error);
+    }),
+    prisma.job.count({ where })
+  ]);
+
+  const formattedJobs = jobs.map(formatJob);
+
+  res.status(200).json({
+    success: true,
+    data: formattedJobs,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+});
+
+export const getJobById = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ success: false, message: 'Job ID is required' });
+    return;
   }
-};
 
-// Get job by ID
-export const getJobById = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
-
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid job ID'
-      });
-      return;
+  const job = await prisma.job.findUnique({
+    where: { id },
+    include: {
+      postedBy: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          profileImage: true
+        }
+      }
     }
+  });
 
-    const job = await Job.findById(id).populate('postedBy', 'name email profileImage');
-
-    if (!job) {
-      res.status(404).json({
-        success: false,
-        message: 'Job not found'
-      });
-      return;
-    }
-
-    res.status(200).json({
-      success: true,
-      data: job
-    });
-  } catch (error) {
-    next(error);
+  if (!job) {
+    res.status(404).json({ success: false, message: 'Job not found' });
+    return;
   }
-};
+  res.status(200).json({ success: true, data: formatJob(job) });
+});
 
-// Create new job
-export const createJob = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const {
-      title,
-      company,
-      location,
-      type,
-      salaryRange,
-      description,
-      requirements,
-      benefits,
-      applicationUrl,
-      contactEmail,
-      isAlumniReferral,
-      applicationDeadline,
-      tags
-    } = req.body;
+export const createJob = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { title, company, location, type, salaryRange, description, requirements, benefits, applicationUrl, contactEmail, isAlumniReferral, applicationDeadline, tags } = req.body;
 
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
-      return;
-    }
-
-    // Validate required fields
-    if (!title || !company || !location || !type || !description) {
-      res.status(400).json({
-        success: false,
-        message: 'Missing required fields: title, company, location, type, description'
-      });
-      return;
-    }
-
-    const jobData: Partial<IJob> = {
-      title,
-      company,
-      location,
-      type,
-      description,
-      requirements: requirements || [],
-      benefits: benefits || [],
-      postedBy: new mongoose.Types.ObjectId(req.user.id),
-      postedByName: req.user.name,
-      isAlumniReferral: isAlumniReferral !== undefined ? isAlumniReferral : true,
-      tags: tags || []
-    };
-
-    if (salaryRange && salaryRange.min !== undefined && salaryRange.max !== undefined) {
-      jobData.salaryRange = {
-        min: salaryRange.min,
-        max: salaryRange.max,
-        currency: salaryRange.currency || 'USD'
-      };
-    }
-
-    if (applicationUrl) {
-      jobData.applicationUrl = applicationUrl;
-    }
-
-    if (contactEmail) {
-      jobData.contactEmail = contactEmail;
-    }
-
-    if (applicationDeadline) {
-      jobData.applicationDeadline = new Date(applicationDeadline);
-    }
-
-    const job = new Job(jobData);
-    await job.save();
-
-    const populatedJob = await Job.findById(job._id).populate('postedBy', 'name email profileImage');
-
-    res.status(201).json({
-      success: true,
-      message: 'Job created successfully',
-      data: populatedJob
-    });
-  } catch (error) {
-    next(error);
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
   }
-};
 
-// Update job
-export const updateJob = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
+  if (!title || !company || !location || !type || !description) {
+    res.status(400).json({ success: false, message: 'Missing required fields' });
+    return;
+  }
 
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid job ID'
-      });
-      return;
+  const postingUser = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { name: true }
+  });
+
+  const jobData: any = {
+    title, company, location, type, description,
+    requirements: requirements || [], benefits: benefits || [],
+    postedById: req.user.id,
+    postedByName: postingUser?.name || req.user.name || req.user.email,
+    isAlumniReferral: isAlumniReferral ?? true,
+    tags: tags || []
+  };
+
+  if (salaryRange?.min !== undefined && salaryRange?.max !== undefined) {
+    jobData.salaryRangeMin = Number(salaryRange.min);
+    jobData.salaryRangeMax = Number(salaryRange.max);
+    jobData.salaryCurrency = salaryRange.currency || 'USD';
+  }
+  if (applicationUrl) jobData.applicationUrl = applicationUrl;
+  if (contactEmail) jobData.contactEmail = contactEmail;
+  if (applicationDeadline) jobData.applicationDeadline = new Date(applicationDeadline);
+
+  const job = await prisma.job.create({
+    data: jobData,
+    include: {
+      postedBy: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          profileImage: true
+        }
+      }
     }
+  });
 
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
-      return;
-    }
+  res.status(201).json({ success: true, data: formatJob(job) });
+});
 
-    const job = await Job.findById(id);
+export const updateJob = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ success: false, message: 'Job ID is required' });
+    return;
+  }
 
-    if (!job) {
-      res.status(404).json({
-        success: false,
-        message: 'Job not found'
-      });
-      return;
-    }
+  const updateData = { ...req.body };
 
-    // Check if user owns the job or is admin/super_admin
-    if (job.postedBy.toString() !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-      res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this job'
-      });
-      return;
-    }
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
 
-    const {
-      title,
-      company,
-      location,
-      type,
-      salaryRange,
-      description,
-      requirements,
-      benefits,
-      applicationUrl,
-      contactEmail,
-      isAlumniReferral,
-      applicationDeadline,
-      isActive,
-      tags
-    } = req.body;
+  const job = await prisma.job.findUnique({ where: { id } });
+  if (!job) {
+    res.status(404).json({ success: false, message: 'Job not found' });
+    return;
+  }
 
-    // Update fields
-    if (title !== undefined) job.title = title;
-    if (company !== undefined) job.company = company;
-    if (location !== undefined) job.location = location;
-    if (type !== undefined) job.type = type;
-    if (description !== undefined) job.description = description;
-    if (requirements !== undefined) job.requirements = requirements;
-    if (benefits !== undefined) job.benefits = benefits;
-    if (applicationUrl !== undefined) job.applicationUrl = applicationUrl;
-    if (contactEmail !== undefined) job.contactEmail = contactEmail;
-    if (isAlumniReferral !== undefined) job.isAlumniReferral = isAlumniReferral;
-    if (tags !== undefined) job.tags = tags;
+  if (job.postedById !== req.user.id && !isAdminRole(req.user.role)) {
+    res.status(403).json({ success: false, message: 'Not authorized' });
+    return;
+  }
 
-    if (salaryRange !== undefined) {
-      if (salaryRange === null) {
-        (job as any).salaryRange = undefined;
+  const allowedUpdates = new Set([
+    'title', 'company', 'location', 'type', 'salaryRange', 'description',
+    'requirements', 'benefits', 'applicationUrl', 'contactEmail',
+    'isActive', 'applicationDeadline', 'tags'
+  ]);
+
+  const dataToUpdate: any = {};
+  for (const key of Object.keys(updateData)) {
+    if (allowedUpdates.has(key)) {
+      if (key === 'salaryRange' && updateData[key]) {
+        dataToUpdate.salaryRangeMin = Number(updateData[key].min);
+        dataToUpdate.salaryRangeMax = Number(updateData[key].max);
+        dataToUpdate.salaryCurrency = updateData[key].currency || 'USD';
+      } else if (key === 'applicationDeadline' && updateData[key]) {
+        dataToUpdate.applicationDeadline = new Date(updateData[key]);
       } else {
-        job.salaryRange = {
-          min: salaryRange.min,
-          max: salaryRange.max,
-          currency: salaryRange.currency || 'USD'
-        };
+        dataToUpdate[key] = updateData[key];
       }
     }
+  }
 
-    if (applicationDeadline !== undefined) {
-      if (applicationDeadline === null) {
-        (job as any).applicationDeadline = undefined;
-      } else {
-        job.applicationDeadline = new Date(applicationDeadline);
+  const updatedJob = await prisma.job.update({
+    where: { id },
+    data: dataToUpdate,
+    include: {
+      postedBy: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          profileImage: true
+        }
       }
     }
+  });
 
-    if (isActive !== undefined) {
-      job.isActive = isActive;
-    }
+  res.status(200).json({ success: true, data: formatJob(updatedJob) });
+});
 
-    await job.save();
-
-    const updatedJob = await Job.findById(job._id).populate('postedBy', 'name email profileImage');
-
-    res.status(200).json({
-      success: true,
-      message: 'Job updated successfully',
-      data: updatedJob
-    });
-  } catch (error) {
-    next(error);
+export const deleteJob = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ success: false, message: 'Job ID is required' });
+    return;
   }
-};
 
-// Delete job
-export const deleteJob = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
-
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid job ID'
-      });
-      return;
-    }
-
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
-      return;
-    }
-
-    const job = await Job.findById(id);
-
-    if (!job) {
-      res.status(404).json({
-        success: false,
-        message: 'Job not found'
-      });
-      return;
-    }
-
-    // Check if user owns the job or is admin/super_admin
-    if (job.postedBy.toString() !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-      res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this job'
-      });
-      return;
-    }
-
-    await Job.findByIdAndDelete(id);
-
-    res.status(200).json({
-      success: true,
-      message: 'Job deleted successfully'
-    });
-  } catch (error) {
-    next(error);
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
   }
-};
+  const job = await prisma.job.findUnique({ where: { id } });
+  if (!job) {
+    res.status(404).json({ success: false, message: 'Job not found' });
+    return;
+  }
+  if (job.postedById !== req.user.id && !isAdminRole(req.user.role)) {
+    res.status(403).json({ success: false, message: 'Not authorized' });
+    return;
+  }
+  await prisma.job.delete({ where: { id } });
+  res.status(200).json({ success: true, data: {} });
+});
 
-// Save/unsave job
-export const toggleSaveJob = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
+export const saveJob = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ success: false, message: 'Job ID is required' });
+    return;
+  }
 
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid job ID'
-      });
-      return;
+  const job = await prisma.job.findUnique({ where: { id } });
+  if (!job) {
+    res.status(404).json({ success: false, message: 'Job not found' });
+    return;
+  }
+
+  await prisma.job.update({
+    where: { id },
+    data: {
+      savedBy: {
+        connect: { id: req.user.id }
+      }
     }
+  });
 
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
-      return;
+  res.status(200).json({ success: true, message: 'Job saved' });
+});
+
+export const unsaveJob = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ success: false, message: 'Job ID is required' });
+    return;
+  }
+
+  const job = await prisma.job.findUnique({ where: { id } });
+  if (!job) {
+    res.status(404).json({ success: false, message: 'Job not found' });
+    return;
+  }
+
+  await prisma.job.update({
+    where: { id },
+    data: {
+      savedBy: {
+        disconnect: { id: req.user.id }
+      }
     }
+  });
 
-    const job = await Job.findById(id);
+  res.status(200).json({ success: true, message: 'Job unsaved' });
+});
 
-    if (!job) {
-      res.status(404).json({
-        success: false,
-        message: 'Job not found'
-      });
-      return;
+export const getSavedJobs = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const jobs = await prisma.job.findMany({
+    where: {
+      savedBy: {
+        some: {
+          id: req.user.id
+        }
+      }
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      postedBy: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          profileImage: true
+        }
+      }
     }
+  });
 
-    const userId = new mongoose.Types.ObjectId(req.user.id);
-    const isSaved = job.savedBy.includes(userId);
+  res.status(200).json({ success: true, data: jobs.map(formatJob) });
+});
 
-    if (isSaved) {
-      job.savedBy = job.savedBy.filter(id => !id.equals(userId));
-    } else {
-      job.savedBy.push(userId);
-    }
+export const getAppliedJobs = asyncHandler(async (_req: AuthenticatedRequest, res: Response) => {
+  res.status(200).json({ success: true, data: [] });
+});
 
-    await job.save();
+export const toggleSaveJob = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
 
-    res.status(200).json({
-      success: true,
-      message: isSaved ? 'Job unsaved successfully' : 'Job saved successfully',
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ success: false, message: 'Job ID is required' });
+    return;
+  }
+
+  const job = await prisma.job.findUnique({ where: { id } });
+  if (!job) {
+    res.status(404).json({ success: false, message: 'Job not found' });
+    return;
+  }
+
+  const savedJob = await prisma.job.findFirst({
+    where: {
+      id,
+      savedBy: {
+        some: {
+          id: req.user.id
+        }
+      }
+    },
+    select: { id: true }
+  });
+
+  if (savedJob) {
+    await prisma.job.update({
+      where: { id },
       data: {
-        isSaved: !isSaved,
-        savedCount: job.savedBy.length
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Get saved jobs for user
-export const getSavedJobs = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
-      return;
-    }
-
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
-
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    const sortField = sortBy as string;
-    const sortDirection = sortOrder === 'desc' ? -1 : 1;
-    const sort: any = { [sortField]: sortDirection };
-
-    const jobs = await Job.find({ 
-      savedBy: new mongoose.Types.ObjectId(req.user.id),
-      isActive: true 
-    })
-      .populate('postedBy', 'name email profileImage')
-      .sort(sort)
-      .skip(skip)
-      .limit(limitNum)
-      .lean();
-
-    const total = await Job.countDocuments({ 
-      savedBy: new mongoose.Types.ObjectId(req.user.id),
-      isActive: true 
-    });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        jobs,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          pages: Math.ceil(total / limitNum)
+        savedBy: {
+          disconnect: { id: req.user.id }
         }
       }
     });
-  } catch (error) {
-    next(error);
+
+    res.status(200).json({ success: true, message: 'Job unsaved', data: { saved: false } });
+    return;
   }
-};
 
-// Increment application count
-export const incrementApplicationCount = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
-
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid job ID'
-      });
-      return;
-    }
-
-    const job = await Job.findById(id);
-
-    if (!job) {
-      res.status(404).json({
-        success: false,
-        message: 'Job not found'
-      });
-      return;
-    }
-
-    if (!job.isActive) {
-      res.status(400).json({
-        success: false,
-        message: 'Cannot apply to inactive job'
-      });
-      return;
-    }
-
-    job.applicationCount += 1;
-    await job.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Application count updated',
-      data: {
-        applicationCount: job.applicationCount
+  await prisma.job.update({
+    where: { id },
+    data: {
+      savedBy: {
+        connect: { id: req.user.id }
       }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Get job statistics
-export const getJobStats = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super_admin')) {
-      res.status(403).json({
-        success: false,
-        message: 'Access denied. Admin privileges required.'
-      });
-      return;
     }
+  });
 
-    const totalJobs = await Job.countDocuments();
-    const activeJobs = await Job.countDocuments({ isActive: true });
-    const inactiveJobs = await Job.countDocuments({ isActive: false });
-    
-    const jobsByType = await Job.aggregate([
-      { $group: { _id: '$type', count: { $sum: 1 } } }
-    ]);
+  res.status(200).json({ success: true, message: 'Job saved', data: { saved: true } });
+});
 
-    const totalApplications = await Job.aggregate([
-      { $group: { _id: null, total: { $sum: '$applicationCount' } } }
-    ]);
-
-    const recentJobs = await Job.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate('postedBy', 'name email')
-      .lean();
-
-    res.status(200).json({
-      success: true,
-      data: {
-        totalJobs,
-        activeJobs,
-        inactiveJobs,
-        totalApplications: totalApplications[0]?.total || 0,
-        jobsByType,
-        recentJobs
-      }
-    });
-  } catch (error) {
-    next(error);
+export const incrementApplicationCount = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ success: false, message: 'Job ID is required' });
+    return;
   }
-};
+
+  const job = await prisma.job.findUnique({ where: { id } });
+  if (!job) {
+    res.status(404).json({ success: false, message: 'Job not found' });
+    return;
+  }
+
+  const updated = await prisma.job.update({
+    where: { id },
+    data: {
+      applicationCount: {
+        increment: 1
+      }
+    }
+  });
+
+  res.status(200).json({
+    success: true,
+    message: 'Application recorded',
+    data: { applicationCount: updated.applicationCount }
+  });
+});
+
+export const searchJobs = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const rawQuery = req.query.query;
+  const query = typeof rawQuery === 'string' ? rawQuery.trim() : '';
+  if (!query) {
+    res.status(200).json({ success: true, data: [] });
+    return;
+  }
+
+  const jobs = await prisma.job.findMany({
+    where: {
+      OR: [
+        { title: { contains: query, mode: 'insensitive' } },
+        { company: { contains: query, mode: 'insensitive' } },
+        { location: { contains: query, mode: 'insensitive' } },
+        { description: { contains: query, mode: 'insensitive' } }
+      ]
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      postedBy: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          profileImage: true
+        }
+      }
+    },
+    take: 20
+  });
+
+  res.status(200).json({ success: true, data: jobs.map(formatJob) });
+});
+
+export const getJobStats = asyncHandler(async (_req: AuthenticatedRequest, res: Response) => {
+  const totalJobs = await prisma.job.count();
+  const activeJobs = await prisma.job.count({ where: { isActive: true } });
+  const applications = await prisma.job.aggregate({ _sum: { applicationCount: true } });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      totalJobs,
+      activeJobs,
+      totalApplications: applications._sum.applicationCount || 0
+    }
+  });
+});
+

@@ -16,6 +16,8 @@ export const ProtectedRoute = ({
 }: ProtectedRouteProps) => {
   const { isAuthenticated, isLoading, currentUser } = useAuth();
   const location = useLocation();
+  const normalizedRole = (currentUser?.role || '').toLowerCase();
+  const hasAdminAccess = normalizedRole === 'admin' || normalizedRole === 'super_admin';
 
   // Don't make any decisions while still loading
   if (isLoading) {
@@ -29,7 +31,7 @@ export const ProtectedRoute = ({
   }
 
   // For routes that require admin access
-  if (requireAdmin && (!isAuthenticated || !currentUser?.isAdmin)) {
+  if (requireAdmin && (!isAuthenticated || !hasAdminAccess)) {
     // If user is authenticated but not admin, redirect to dashboard
     // If not authenticated at all, the above condition will redirect to login
     return <Navigate to="/dashboard" replace />;

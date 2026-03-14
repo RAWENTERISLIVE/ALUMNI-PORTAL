@@ -1,5 +1,6 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import prisma from '../config/prisma';
 
 export enum UserRole {
   USER = 'user',
@@ -14,275 +15,401 @@ export enum UserStatus {
   DELETED = 'deleted'
 }
 
-export interface IUser extends Document {
+export interface IUser {
   _id: string;
+  id: string;
   email: string;
-  password?: string; // Made optional as it's selected: false by default
+  password: string;
   name: string;
-  firstName?: string;
-  lastName?: string;
+  firstName?: string | null;
+  lastName?: string | null;
   admissionNumber: string;
-  admissionYear: string; // Changed from graduationYear
-  role: UserRole;
-  status: UserStatus;
+  admissionYear: string;
+  role: UserRole | string;
+  status: UserStatus | string;
   isVerified: boolean;
-  profileImage?: string;
-  bio?: string;
-  headline?: string;
-  city?: string;
-  country?: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  linkedInProfile?: string;
-  company?: string;
-  jobTitle?: string;
-  isAvailableAsMentor: boolean;
-  connections?: mongoose.Types.ObjectId[]; // Array of user IDs that this user is connected to
-  location?: string;
-  lastLogin?: Date;
   refreshTokens: string[];
+  needsManualVerification?: boolean;
+  verificationDetails?: string | null;
   passwordResetToken?: string | null;
   passwordResetExpires?: Date | null;
-  emailVerificationToken?: string;
-  emailVerificationExpires?: Date;
-  needsManualVerification: boolean; // Corrected: no longer optional
-  verificationDetails?: string;
-  notificationSettings?: {
-    emailMessages?: boolean;
-    emailJobs?: boolean;
-    emailEvents?: boolean;
-    emailGroups?: boolean;
-    pushMessages?: boolean;
-    pushJobs?: boolean;
-    pushEvents?: boolean;
-    pushGroups?: boolean;
-  };
-  privacySettings?: {
-    profileVisibility?: 'public' | 'alumni' | 'connections';
-    showEmail?: boolean;
-    showPhone?: boolean;
-    allowMessaging?: boolean;
-    allowConnection?: boolean;
-    allowProfileSearch?: boolean;
-  };
+  emailVerificationToken?: string | null;
+  emailVerificationExpires?: Date | null;
+  profileImage?: string | null;
+  bio?: string | null;
+  headline?: string | null;
+  city?: string | null;
+  country?: string | null;
+  company?: string | null;
+  jobTitle?: string | null;
+  notificationSettings?: unknown;
+  privacySettings?: unknown;
   createdAt: Date;
   updatedAt: Date;
-  comparePassword(candidatePassword: string): Promise<boolean>;
-  generatePasswordResetToken(): string;
-  generateEmailVerificationToken(): string;
+  lastLogin?: Date | null;
+  save: () => Promise<IUser>;
+  comparePassword: (candidatePassword: string) => Promise<boolean>;
+  generatePasswordResetToken: () => string;
+  updateOne: (data: Record<string, unknown>) => Promise<IUser>;
+  toObject: () => Record<string, unknown>;
 }
 
-export interface IUserModel extends mongoose.Model<IUser> {
-  createSuperAdmins(): Promise<void>;
-}
+const toDbRole = (role?: string) => {
+  const normalized = (role || UserRole.USER).toLowerCase();
+  if (normalized === UserRole.ADMIN) return 'ADMIN';
+  if (normalized === UserRole.SUPER_ADMIN) return 'SUPER_ADMIN';
+  return 'USER';
+};
 
-const userSchema = new Schema<IUser>({
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true,
-    validate: {
-      validator: function(email: string) {
-        return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
-      },
-      message: 'Please enter a valid email address'
-    }
-  },
-  password: {
-    type: String,
-    required: true,
-    minlength: 8, // Increased minlength for better security
-    select: false
-  },
-  name: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 100
-  },
-  firstName: {
-    type: String,
-    trim: true,
-    maxlength: 50
-  },
-  lastName: {
-    type: String,
-    trim: true,
-    maxlength: 50
-  },
-  location: {
-    type: String,
-    maxlength: 100
-  },
-  admissionNumber: {
-    type: String,
-    required: function(this: IUser) {
-      return !this.needsManualVerification;
-    },
-    trim: true,
-    maxlength: 20,
-    validate: {
-      validator: function(this: IUser, v: string) {
-        if (this.needsManualVerification && v === 'MANUAL_VERIFICATION') return true;
-        // Allow alphanumeric, slashes, and hyphens. Min length 3.
-        return /^[a-zA-Z0-9\/\-]{3,20}$/.test(v);
-      },
-      message: 'Admission number is not valid.'
-    }
-  },
-  admissionYear: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  needsManualVerification: {
-    type: Boolean,
-    default: false
-  },
-  verificationDetails: {
-    type: String,
-    trim: true,
-    maxlength: 500
-  },
-  role: {
-    type: String,
-    enum: Object.values(UserRole),
-    default: UserRole.USER
-  },
-  status: {
-    type: String,
-    enum: Object.values(UserStatus),
-    default: UserStatus.PENDING
-  },
-  isVerified: { type: Boolean, default: false },
-  profileImage: { type: String },
-  bio: { type: String, maxlength: 500 },
-  headline: { type: String, maxlength: 150 },
-  city: { type: String, maxlength: 100 },
-  country: { type: String, maxlength: 100 },
-  contactEmail: { type: String },
-  contactPhone: { type: String },
-  linkedInProfile: { type: String },
-  company: { type: String, maxlength: 100 },
-  jobTitle: { type: String, trim: true, maxlength: 100 },
-  isAvailableAsMentor: { type: Boolean, default: false },
-  lastLogin: { type: Date },
-  refreshTokens: [{ type: String }],
-  passwordResetToken: { type: String, default: null },
-  passwordResetExpires: { type: Date, default: null },
-  emailVerificationToken: { type: String },
-  emailVerificationExpires: { type: Date },
-  notificationSettings: {
-    emailMessages: { type: Boolean, default: true },
-    emailJobs: { type: Boolean, default: true },
-    emailEvents: { type: Boolean, default: true },
-    emailGroups: { type: Boolean, default: true },
-    pushMessages: { type: Boolean, default: true },
-    pushJobs: { type: Boolean, default: false },
-    pushEvents: { type: Boolean, default: true },
-    pushGroups: { type: Boolean, default: true }
-  },
-  privacySettings: {
-    profileVisibility: { type: String, enum: ['public', 'alumni', 'connections'], default: 'alumni' },
-    showEmail: { type: Boolean, default: false },
-    showPhone: { type: Boolean, default: false },
-    allowMessaging: { type: Boolean, default: true },
-    allowConnection: { type: Boolean, default: true },
-    allowProfileSearch: { type: Boolean, default: true }
-  }
-}, { timestamps: true });
+const toDbStatus = (status?: string) => {
+  const normalized = (status || UserStatus.PENDING).toLowerCase();
+  if (normalized === UserStatus.ACTIVE) return 'ACTIVE';
+  if (normalized === UserStatus.SUSPENDED) return 'SUSPENDED';
+  if (normalized === UserStatus.DELETED) return 'DELETED';
+  return 'PENDING';
+};
 
-// Pre-save hook to hash password and set name parts
-userSchema.pre<IUser>('save', async function (this: IUser, next) {
-  // Hash password if modified
-  if (this.isModified('password') && this.password) {
-    try {
-      const salt = await bcrypt.genSalt(10);
-      this.password = await bcrypt.hash(this.password, salt);
-    } catch (error: any) {
-      return next(error);
+const fromDbRole = (role: string) => role.toLowerCase();
+const fromDbStatus = (status: string) => status.toLowerCase();
+
+const applySelect = (user: any, selectSpec?: string) => {
+  if (!selectSpec) return user;
+
+  const parts = selectSpec.split(' ').map((part) => part.trim()).filter(Boolean);
+  const include = parts.filter((part) => part.startsWith('+')).map((part) => part.slice(1));
+  const exclude = parts.filter((part) => part.startsWith('-')).map((part) => part.slice(1));
+
+  const result = { ...user };
+
+  if (include.length > 0) {
+    for (const key of include) {
+      if (!(key in result)) {
+        result[key] = undefined;
+      }
     }
   }
 
-  // Set firstName and lastName from name if not provided
-  if (this.isModified('name') || this.isNew) {
-    if (this.name && !this.firstName && !this.lastName) {
-      const nameParts = this.name.split(' ').filter(part => part);
-      this.firstName = nameParts[0] || '';
-      this.lastName = nameParts.slice(1).join(' ') || '';
-    }
+  for (const key of exclude) {
+    delete result[key];
   }
 
-  next();
-});
+  return result;
+};
 
-// Method to compare password
-userSchema.methods.comparePassword = async function (this: IUser, candidatePassword: string): Promise<boolean> {
-  if (!this.password) {
+class UserDocument implements IUser {
+  _id: string;
+  id: string;
+  email: string;
+  password: string;
+  name: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  admissionNumber: string;
+  admissionYear: string;
+  role: string;
+  status: string;
+  isVerified: boolean;
+  refreshTokens: string[];
+  needsManualVerification?: boolean;
+  verificationDetails?: string | null;
+  passwordResetToken?: string | null;
+  passwordResetExpires?: Date | null;
+  emailVerificationToken?: string | null;
+  emailVerificationExpires?: Date | null;
+  profileImage?: string | null;
+  bio?: string | null;
+  headline?: string | null;
+  city?: string | null;
+  country?: string | null;
+  company?: string | null;
+  jobTitle?: string | null;
+  notificationSettings?: unknown;
+  privacySettings?: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+  lastLogin?: Date | null;
+
+  constructor(data: any) {
+    this._id = data.id || data._id;
+    this.id = this._id;
+    this.email = data.email;
+    this.password = data.password;
+    this.name = data.name;
+    this.firstName = data.firstName;
+    this.lastName = data.lastName;
+    this.admissionNumber = data.admissionNumber;
+    this.admissionYear = data.admissionYear;
+    this.role = data.role ? fromDbRole(data.role) : UserRole.USER;
+    this.status = data.status ? fromDbStatus(data.status) : UserStatus.PENDING;
+    this.isVerified = Boolean(data.isVerified);
+    this.refreshTokens = data.refreshTokens || [];
+    this.needsManualVerification = Boolean(data.needsManualVerification);
+    this.verificationDetails = data.verificationDetails;
+    this.passwordResetToken = data.passwordResetToken;
+    this.passwordResetExpires = data.passwordResetExpires;
+    this.emailVerificationToken = data.emailVerificationToken;
+    this.emailVerificationExpires = data.emailVerificationExpires;
+    this.profileImage = data.profileImage;
+    this.bio = data.bio;
+    this.headline = data.headline;
+    this.city = data.city;
+    this.country = data.country;
+    this.company = data.company;
+    this.jobTitle = data.jobTitle;
+    this.notificationSettings = data.notificationSettings;
+    this.privacySettings = data.privacySettings;
+    this.createdAt = data.createdAt;
+    this.updatedAt = data.updatedAt;
+    this.lastLogin = data.lastLogin;
+  }
+
+  async save() {
+    const password = this.password?.startsWith('$2') ? this.password : await bcrypt.hash(this.password, 10);
+
+    const updated = await prisma.user.update({
+      where: { id: this._id },
+      data: {
+        email: this.email,
+        password,
+        name: this.name,
+        firstName: this.firstName,
+        lastName: this.lastName,
+        admissionNumber: this.admissionNumber,
+        admissionYear: this.admissionYear,
+        role: toDbRole(this.role) as any,
+        status: toDbStatus(this.status) as any,
+        isVerified: this.isVerified,
+        refreshTokens: this.refreshTokens || [],
+        needsManualVerification: this.needsManualVerification || false,
+        verificationDetails: this.verificationDetails || null,
+        passwordResetToken: this.passwordResetToken || null,
+        passwordResetExpires: this.passwordResetExpires || null,
+        emailVerificationToken: this.emailVerificationToken || null,
+        emailVerificationExpires: this.emailVerificationExpires || null,
+        profileImage: this.profileImage || null,
+        bio: this.bio || null,
+        headline: this.headline || null,
+        city: this.city || null,
+        country: this.country || null,
+        company: this.company || null,
+        jobTitle: this.jobTitle || null,
+        notificationSettings: this.notificationSettings as any,
+        privacySettings: this.privacySettings as any,
+        lastLogin: this.lastLogin || null
+      }
+    });
+
+    return new UserDocument(updated);
+  }
+
+  async comparePassword(candidatePassword: string) {
+    const isPasswordMatch = await bcrypt.compare(candidatePassword, this.password || '');
+    if (isPasswordMatch) return true;
+
+    if (this.passwordResetToken) {
+      return bcrypt.compare(candidatePassword, this.passwordResetToken);
+    }
+
     return false;
   }
-  return bcrypt.compare(candidatePassword, this.password);
-};
 
-// Method to generate password reset token
-userSchema.methods.generatePasswordResetToken = function(): string {
-  const resetToken = Math.random().toString(36).substring(2, 15) + 
-                    Math.random().toString(36).substring(2, 15);
-  
-  this.passwordResetToken = bcrypt.hashSync(resetToken, 10);
-  this.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-  
-  return resetToken;
-};
+  generatePasswordResetToken() {
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    this.passwordResetToken = bcrypt.hashSync(resetToken, 10);
+    this.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000);
+    return resetToken;
+  }
 
-// Method to generate email verification token
-userSchema.methods.generateEmailVerificationToken = function(): string {
-  const verificationToken = Math.random().toString(36).substring(2, 15) + 
-                           Math.random().toString(36).substring(2, 15);
-  
-  this.emailVerificationToken = bcrypt.hashSync(verificationToken, 10);
-  this.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-  
-  return verificationToken;
-};
+  async updateOne(data: Record<string, unknown>) {
+    const updated = await prisma.user.update({
+      where: { id: this._id },
+      data: data as any
+    });
+    return new UserDocument(updated);
+  }
 
-// Static method to create super admin accounts
-userSchema.statics.createSuperAdmins = async function() {
-  const superAdminCredentials = [
-    {
-      email: 'mpsajmer123@gmail.com',
-      password: 'bajmav-1qojmu-qoKkod',
-      name: 'Super Admin 1',
-      admissionNumber: '00001/24',
-      admissionYear: '2024',
-    },
-    {
-      email: 'futurist.raghav@gmail.com',
-      password: 'bajmav-1qojmu-qoKkod',
-      name: 'Super Admin 2',
-      admissionNumber: '00002/24',
-      admissionYear: '2024',
+  toObject() {
+    return {
+      ...this,
+      id: this._id
+    };
+  }
+}
+
+class UserQuery {
+  private selectSpec?: string;
+  private sortSpec?: Record<string, 1 | -1>;
+  private limitValue?: number;
+  private skipValue?: number;
+
+  constructor(private readonly where: any) {}
+
+  select(value: string) {
+    this.selectSpec = value;
+    return this;
+  }
+
+  sort(value: Record<string, 1 | -1>) {
+    this.sortSpec = value;
+    return this;
+  }
+
+  limit(value: number) {
+    this.limitValue = value;
+    return this;
+  }
+
+  skip(value: number) {
+    this.skipValue = value;
+    return this;
+  }
+
+  private async executeMany() {
+    const orderBy = this.sortSpec
+      ? Object.fromEntries(
+          Object.entries(this.sortSpec).map(([key, direction]) => [key, direction === 1 ? 'asc' : 'desc'])
+        )
+      : undefined;
+
+    const users = await prisma.user.findMany({
+      where: this.where,
+      orderBy: orderBy as any,
+      take: this.limitValue,
+      skip: this.skipValue
+    });
+
+    return users.map((user) => new UserDocument(applySelect(user, this.selectSpec)));
+  }
+
+  private async executeOne() {
+    const user = await prisma.user.findFirst({ where: this.where });
+    return user ? new UserDocument(applySelect(user, this.selectSpec)) : null;
+  }
+
+  then(onfulfilled: any, onrejected: any) {
+    if (this.limitValue === 1) {
+      return this.executeOne().then(onfulfilled, onrejected);
     }
-  ];
+    return this.executeMany().then(onfulfilled, onrejected);
+  }
 
-  for (const admin of superAdminCredentials) {
-    const existingAdmin = await this.findOne({ email: admin.email });
-    if (!existingAdmin) {
-      await this.create({
-        ...admin,
-        role: UserRole.SUPER_ADMIN,
-        status: UserStatus.ACTIVE,
-        isVerified: true
+  catch(onrejected: any) {
+    if (this.limitValue === 1) {
+      return this.executeOne().catch(onrejected);
+    }
+    return this.executeMany().catch(onrejected);
+  }
+}
+
+const toWhere = (query: any = {}) => {
+  const where: any = {};
+
+  for (const [key, value] of Object.entries(query)) {
+    if (key === '$or' && Array.isArray(value)) {
+      where.OR = value.map((item: any) => {
+        const [[field, expression]] = Object.entries(item);
+        if (expression && typeof expression === 'object' && '$regex' in expression) {
+          return {
+            [field]: {
+              contains: String((expression as any).$regex),
+              mode: 'insensitive'
+            }
+          };
+        }
+        return { [field]: expression };
       });
-      console.log(`Super admin created: ${admin.email}`);
-    } else {
-      console.log(`Super admin already exists: ${admin.email}`);
+      continue;
     }
+
+    if (key === 'role') {
+      where.role = toDbRole(String(value));
+      continue;
+    }
+
+    if (key === 'status') {
+      where.status = toDbStatus(String(value));
+      continue;
+    }
+
+    if (key === 'admissionNumber' && value && typeof value === 'object' && '$regex' in (value as any)) {
+      where.admissionNumber = {
+        startsWith: String((value as any).$regex).replace('^', '').replace('$', '')
+      };
+      continue;
+    }
+
+    if (key === 'passwordResetExpires' && value && typeof value === 'object' && '$gt' in (value as any)) {
+      where.passwordResetExpires = { gt: new Date((value as any).$gt) };
+      continue;
+    }
+
+    where[key] = value as any;
+  }
+
+  return where;
+};
+
+const UserModel: any = {
+  findById(id: string) {
+    const query = new UserQuery({ id });
+    query.limit(1);
+    return query;
+  },
+
+  findOne(query: any) {
+    const userQuery = new UserQuery(toWhere(query));
+    userQuery.limit(1);
+    return userQuery;
+  },
+
+  find(query: any = {}) {
+    return new UserQuery(toWhere(query));
+  },
+
+  async create(data: any) {
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    const created = await prisma.user.create({
+      data: {
+        email: data.email,
+        password: hashedPassword,
+        name: data.name,
+        firstName: data.firstName || null,
+        lastName: data.lastName || null,
+        admissionNumber: data.admissionNumber,
+        admissionYear: data.admissionYear,
+        role: toDbRole(data.role) as any,
+        status: toDbStatus(data.status) as any,
+        isVerified: Boolean(data.isVerified),
+        refreshTokens: data.refreshTokens || [],
+        needsManualVerification: Boolean(data.needsManualVerification),
+        verificationDetails: data.verificationDetails || null
+      }
+    });
+
+    return new UserDocument(created);
+  },
+
+  async countDocuments(query: any = {}) {
+    return prisma.user.count({ where: toWhere(query) });
+  },
+
+  async findByIdAndUpdate(id: string, data: any) {
+    const updated = await prisma.user.update({
+      where: { id },
+      data: {
+        ...data,
+        role: data.role ? (toDbRole(data.role) as any) : undefined,
+        status: data.status ? (toDbStatus(data.status) as any) : undefined
+      }
+    });
+    return new UserDocument(updated);
+  },
+
+  async findByIdAndDelete(id: string) {
+    return prisma.user.delete({ where: { id } });
   }
 };
 
-const User = mongoose.model<IUser, IUserModel>('User', userSchema);
-
-export default User;
+export default UserModel;
+export const User = UserModel;

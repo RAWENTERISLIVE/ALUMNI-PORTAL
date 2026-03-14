@@ -3,7 +3,4 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
-// Set a class on the document to enable our theme
-document.documentElement.classList.add('dark')
-
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")).render(<App />);

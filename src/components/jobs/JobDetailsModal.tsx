@@ -80,7 +80,7 @@ export function JobDetailsModal({
             </Badge>
           )}
           {job.isAlumniReferral && (
-            <Badge className="bg-blue-100 text-blue-800">
+            <Badge className="bg-primary/10 text-blue-800">
               Alumni Referral
             </Badge>
           )}
@@ -106,7 +106,7 @@ export function JobDetailsModal({
         <div className="mt-6 space-y-4">
           <div>
             <h3 className="text-lg font-medium mb-2">Description</h3>
-            <p className="text-gray-700 whitespace-pre-line">{job.description}</p>
+            <p className="text-foreground/80 whitespace-pre-line">{job.description}</p>
           </div>
           
           {job.requirements.length > 0 && (
@@ -114,7 +114,7 @@ export function JobDetailsModal({
               <h3 className="text-lg font-medium mb-2">Requirements</h3>
               <ul className="list-disc pl-5 space-y-1">
                 {job.requirements.map((req: string, i: number) => (
-                  <li key={i} className="text-gray-700">{req}</li>
+                  <li key={i} className="text-foreground/80">{req}</li>
                 ))}
               </ul>
             </div>
@@ -125,7 +125,7 @@ export function JobDetailsModal({
               <h3 className="text-lg font-medium mb-2">Benefits</h3>
               <ul className="list-disc pl-5 space-y-1">
                 {job.benefits.map((benefit: string, i: number) => (
-                  <li key={i} className="text-gray-700">{benefit}</li>
+                  <li key={i} className="text-foreground/80">{benefit}</li>
                 ))}
               </ul>
             </div>

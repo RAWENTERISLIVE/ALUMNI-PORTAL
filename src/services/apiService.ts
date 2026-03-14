@@ -1,4 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
+const API_BASE_URL = rawApiUrl
+  ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/+$/, '')}/api`)
+  : '/api';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -26,6 +29,31 @@ export interface ApiResponse<T = any> {
 class ApiService {
   private baseURL: string;
   private accessToken: string | null = null;
+
+  private sanitizeProfilePayload(input: any) {
+    const payload = input || {};
+
+    return {
+      ...(payload.name !== undefined ? { name: payload.name } : {}),
+      ...(payload.bio !== undefined ? { bio: payload.bio } : {}),
+      ...(payload.headline !== undefined ? { headline: payload.headline } : {}),
+      ...(payload.city !== undefined ? { city: payload.city } : {}),
+      ...(payload.country !== undefined ? { country: payload.country } : {}),
+      ...(payload.company !== undefined ? { company: payload.company } : {}),
+      ...((payload.jobTitle ?? payload.position) !== undefined
+        ? { jobTitle: payload.jobTitle ?? payload.position }
+        : {}),
+      ...(payload.contactEmail !== undefined ? { contactEmail: payload.contactEmail } : {}),
+      ...(payload.contactPhone !== undefined ? { contactPhone: payload.contactPhone } : {}),
+      ...((payload.linkedInProfile ?? payload.linkedin) !== undefined
+        ? { linkedInProfile: payload.linkedInProfile ?? payload.linkedin }
+        : {}),
+      ...(payload.location !== undefined ? { location: payload.location } : {}),
+      ...((payload.isAvailableAsMentor ?? payload.availableAsMentor) !== undefined
+        ? { isAvailableAsMentor: payload.isAvailableAsMentor ?? payload.availableAsMentor }
+        : {}),
+    };
+  }
 
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -118,7 +146,7 @@ class ApiService {
       const refreshToken = localStorage.getItem('refreshToken');
       if (!refreshToken) return false;
 
-      const response = await fetch(`${this.baseURL}/auth/refresh`, {
+      const response = await fetch(`${this.baseURL}/auth/refresh-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
@@ -438,7 +466,11 @@ class ApiService {
   // User methods
   async getCurrentUser(): Promise<ApiResponse> {
     try {
-      return await this.request('/users/me');
+      const response = await this.request('/auth/me');
+      if (response.success && !response.user && response.data) {
+        return { ...response, user: response.data };
+      }
+      return response;
     } catch (error: any) {
       return {
         success: false,
@@ -447,11 +479,23 @@ class ApiService {
     }
   }
 
+  async updateUserProfile(userId: string, data: any): Promise<ApiResponse> {
+    try {
+      const profileData = this.sanitizeProfilePayload(data);
+      return await this.request(`/users/${userId}/profile`, {
+        method: 'PATCH',
+        body: JSON.stringify(profileData)
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to update user profile.' };
+    }
+  }
   async updateProfile(userData: any): Promise<ApiResponse> {
     try {
+      const profileData = this.sanitizeProfilePayload(userData);
       return await this.request('/users/me', {
         method: 'PATCH',
-        body: JSON.stringify(userData),
+        body: JSON.stringify(profileData),
       });
     } catch (error: any) {
       return {
@@ -499,9 +543,41 @@ class ApiService {
     return this.getUsers(params);
   }
 
+  async getAlumniDirectory(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    graduationYear?: string;
+    company?: string;
+    location?: string;
+  } = {}): Promise<ApiResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, String(value));
+        }
+      });
+
+      const query = queryParams.toString();
+      const endpoint = query ? `/users/directory?${query}` : '/users/directory';
+      return await this.request(endpoint);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch alumni directory.',
+        data: []
+      };
+    }
+  }
+
   async getUserById(userId: string): Promise<ApiResponse> {
     try {
-      return await this.request(`/users/${userId}`);
+      const response = await this.request(`/users/${userId}`);
+      if (response.success && !response.user && response.data) {
+        return { ...response, user: response.data };
+      }
+      return response;
     } catch (error: any) {
       return {
         success: false,
@@ -893,7 +969,7 @@ class ApiService {
 
   async getUserGroups(): Promise<ApiResponse> {
     try {
-      return await this.request('/groups/my-groups');
+      return await this.request('/groups/user');
     } catch (error: any) {
       return {
         success: false,
@@ -916,17 +992,17 @@ class ApiService {
   }
 
   // Job methods
+
   async getJobs(params: {
     page?: number;
     limit?: number;
     search?: string;
     location?: string;
-    isActive?: boolean;
   } = {}): Promise<ApiResponse> {
     try {
       const queryParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
+        if (value !== undefined && value !== null && value !== '') {
           queryParams.append(key, String(value));
         }
       });
@@ -941,6 +1017,65 @@ class ApiService {
       };
     }
   }
+
+  async getJob(jobId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/jobs/${jobId}`);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch job.'
+      };
+    }
+  }
+
+  async createJob(jobData: any): Promise<ApiResponse> {
+    try {
+      return await this.request('/jobs', {
+        method: 'POST',
+        body: JSON.stringify(jobData)
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to create job.'
+      };
+    }
+  }
+
+  async saveJob(jobId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/jobs/${jobId}/save`, { method: 'POST' });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to save job.'
+      };
+    }
+  }
+
+  async unsaveJob(jobId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/jobs/${jobId}/save`, { method: 'DELETE' });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to remove saved job.'
+      };
+    }
+  }
+
+  async applyToJob(jobId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/jobs/${jobId}/apply`, { method: 'POST' });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to apply for job.'
+      };
+    }
+  }
+
 
   async getSavedJobs(): Promise<ApiResponse> {
     try {
@@ -973,13 +1108,193 @@ class ApiService {
       return {
         success: false,
         message: error.message || 'Failed to fetch job statistics.',
-        data: {
-          total: 0,
-          active: 0,
-          applications: 0,
-          posted: 0
-        }
+        data: { total: 0, active: 0, applications: 0, posted: 0 }
       };
+    }
+  }
+
+  async getPostStats(): Promise<ApiResponse> {
+    try {
+      return await this.request('/posts/stats');
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch post statistics.',
+        data: { total: 0, today: 0, thisWeek: 0, thisMonth: 0 }
+      };
+    }
+  }
+
+  // --- Mentorship Endpoints ---
+
+  async getMentors(query?: any): Promise<ApiResponse> {
+    try {
+      const queryString = query ? '?' + new URLSearchParams(query).toString() : '';
+      return await this.request(`/mentorship/mentors${queryString}`);
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch mentors.' };
+    }
+  }
+
+  async becomeMentor(data: any): Promise<ApiResponse> {
+    try {
+      return await this.request('/mentorship/become-mentor', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to create mentor profile.' };
+    }
+  }
+
+  async getMentorshipProfile(): Promise<ApiResponse> {
+    try {
+      return await this.request('/mentorship/profile');
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch mentor profile.' };
+    }
+  }
+
+  async requestMentorship(mentorId: string, message: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/mentorship/request/${mentorId}`, {
+        method: 'POST',
+        body: JSON.stringify({ message })
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to request mentorship.' };
+    }
+  }
+
+  async respondToRequest(requestId: string, action: 'accept' | 'reject'): Promise<ApiResponse> {
+    try {
+      return await this.request(`/mentorship/request/${requestId}/${action}`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || `Failed to ${action} request.` };
+    }
+  }
+  async changePassword(currentPassword: string, newPassword: string): Promise<ApiResponse> {
+    try {
+      return await this.request('/auth/change-password', {
+        method: 'PATCH',
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to change password.' };
+    }
+  }
+
+  async updateNotificationSettings(data: any): Promise<ApiResponse> {
+    try {
+      return await this.request('/auth/notification-settings', {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to update notification settings.' };
+    }
+  }
+
+  async updatePrivacySettings(data: any): Promise<ApiResponse> {
+    try {
+      return await this.request('/auth/privacy-settings', {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to update privacy settings.' };
+    }
+  }
+  async createGroup(groupData: any): Promise<ApiResponse> {
+    try {
+      return await this.request('/groups', {
+        method: 'POST',
+        body: JSON.stringify(groupData)
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to create group.' };
+    }
+  }
+
+  async joinGroup(groupId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}/join`, { method: 'POST' });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to join group.' };
+    }
+  }
+
+  async leaveGroup(groupId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}/leave`, { method: 'POST' });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to leave group.' };
+    }
+  }
+
+  async sendGroupMessage(groupId: string, message: string): Promise<ApiResponse> {
+    try {
+      const content = message.trim();
+      return await this.request(`/groups/${groupId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content })
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to send message.' };
+    }
+  }
+  // --- Events API ---
+  async getEvents(params?: any): Promise<ApiResponse> {
+    try {
+      const queryParams = params ? '?' + new URLSearchParams(params).toString() : '';
+      return await this.request(`/events${queryParams}`);
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch events.' };
+    }
+  }
+
+  async getUpcomingEvents(): Promise<ApiResponse> {
+    try {
+      return await this.request('/events/upcoming');
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch upcoming events.' };
+    }
+  }
+
+  async getUserEvents(): Promise<ApiResponse> {
+    try {
+      return await this.request('/events/my-events');
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch user events.' };
+    }
+  }
+
+  async createEvent(eventData: any): Promise<ApiResponse> {
+    try {
+      return await this.request('/events', {
+        method: 'POST',
+        body: JSON.stringify(eventData)
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to create event.' };
+    }
+  }
+
+  async rsvpEvent(eventId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/events/${eventId}/rsvp`, { method: 'POST' });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to RSVP.' };
+    }
+  }
+
+  async cancelRsvp(eventId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/events/${eventId}/rsvp`, { method: 'DELETE' });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to cancel RSVP.' };
     }
   }
 }

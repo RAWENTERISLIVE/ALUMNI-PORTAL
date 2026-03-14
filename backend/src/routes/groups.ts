@@ -20,6 +20,9 @@ router.route('/')
 router.route('/user')
   .get(protect, getUserGroups);
 
+router.route('/my-groups')
+  .get(protect, getUserGroups);
+
 router.route('/:groupId') // Corrected to use a consistent parameter name
   .get(protect, getGroup);
 

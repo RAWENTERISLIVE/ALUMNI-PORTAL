@@ -1,836 +1,441 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
-import Post from '../models/PostNew';
-import User from '../models/User';
-import { AuthRequest } from '../middleware/auth';
+import { Role } from '@prisma/client';
+import prisma from '../config/prisma';
+import { asyncHandler } from '../middleware/errorHandler';
 
-// Helper function to safely check if an ID is in an array
-const isIdInArray = (idArray: mongoose.Types.ObjectId[], idToCheck: string | mongoose.Types.ObjectId): boolean => {
-  if (!idArray || !idArray.length) return false;
-  const idToCheckStr = idToCheck.toString();
-  return idArray.some(id => id && id.toString() === idToCheckStr);
-};
+interface AuthRequest extends Request {
+  user?: any;
+}
 
-// Helper function to safely convert string ID to ObjectId
-const toObjectId = (id: string | mongoose.Types.ObjectId): mongoose.Types.ObjectId => {
-  return typeof id === 'string' ? new mongoose.Types.ObjectId(id) : id;
-};
-
-// Create a new post
-export const createPost = async (req: AuthRequest, res: Response): Promise<any> => {
-  try {
-    const { 
-      title, 
-      content, 
-      category, 
-      visibility, 
-      tags,
-      isSchoolUpdate, 
-      attachments, 
-      externalLinks,
-      mentions 
-    } = req.body;
-    
-    if (!req.user || !req.user._id) {
-      return res.status(400).json({ success: false, message: 'Author ID is missing.' });
+const postInclude = {
+  author: {
+    select: {
+      id: true,
+      name: true,
+      profileImage: true,
+      role: true,
+      admissionYear: true
     }
-    
-    const author = req.user._id;
+  },
+  reactions: {
+    select: {
+      userId: true,
+      type: true
+    }
+  },
+  bookmarks: {
+    select: {
+      id: true
+    }
+  },
+  _count: {
+    select: {
+      comments: true
+    }
+  }
+} as const;
 
-    // Build post object
-    const postData: any = {
-      title: title?.trim() || undefined,
-      content: content.trim(),
-      author,
+const normalizePost = (post: any, currentUserId?: string) => ({
+  ...post,
+  author: {
+    ...post.author,
+    role: typeof post.author?.role === 'string' ? post.author.role.toLowerCase() : post.author?.role,
+    classYear: post.author?.admissionYear ? Number.parseInt(post.author.admissionYear, 10) : undefined
+  },
+  bookmarks: (post.bookmarks || []).map((bookmarkUser: { id: string }) => bookmarkUser.id),
+  commentCount: post._count?.comments ?? 0,
+  shareCount: post.shareCount ?? 0,
+  isLiked: currentUserId ? (post.reactions || []).some((reaction: { userId: string; type: string }) => reaction.userId === currentUserId && reaction.type === 'like') : false,
+  isBookmarked: currentUserId ? (post.bookmarks || []).some((bookmarkUser: { id: string }) => bookmarkUser.id === currentUserId) : false,
+});
+
+export const createPost = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { content, title, category, visibility, tags, attachments, externalLinks, originalPostId, shareType } = req.body;
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  if (!content && !attachments && !originalPostId) {
+    res.status(400).json({ success: false, message: 'Content, attachments, or shared post is required' });
+    return;
+  }
+
+  const newPost = await prisma.post.create({
+    data: {
+      content,
+      title: title || null,
       category: category || 'general',
       visibility: visibility || 'public',
       tags: tags || [],
-      isSchoolUpdate: isSchoolUpdate || false,
-      isFeatured: false,
-      attachments: attachments || [],
+      attachments: attachments || null,
       externalLinks: externalLinks || [],
-      mentions: mentions || []
-    };
+      authorId: req.user.id,
+      sharedPostId: originalPostId || null,
+      shareType: shareType || null
+    },
+    include: postInclude
+  });
 
-    const post = new Post(postData);
-    await post.save();
-    
-    // Populate the post for response
-    const populatedPost = await Post.findById(post._id)
-      .populate('author', 'name email profileImage role classYear')
-      .populate('mentions', 'name email profileImage')
-      .lean();
-    
-    // Format the response with consistent id field
-    const formattedPost = {
-      ...populatedPost,
-      id: populatedPost?._id.toString(),
-      author: populatedPost?.author ? {
-        ...populatedPost.author,
-        id: (populatedPost.author as any)._id?.toString()
-      } : undefined
-    };
-    
-    return res.status(201).json({ 
-      success: true, 
-      message: 'Post created successfully', 
-      post: formattedPost 
-    });
-  } catch (error: any) {
-    console.error('Create post error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to create post', 
-      error: error.message 
-    });
+  const normalizedPost = normalizePost(newPost, req.user.id);
+  res.status(201).json({ success: true, data: normalizedPost, post: normalizedPost });
+});
+
+export const getAllPosts = asyncHandler(async (req: Request, res: Response) => {
+  const page = Number.parseInt(req.query.page as string) || 1;
+  const limit = Number.parseInt(req.query.limit as string) || 10;
+  const skip = (page - 1) * limit;
+
+  const { category, search, tags, authorId, visibility } = req.query;
+
+  const where: any = {};
+  if (category) where.category = category as string;
+  if (authorId) where.authorId = authorId as string;
+  if (visibility) where.visibility = visibility as string;
+  if (search) where.content = { contains: search as string, mode: 'insensitive' };
+  if (tags) {
+    const tagsArray = (tags as string).split(',').map(t => t.trim());
+    where.tags = { hasSome: tagsArray };
   }
-};
 
-// Get all posts (with pagination and filtering)
-export const getAllPosts = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      authorId, 
-      category, 
-      visibility, 
-      tag, 
-      sortBy = 'createdAt', 
-      sortOrder = 'desc',
-      isSchoolUpdate,
-      withAttachments
-    } = req.query;
+  const [posts, total] = await Promise.all([
+    prisma.post.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip, take: limit,
+      include: postInclude
+    }),
+    prisma.post.count({ where })
+  ]);
 
-    const query: any = {};
-    if (authorId) query.author = authorId as string;
-    if (category) query.category = category as string;
-    if (visibility) query.visibility = visibility as string;
-    if (tag) query.tags = { $in: [tag as string] };
-    if (isSchoolUpdate !== undefined) query.isSchoolUpdate = isSchoolUpdate === 'true';
-    if (withAttachments) query.attachments = { $exists: true, $ne: [] };
+  const normalizedPosts = posts.map((post) => normalizePost(post));
 
-    const posts = await Post.find(query)
-      .populate('author', 'name email profileImage role classYear')
-      .populate('mentions', 'name email profileImage')
-      .populate({
-        path: 'sharedPost',
-        populate: {
-          path: 'author',
-          select: 'name profileImage role classYear email'
-        }
-      })
-      .sort({ [sortBy as string]: sortOrder === 'asc' ? 1 : -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit))
-      .lean();
+  res.status(200).json({
+    success: true,
+    data: normalizedPosts,
+    posts: normalizedPosts,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+});
 
-    const totalPosts = await Post.countDocuments(query);
-
-    // Format the response to match expected frontend structure
-    const formattedPosts = posts.map(post => ({
-      ...post,
-      id: post._id.toString(),
-      author: post.author ? {
-        ...post.author,
-        id: (post.author as any)._id?.toString()
-      } : undefined,
-      mentions: post.mentions ? (post.mentions as any[]).map((user: any) => ({
-        ...user,
-        id: user._id?.toString()
-      })) : []
-    }));
-
-    return res.status(200).json({
-      success: true,
-      data: formattedPosts,
-      pagination: {
-        currentPage: Number(page),
-        totalPages: Math.ceil(totalPosts / Number(limit)),
-        totalPosts,
-        pages: Math.ceil(totalPosts / Number(limit)),
-      },
-    });
-  } catch (error: any) {
-    console.error('Get all posts error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch posts', 
-      error: error.message 
-    });
+export const getPostById = asyncHandler(async (req: Request, res: Response) => {
+  const { postId } = req.params;
+  if (!postId) {
+    res.status(400).json({ success: false, message: 'Post ID is required' });
+    return;
   }
-};
 
-// Get a single post by ID
-export const getPostById = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const post = await Post.findById(req.params.postId)
-      .populate('author', 'name email profileImage role classYear')
-      .populate({
-        path: 'sharedPost',
-        populate: {
-          path: 'author',
-          select: 'name profileImage role classYear email'
-        }
-      })
-      .populate('comments')
-      .lean();
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    include: postInclude
+  });
 
-    if (!post) {
-      return res.status(404).json({ success: false, message: 'Post not found' });
-    }
-    
-    // Format the response with consistent id field
-    const formattedPost = {
-      ...post,
-      id: post._id.toString(),
-      author: post.author ? {
-        ...post.author,
-        id: (post.author as any)._id?.toString()
-      } : undefined
-    };
-    
-    return res.status(200).json({ success: true, post: formattedPost });
-  } catch (error: any) {
-    console.error('Get post by ID error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch post', 
-      error: error.message 
-    });
+  if (!post) {
+    res.status(404).json({ success: false, message: 'Post not found' });
+    return;
   }
-};
+  res.status(200).json({ success: true, data: normalizePost(post) });
+});
 
-// Update a post
-export const updatePost = async (req: AuthRequest, res: Response): Promise<any> => {
-  try {
-    const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    
-    const userId = req.user._id;
-    const { title, content, category, visibility, tags, attachments, externalLinks } = req.body;
-
-    // Find the post first
-    const post = await Post.findById(postId);
-    
-    if (!post) {
-      return res.status(404).json({ success: false, message: 'Post not found' });
-    }
-
-    // Check if the user is the author or an admin
-    if (post.author.toString() !== userId.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Not authorized to update this post' });
-    }
-
-    // Update the post with new values
-    const updatedPost = await Post.findByIdAndUpdate(
-      postId,
-      { 
-        title: title?.trim() || undefined, 
-        content: content.trim(), 
-        category, 
-        visibility, 
-        tags: tags || [],
-        attachments: attachments || [],
-        externalLinks: externalLinks || []
-      },
-      { new: true, runValidators: true }
-    )
-    .populate('author', 'name email profileImage role classYear')
-    .populate({
-      path: 'sharedPost',
-      populate: {
-        path: 'author',
-        select: 'name profileImage role classYear email'
-      }
-    })
-    .lean();
-    
-    if (!updatedPost) {
-      return res.status(404).json({ success: false, message: 'Post not found after update' });
-    }
-
-    // Format the response with consistent id field
-    const formattedPost = {
-      ...updatedPost,
-      id: updatedPost._id.toString(),
-      author: updatedPost.author ? {
-        ...updatedPost.author,
-        id: (updatedPost.author as any)._id?.toString()
-      } : undefined
-    };
-    
-    return res.status(200).json({ 
-      success: true, 
-      message: 'Post updated successfully', 
-      post: formattedPost 
-    });
-  } catch (error: any) {
-    console.error('Update post error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update post', 
-      error: error.message 
-    });
+export const updatePost = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { postId } = req.params;
+  if (!postId) {
+    res.status(400).json({ success: false, message: 'Post ID is required' });
+    return;
   }
-};
-
-// Delete a post
-export const deletePost = async (req: AuthRequest, res: Response): Promise<any> => {
-  try {
-    const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    
-    const userId = req.user._id;
-
-    // Find the post
-    const post = await Post.findById(postId);
-    
-    if (!post) {
-      return res.status(404).json({ success: false, message: 'Post not found' });
-    }
-
-    // Check if the user is the author or an admin
-    if (post.author.toString() !== userId.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Not authorized to delete this post' });
-    }
-
-    await Post.findByIdAndDelete(postId);
-    
-    return res.status(200).json({ success: true, message: 'Post deleted successfully' });
-  } catch (error: any) {
-    console.error('Delete post error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to delete post', 
-      error: error.message 
-    });
+  
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
   }
-};
 
-// Like or unlike a post
-export const likePost = async (req: AuthRequest, res: Response): Promise<any> => {
-  try {
-    const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    
-    const userId = req.user._id;
-    const { reactionType = 'like' } = req.body;
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) {
+    res.status(404).json({ success: false, message: 'Post not found' });
+    return;
+  }
 
-    // Find the post
-    const post = await Post.findById(postId);
-    
-    if (!post) {
-      return res.status(404).json({ success: false, message: 'Post not found' });
-    }
+  if (post.authorId !== req.user.id && req.user.role !== Role.ADMIN) {
+    res.status(403).json({ success: false, message: 'Not authorized' });
+    return;
+  }
 
-    // Initialize reactions array if it doesn't exist
-    if (!post.reactions) {
-      post.reactions = [];
-    }
+  const { content, title, category, visibility, tags, attachments, externalLinks } = req.body;
+  const updatedPost = await prisma.post.update({
+    where: { id: postId },
+    data: {
+      content: content ?? post.content,
+      title: title ?? post.title,
+      category: category ?? post.category,
+      visibility: visibility ?? post.visibility,
+      tags: tags ?? post.tags,
+      attachments: attachments ?? post.attachments,
+      externalLinks: externalLinks ?? post.externalLinks
+    },
+    include: postInclude
+  });
 
-    // Check if the user has already reacted
-    const existingReactionIndex = post.reactions.findIndex(
-      reaction => reaction.userId.toString() === userId.toString()
-    );
+  const normalizedPost = normalizePost(updatedPost, req.user.id);
+  res.status(200).json({ success: true, data: normalizedPost, post: normalizedPost });
+});
 
-    if (existingReactionIndex !== -1) {
-      // If reaction type is the same, remove it (unlike/unreact)
-      const existingReaction = post.reactions[existingReactionIndex];
-      if (existingReaction?.type === reactionType) {
-        post.reactions.splice(existingReactionIndex, 1);
-      } else {
-        // Otherwise, update the reaction type
-        if (existingReaction) {
-          existingReaction.type = reactionType as any;
-        }
-      }
+export const deletePost = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { postId } = req.params;
+  if (!postId) {
+    res.status(400).json({ success: false, message: 'Post ID is required' });
+    return;
+  }
+  
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) {
+    res.status(404).json({ success: false, message: 'Post not found' });
+    return;
+  }
+
+  if (post.authorId !== req.user.id && req.user.role !== Role.ADMIN) {
+    res.status(403).json({ success: false, message: 'Not authorized' });
+    return;
+  }
+
+  await prisma.post.delete({ where: { id: postId } });
+  res.status(200).json({ success: true, data: {} });
+});
+
+export const likePost = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { postId } = req.params;
+  if (!postId) {
+    res.status(400).json({ success: false, message: 'Post ID is required' });
+    return;
+  }
+
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const reactionType = req.body?.reactionType || 'like';
+
+  const existingReaction = await prisma.postReaction.findUnique({
+    where: { postId_userId: { postId, userId: req.user.id } }
+  });
+
+  let message = '';
+  if (existingReaction) {
+    if (existingReaction.type === reactionType) {
+      await prisma.postReaction.delete({
+        where: { postId_userId: { postId, userId: req.user.id } }
+      });
+      message = 'Post reaction removed';
     } else {
-      // Add new reaction
-      post.reactions.push({ 
-        userId: toObjectId(userId), 
-        type: reactionType as any
+      await prisma.postReaction.update({
+        where: { postId_userId: { postId, userId: req.user.id } },
+        data: { type: reactionType }
       });
+      message = 'Post reaction updated';
     }
-
-    await post.save();
-
-    // Get updated post with populated fields
-    const updatedPost = await Post.findById(postId)
-      .populate('author', 'name email profileImage role classYear')
-      .populate({
-        path: 'sharedPost',
-        populate: {
-          path: 'author',
-          select: 'name profileImage role classYear email'
-        }
-      })
-      .lean();
-    
-    if (!updatedPost) {
-      return res.status(404).json({ success: false, message: 'Post not found after update' });
-    }
-
-    // Format the response with consistent id field
-    const formattedPost = {
-      ...updatedPost,
-      id: updatedPost._id.toString(),
-      author: updatedPost.author ? {
-        ...updatedPost.author,
-        id: (updatedPost.author as any)._id?.toString()
-      } : undefined
-    };
-
-    return res.status(200).json({ 
-      success: true, 
-      message: 'Reaction updated successfully', 
-      post: formattedPost 
-    });
-  } catch (error: any) {
-    console.error('Like post error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update reaction', 
-      error: error.message 
-    });
+  } else {
+    await prisma.postReaction.create({ data: { postId, userId: req.user.id, type: reactionType } });
+    message = 'Post reacted';
   }
-};
 
-// Bookmark a post
-export const bookmarkPost = async (req: AuthRequest, res: Response): Promise<any> => {
-  try {
-    const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    
-    const userId = req.user._id;
+  const updatedPost = await prisma.post.findUnique({
+    where: { id: postId },
+    include: postInclude
+  });
 
-    // Find the post
-    const post = await Post.findById(postId);
-    
-    if (!post) {
-      return res.status(404).json({ success: false, message: 'Post not found' });
-    }
+  const normalizedPost = updatedPost ? normalizePost(updatedPost, req.user.id) : undefined;
 
-    // Initialize bookmarks array if it doesn't exist
-    if (!post.bookmarks) {
-      post.bookmarks = [];
-    }
+  res.status(200).json({ success: true, message, data: normalizedPost, post: normalizedPost });
+});
 
-    // Check if the post is already bookmarked by this user
-    const alreadyBookmarked = isIdInArray(post.bookmarks, userId);
-    
-    // For DELETE request, always remove the bookmark
-    // For POST request, toggle the bookmark status
-    if (req.method === 'DELETE' || alreadyBookmarked) {
-      // Remove the bookmark
-      post.bookmarks = post.bookmarks.filter(id => id.toString() !== userId.toString());
-      await post.save();
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Post unbookmarked successfully', 
-        isBookmarked: false
-      });
-    } else {
-      // Add the bookmark (only for POST requests)
-      post.bookmarks.push(toObjectId(userId));
-      await post.save();
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Post bookmarked successfully', 
-        isBookmarked: true 
-      });
-    }
-  } catch (error: any) {
-    console.error('Bookmark post error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to bookmark post', 
-      error: error.message 
-    });
+export const bookmarkPost = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { postId } = req.params;
+  if (!postId) {
+    res.status(400).json({ success: false, message: 'Post ID is required' });
+    return;
   }
-};
 
-// Share a post
-export const sharePost = async (req: AuthRequest, res: Response): Promise<any> => {
-  try {
-    const { originalPostId, content, visibility, shareType = 'simple' } = req.body;
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    
-    const userId = req.user._id;
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
 
-    // Find the original post
-    const originalPost = await Post.findById(originalPostId);
-    
-    if (!originalPost) {
-      return res.status(404).json({ success: false, message: 'Original post not found' });
-    }
+  const existingBookmark = await prisma.post.findFirst({
+    where: {
+      id: postId,
+      bookmarks: {
+        some: { id: req.user.id }
+      }
+    },
+    select: { id: true }
+  });
 
-    // Create a new post that shares the original
-    const sharedPost = new Post({
-      author: userId,
+  let message = '';
+  if (existingBookmark) {
+    await prisma.post.update({
+      where: { id: postId },
+      data: { bookmarks: { disconnect: { id: req.user.id } } }
+    });
+    message = 'Post removed from bookmarks';
+  } else {
+    await prisma.post.update({
+      where: { id: postId },
+      data: { bookmarks: { connect: { id: req.user.id } } }
+    });
+    message = 'Post bookmarked';
+  }
+
+  res.status(200).json({ success: true, message });
+});
+
+export const sharePost = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { originalPostId, content, visibility, shareType } = req.body;
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  if (!originalPostId) {
+    res.status(400).json({ success: false, message: 'Original post ID is required' });
+    return;
+  }
+
+  const originalPost = await prisma.post.findUnique({ where: { id: originalPostId } });
+  if (!originalPost) {
+    res.status(404).json({ success: false, message: 'Original post not found' });
+    return;
+  }
+
+  const newPost = await prisma.post.create({
+    data: {
       content: content || '',
       visibility: visibility || 'public',
-      sharedPost: originalPostId,
-      shareType,
-      category: 'general'
-    });
+      category: 'general',
+      authorId: req.user.id,
+      sharedPostId: originalPostId,
+      shareType: shareType || 'simple'
+    },
+    include: postInclude
+  });
 
-    await sharedPost.save();
+  const normalizedPost = normalizePost(newPost, req.user.id);
+  await prisma.post.update({
+    where: { id: originalPostId },
+    data: { shareCount: { increment: 1 } }
+  });
 
-    // Increment the share count of the original post
-    originalPost.shareCount = (originalPost.shareCount || 0) + 1;
-    await originalPost.save();
-    
-    // Format the response with consistent id field
-    const formattedPost = {
-      ...sharedPost.toObject(),
-      id: sharedPost._id.toString()
-    };
-    
-    return res.status(201).json({ 
-      success: true, 
-      message: 'Post shared successfully',
-      post: formattedPost 
-    });
-  } catch (error: any) {
-    console.error('Share post error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to share post', 
-      error: error.message 
-    });
+  res.status(201).json({ success: true, data: normalizedPost, post: normalizedPost });
+});
+
+export const getFeedPosts = asyncHandler(async (req: AuthRequest, res: Response) => {
+  // Simple fallback feed, returning recent posts
+  const page = Number.parseInt(req.query.page as string) || 1;
+  const limit = Number.parseInt(req.query.limit as string) || 10;
+  const skip = (page - 1) * limit;
+
+  const [posts, total] = await Promise.all([
+    prisma.post.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip, take: limit,
+      include: postInclude
+    }),
+    prisma.post.count()
+  ]);
+
+  const normalizedPosts = posts.map((post) => normalizePost(post, req.user?.id));
+
+  res.status(200).json({
+    success: true,
+    data: normalizedPosts,
+    posts: normalizedPosts,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+});
+
+export const getBookmarkedPosts = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
   }
-};
 
-// Get user's feed posts
-export const getFeedPosts = async (req: AuthRequest, res: Response): Promise<any> => {
-  try {
-    const { page = 1, limit = 10, filter } = req.query;
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    
-    const userId = req.user._id;
-    let query: any = {};
-    
-    if (filter === 'me') {
-      // Only posts created by the current user
-      query.author = userId;
-    } else if (filter === 'connections') {
-      // Get the user's connections
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found' });
+  const page = Number.parseInt(req.query.page as string) || 1;
+  const limit = Number.parseInt(req.query.limit as string) || 10;
+  const skip = (page - 1) * limit;
+
+  const posts = await prisma.post.findMany({
+    where: {
+      bookmarks: {
+        some: { id: req.user.id }
       }
-      
-      const connections = user.connections || [];
-      // Posts from the user and their connections
-      query.author = { $in: [userId, ...connections] };
-    } else {
-      // Default: posts visible to the user
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found' });
+    },
+    include: postInclude,
+    orderBy: { createdAt: 'desc' },
+    skip, take: limit
+  });
+
+  const total = await prisma.post.count({
+    where: {
+      bookmarks: {
+        some: { id: req.user.id }
       }
-      
-      const connections = user.connections || [];
-      
-      query = {
-        $or: [
-          { visibility: 'public' },
-          { author: userId },
-          { visibility: 'connections_only', author: { $in: connections } }
-        ]
-      };
     }
+  });
 
-    const posts = await Post.find(query)
-      .populate('author', 'name email profileImage role classYear')
-      .populate('mentions', 'name email profileImage')
-      .populate({
-        path: 'sharedPost',
-        populate: {
-          path: 'author',
-          select: 'name profileImage role classYear email'
-        }
-      })
-      .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit))
-      .lean();
+  const normalizedPosts = posts.map((post) => normalizePost(post, req.user.id));
 
-    const totalPosts = await Post.countDocuments(query);
+  res.status(200).json({
+    success: true,
+    data: normalizedPosts,
+    posts: normalizedPosts,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+});
 
-    // Format the response to match expected frontend structure
-    const formattedPosts = posts.map(post => ({
-      ...post,
-      id: post._id.toString(),
-      author: post.author ? {
-        ...post.author,
-        id: (post.author as any)._id?.toString()
-      } : undefined,
-      mentions: post.mentions ? (post.mentions as any[]).map((user: any) => ({
-        ...user,
-        id: user._id?.toString()
-      })) : [],
-      isLiked: post.reactions ? post.reactions.some((reaction: any) => 
-        reaction.userId && reaction.userId.toString() === userId.toString() && reaction.type === 'like'
-      ) : false,
-      isBookmarked: post.bookmarks ? isIdInArray(post.bookmarks, userId) : false
-    }));
+export const getFeaturedPosts = asyncHandler(async (_req: Request, res: Response) => {
+  const posts = await prisma.post.findMany({
+    where: { isFeatured: true },
+    take: 10,
+    orderBy: { createdAt: 'desc' },
+    include: postInclude
+  });
 
-    return res.status(200).json({
-      success: true,
-      data: formattedPosts,
-      pagination: {
-        currentPage: Number(page),
-        totalPages: Math.ceil(totalPosts / Number(limit)),
-        totalPosts,
-        pages: Math.ceil(totalPosts / Number(limit)),
-      },
-    });
-  } catch (error: any) {
-    console.error('Get feed posts error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch user timeline', 
-      error: error.message 
-    });
+  res.status(200).json({ success: true, data: posts.map((post) => normalizePost(post)) });
+});
+
+export const getSchoolUpdates = asyncHandler(async (_req: Request, res: Response) => {
+  const posts = await prisma.post.findMany({
+    where: { isSchoolUpdate: true },
+    take: 20,
+    orderBy: { createdAt: 'desc' },
+    include: postInclude
+  });
+
+  res.status(200).json({ success: true, data: posts.map((post) => normalizePost(post)) });
+});
+
+export const toggleFeaturePost = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { postId } = req.params;
+  if (!postId) {
+    res.status(400).json({ success: false, message: 'Post ID is required' });
+    return;
   }
-};
 
-// Get bookmarked posts
-export const getBookmarkedPosts = async (req: AuthRequest, res: Response): Promise<any> => {
-  try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized'
-      });
-    }
-    
-    const userId = req.user._id;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
-
-    // Find posts that the current user has bookmarked
-    const posts = await Post.find({
-      bookmarks: { $elemMatch: { $eq: userId } }
-    })
-      .populate('author', 'name profileImage role classYear email')
-      .populate({
-        path: 'sharedPost',
-        populate: {
-          path: 'author',
-          select: 'name profileImage role classYear email'
-        }
-      })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const total = await Post.countDocuments({
-      bookmarks: { $elemMatch: { $eq: userId } }
-    });
-
-    // Format the response to match expected frontend structure
-    const formattedPosts = posts.map(post => ({
-      ...post,
-      id: post._id.toString(),
-      author: post.author ? {
-        ...post.author,
-        id: (post.author as any)._id?.toString()
-      } : undefined,
-      isLiked: post.reactions ? post.reactions.some((reaction: any) =>
-        reaction.userId && reaction.userId.toString() === userId.toString() && reaction.type === 'like'
-      ) : false,
-      isBookmarked: true // Since we're specifically querying for bookmarked posts
-    }));
-
-    return res.status(200).json({
-      success: true,
-      data: formattedPosts,
-      pagination: {
-        total,
-        page,
-        pages: Math.ceil(total / limit),
-        totalPages: Math.ceil(total / limit),
-        currentPage: page,
-        totalPosts: total
-      }
-    });
-  } catch (error: any) {
-    console.error('Get bookmarked posts error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch bookmarked posts', 
-      error: error.message 
-    });
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) {
+    res.status(404).json({ success: false, message: 'Post not found' });
+    return;
   }
-};
 
-// Get featured posts
-export const getFeaturedPosts = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { page = 1, limit = 10 } = req.query;
-    const posts = await Post.find({ isFeatured: true })
-      .populate('author', 'name email profileImage role classYear')
-      .populate({
-        path: 'sharedPost',
-        populate: {
-          path: 'author',
-          select: 'name profileImage role classYear email'
-        }
-      })
-      .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit))
-      .lean();
+  const updatedPost = await prisma.post.update({
+    where: { id: postId },
+    data: { isFeatured: !post.isFeatured },
+    include: postInclude
+  });
 
-    // Format the response to match expected frontend structure
-    const formattedPosts = posts.map(post => ({
-      ...post,
-      id: post._id.toString(),
-      author: post.author ? {
-        ...post.author,
-        id: (post.author as any)._id?.toString()
-      } : undefined
-    }));
-
-    return res.status(200).json({ success: true, data: formattedPosts });
-  } catch (error: any) {
-    console.error('Get featured posts error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch featured posts', 
-      error: error.message 
-    });
-  }
-};
-
-// Get school updates
-export const getSchoolUpdates = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { page = 1, limit = 10 } = req.query;
-    const posts = await Post.find({ isSchoolUpdate: true })
-      .populate('author', 'name email profileImage role classYear')
-      .populate({
-        path: 'sharedPost',
-        populate: {
-          path: 'author',
-          select: 'name profileImage role classYear email'
-        }
-      })
-      .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit))
-      .lean();
-
-    // Format the response to match expected frontend structure
-    const formattedPosts = posts.map(post => ({
-      ...post,
-      id: post._id.toString(),
-      author: post.author ? {
-        ...post.author,
-        id: (post.author as any)._id?.toString()
-      } : undefined
-    }));
-
-    const total = await Post.countDocuments({ isSchoolUpdate: true });
-
-    return res.status(200).json({ 
-      success: true, 
-      data: formattedPosts,
-      pagination: {
-        currentPage: Number(page),
-        totalPages: Math.ceil(total / Number(limit)),
-        totalPosts: total,
-        pages: Math.ceil(total / Number(limit)),
-      }
-    });
-  } catch (error: any) {
-    console.error('Get school updates error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch school updates', 
-      error: error.message 
-    });
-  }
-};
-
-// Feature or unfeature a post (admin only)
-export const toggleFeaturePost = async (req: AuthRequest, res: Response): Promise<any> => {
-  try {
-    const postId = req.params.postId;
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    // Check if user is admin
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Only administrators can feature posts' });
-    }
-
-    // Find the post
-    const post = await Post.findById(postId);
-    
-    if (!post) {
-      return res.status(404).json({ success: false, message: 'Post not found' });
-    }
-
-    // Toggle featured status
-    post.isFeatured = !post.isFeatured;
-    await post.save();
-
-    // Get updated post with populated fields
-    const updatedPost = await Post.findById(postId)
-      .populate('author', 'name email profileImage role classYear')
-      .populate({
-        path: 'sharedPost',
-        populate: {
-          path: 'author',
-          select: 'name profileImage role classYear email'
-        }
-      })
-      .lean();
-    
-    if (!updatedPost) {
-      return res.status(404).json({ success: false, message: 'Post not found after update' });
-    }
-
-    // Format the response with consistent id field
-    const formattedPost = {
-      ...updatedPost,
-      id: updatedPost._id.toString(),
-      author: updatedPost.author ? {
-        ...updatedPost.author,
-        id: (updatedPost.author as any)._id?.toString()
-      } : undefined
-    };
-
-    return res.status(200).json({ 
-      success: true, 
-      message: post.isFeatured ? 'Post featured' : 'Post unfeatured', 
-      post: formattedPost 
-    });
-  } catch (error: any) {
-    console.error('Toggle feature post error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to toggle featured status', 
-      error: error.message 
-    });
-  }
-};
+  res.status(200).json({ success: true, data: normalizePost(updatedPost, req.user?.id) });
+});

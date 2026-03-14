@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { asyncHandler } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
-import File from '../models/File';
+import prisma from '../config/prisma';
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -73,23 +73,23 @@ export const uploadFile = asyncHandler(async (req: AuthRequest, res: Response): 
   const fileUrl = `/api/uploads/${req.file.filename}`;
   
   // Save file metadata to database
-  const fileRecord = new File({
-    filename: req.file.filename,
-    originalName: req.file.originalname,
-    mimetype: req.file.mimetype,
-    size: req.file.size,
-    path: req.file.path,
-    url: fileUrl,
-    uploadedBy: req.user._id || req.user.id
+  const fileRecord = await prisma.file.create({
+    data: {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path,
+      url: fileUrl,
+      uploadedById: req.user._id || req.user.id
+    }
   });
-
-  await fileRecord.save();
   
   res.json({
     success: true,
     message: 'File uploaded successfully',
     data: {
-      id: fileRecord._id,
+      id: fileRecord.id,
       url: fileUrl,
       filename: req.file.filename,
       originalName: req.file.originalname,
@@ -125,20 +125,20 @@ export const uploadMultipleFiles = asyncHandler(async (req: AuthRequest, res: Re
     const fileUrl = `/api/uploads/${file.filename}`;
     
     // Save file metadata to database
-    const fileRecord = new File({
-      filename: file.filename,
-      originalName: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      path: file.path,
-      url: fileUrl,
-      uploadedBy: req.user._id || req.user.id
+    const fileRecord = await prisma.file.create({
+      data: {
+        filename: file.filename,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        path: file.path,
+        url: fileUrl,
+        uploadedById: req.user._id || req.user.id
+      }
     });
 
-    await fileRecord.save();
-
     uploadedFiles.push({
-      id: fileRecord._id,
+      id: fileRecord.id,
       url: fileUrl,
       filename: file.filename,
       originalName: file.originalname,

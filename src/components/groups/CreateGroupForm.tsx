@@ -65,7 +65,7 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl rounded-xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-gray-900">Create New Group</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-foreground">Create New Group</DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
@@ -80,7 +80,7 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
                     <Input 
                       placeholder="e.g., Tech Alumni Network" 
                       {...field} 
-                      className="rounded-lg border-gray-300 focus:border-orange-300 focus:ring-orange-300"
+                      className="rounded-lg border-gray-300 focus:border-primary/30 focus:ring-primary/30"
                     />
                   </FormControl>
                   <FormMessage />
@@ -97,7 +97,7 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
                   <FormControl>
                     <Textarea 
                       placeholder="Describe the purpose and goals of your group..."
-                      className="min-h-[100px] rounded-lg border-gray-300 focus:border-orange-300 focus:ring-orange-300"
+                      className="min-h-[100px] rounded-lg border-gray-300 focus:border-primary/30 focus:ring-primary/30"
                       {...field}
                     />
                   </FormControl>
@@ -114,7 +114,7 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
                   <FormLabel>Category</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <SelectTrigger className="rounded-lg border-gray-300 focus:border-orange-300 focus:ring-orange-300">
+                      <SelectTrigger className="rounded-lg border-gray-300 focus:border-primary/30 focus:ring-primary/30">
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                     </FormControl>
@@ -144,17 +144,17 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
                   <FormLabel>Privacy Setting</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <SelectTrigger className="rounded-lg border-gray-300 focus:border-orange-300 focus:ring-orange-300">
+                      <SelectTrigger className="rounded-lg border-gray-300 focus:border-primary/30 focus:ring-primary/30">
                         <SelectValue placeholder="Select privacy setting" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="public">
                         <div className="flex items-center gap-2">
-                          <Globe className="h-4 w-4 text-blue-500" />
+                          <Globe className="h-4 w-4 text-foreground" />
                           <div>
                             <div className="font-medium">Public</div>
-                            <div className="text-xs text-gray-500">Anyone can see and join</div>
+                            <div className="text-xs text-muted/300">Anyone can see and join</div>
                           </div>
                         </div>
                       </SelectItem>
@@ -163,7 +163,7 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
                           <Lock className="h-4 w-4 text-red-500" />
                           <div>
                             <div className="font-medium">Private</div>
-                            <div className="text-xs text-gray-500">Invitation only</div>
+                            <div className="text-xs text-muted/300">Invitation only</div>
                           </div>
                         </div>
                       </SelectItem>
@@ -185,13 +185,13 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
                 type="button" 
                 variant="outline" 
                 onClick={onClose}
-                className="border-gray-300 hover:bg-gray-50 text-gray-700"
+                className="border-gray-300 hover:bg-muted/30 text-foreground/80"
               >
                 Cancel
               </Button>
               <Button 
                 type="submit"
-                className="bg-orange-500 hover:bg-orange-600 text-white transform hover:scale-105 hover:shadow-md transition-all duration-300"
+                className="bg-primary hover:bg-primary/90 text-white transform hover:scale-105 hover:shadow-md transition-all duration-300"
               >
                 <Users className="h-4 w-4 mr-2" />
                 Create Group
