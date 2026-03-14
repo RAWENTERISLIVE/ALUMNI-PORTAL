@@ -9,7 +9,7 @@ const prisma_1 = __importDefault(require("../config/prisma"));
 const errorHandler_1 = require("../middleware/errorHandler");
 const isAdminRole = (role) => {
     const normalized = (role || '').toLowerCase();
-    return normalized === 'admin' || normalized === 'super_admin' || role === client_1.Role.ADMIN || role === client_1.Role.SUPER_ADMIN;
+    return normalized === 'moderator' || normalized === 'admin' || normalized === 'super_admin' || String(role) === 'MODERATOR' || role === client_1.Role.ADMIN || role === client_1.Role.SUPER_ADMIN;
 };
 const formatJob = (job) => ({
     ...job,
@@ -24,6 +24,27 @@ const formatJob = (job) => ({
     postedDate: job.createdAt,
     applicants: []
 });
+const safeTrim = (value) => {
+    if (typeof value !== 'string')
+        return undefined;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+};
+const isHttpUrl = (value) => {
+    try {
+        const parsed = new URL(value);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    }
+    catch {
+        return false;
+    }
+};
+const isValidResumeUrl = (value) => {
+    if (value.startsWith('/api/uploads/')) {
+        return true;
+    }
+    return isHttpUrl(value);
+};
 exports.getJobs = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const page = Number.parseInt(req.query.page, 10) || 1;
     const limit = Number.parseInt(req.query.limit, 10) || 10;
@@ -302,8 +323,51 @@ exports.getSavedJobs = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     });
     res.status(200).json({ success: true, data: jobs.map(formatJob) });
 });
-exports.getAppliedJobs = (0, errorHandler_1.asyncHandler)(async (_req, res) => {
-    res.status(200).json({ success: true, data: [] });
+exports.getAppliedJobs = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    const applicationNotifications = await prisma_1.default.notification.findMany({
+        where: {
+            userId: req.user.id,
+            type: 'job_application_submitted'
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+            metadata: true,
+            createdAt: true
+        }
+    });
+    const jobIds = applicationNotifications
+        .map((notification) => {
+        const metadata = notification.metadata;
+        return metadata?.jobId;
+    })
+        .filter((jobId) => Boolean(jobId));
+    if (jobIds.length === 0) {
+        res.status(200).json({ success: true, data: [] });
+        return;
+    }
+    const uniqueJobIds = Array.from(new Set(jobIds));
+    const jobs = await prisma_1.default.job.findMany({
+        where: { id: { in: uniqueJobIds } },
+        include: {
+            postedBy: {
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    profileImage: true
+                }
+            }
+        }
+    });
+    const jobsById = new Map(jobs.map((job) => [job.id, job]));
+    const orderedJobs = uniqueJobIds
+        .map((jobId) => jobsById.get(jobId))
+        .filter((job) => Boolean(job));
+    res.status(200).json({ success: true, data: orderedJobs.map(formatJob) });
 });
 exports.toggleSaveJob = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     if (!req.user) {
@@ -354,28 +418,128 @@ exports.toggleSaveJob = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     res.status(200).json({ success: true, message: 'Job saved', data: { saved: true } });
 });
 exports.incrementApplicationCount = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
     const { id } = req.params;
     if (!id) {
         res.status(400).json({ success: false, message: 'Job ID is required' });
         return;
     }
+    const rawBody = req.body || {};
+    const coverLetter = safeTrim(rawBody.coverLetter);
+    const resumeUrl = safeTrim(rawBody.resumeUrl);
+    const resumeFilename = safeTrim(rawBody.resumeFilename);
+    const portfolioUrl = safeTrim(rawBody.portfolioUrl);
     const job = await prisma_1.default.job.findUnique({ where: { id } });
     if (!job) {
         res.status(404).json({ success: false, message: 'Job not found' });
         return;
     }
-    const updated = await prisma_1.default.job.update({
-        where: { id },
-        data: {
-            applicationCount: {
-                increment: 1
+    if (job.postedById === req.user.id) {
+        res.status(400).json({ success: false, message: 'You cannot apply to your own job posting' });
+        return;
+    }
+    if (coverLetter && coverLetter.length > 4000) {
+        res.status(400).json({ success: false, message: 'Cover letter must be 4000 characters or fewer' });
+        return;
+    }
+    if (portfolioUrl && !isHttpUrl(portfolioUrl)) {
+        res.status(400).json({ success: false, message: 'Portfolio URL must be a valid http(s) URL' });
+        return;
+    }
+    if (resumeUrl && !isValidResumeUrl(resumeUrl)) {
+        res.status(400).json({ success: false, message: 'Resume URL is invalid' });
+        return;
+    }
+    if (resumeFilename && !resumeUrl) {
+        res.status(400).json({ success: false, message: 'Resume filename requires a resume URL' });
+        return;
+    }
+    const existingApplication = await prisma_1.default.notification.findFirst({
+        where: {
+            userId: req.user.id,
+            type: 'job_application_submitted',
+            metadata: {
+                path: ['jobId'],
+                equals: id
             }
-        }
+        },
+        select: { id: true }
     });
+    if (existingApplication) {
+        res.status(200).json({
+            success: true,
+            message: 'You have already applied to this job',
+            data: {
+                alreadyApplied: true,
+                applicationCount: job.applicationCount
+            }
+        });
+        return;
+    }
+    const appliedAt = new Date().toISOString();
+    const applicantMetadata = {
+        jobId: job.id,
+        jobTitle: job.title,
+        company: job.company,
+        coverLetter,
+        resumeUrl,
+        resumeFilename,
+        portfolioUrl,
+        appliedAt
+    };
+    const [updated] = await prisma_1.default.$transaction([
+        prisma_1.default.job.update({
+            where: { id },
+            data: {
+                applicationCount: {
+                    increment: 1
+                }
+            }
+        }),
+        prisma_1.default.notification.create({
+            data: {
+                userId: req.user.id,
+                title: `Application submitted: ${job.title}`,
+                message: `You successfully applied to ${job.title} at ${job.company}.`,
+                type: 'job_application_submitted',
+                actionUrl: `/jobs`,
+                metadata: applicantMetadata
+            }
+        })
+    ]);
+    if (job.postedById !== req.user.id) {
+        await prisma_1.default.notification.create({
+            data: {
+                userId: job.postedById,
+                title: `New applicant for ${job.title}`,
+                message: `${req.user.name || req.user.email} applied for your job posting.`,
+                type: 'job_application_received',
+                actionUrl: `/jobs`,
+                metadata: {
+                    jobId: job.id,
+                    jobTitle: job.title,
+                    applicantId: req.user.id,
+                    applicantName: req.user.name || req.user.email,
+                    applicantEmail: req.user.email,
+                    coverLetter,
+                    resumeUrl,
+                    resumeFilename,
+                    portfolioUrl,
+                    appliedAt
+                }
+            }
+        });
+    }
     res.status(200).json({
         success: true,
-        message: 'Application recorded',
-        data: { applicationCount: updated.applicationCount }
+        message: 'Application submitted successfully',
+        data: {
+            alreadyApplied: false,
+            applicationCount: updated.applicationCount
+        }
     });
 });
 exports.searchJobs = (0, errorHandler_1.asyncHandler)(async (req, res) => {

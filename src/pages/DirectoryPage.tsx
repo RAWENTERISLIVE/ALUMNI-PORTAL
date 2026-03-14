@@ -8,15 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
-  MapPin,
   Search,
+  MapPin,
   GraduationCap,
-  User,
-  Filter,
-  SortAsc,
-  MessageSquare,
-  Users,
   Building,
+  User,
+  Users,
+  MessageSquare,
 } from "lucide-react";
 import apiService from "@/services/apiService";
 import { useToast } from "@/hooks/use-toast";
@@ -148,19 +146,46 @@ export default function DirectoryPage() {
   [alumni, searchQuery, filterIndustry, filterYear, filterLocation]);
 
   const handleConnection = async (userId: string) => {
-    try {
-      // In a real implementation, we'd call the API
-      toast({ title: "Connection Request Sent", description: "Your connection request has been sent." });
-      
-      // Update UI optimistically
-      setAlumni(alumni.map(person => 
-        person.id === userId 
-          ? {...person, connectionStatus: "pending"}
+    const target = alumni.find((person) => person.id === userId);
+    if (!target) return;
+
+    const isDisconnect = target.connectionStatus === "connected";
+    const previousState = alumni;
+
+    setAlumni((current) =>
+      current.map((person) =>
+        person.id === userId
+          ? {
+              ...person,
+              connectionStatus: isDisconnect ? "none" : "connected",
+            }
           : person
-      ));
+      )
+    );
+
+    try {
+      const response = isDisconnect
+        ? await apiService.disconnectFromUser(userId)
+        : await apiService.connectWithUser(userId);
+
+      if (!response.success) {
+        setAlumni(previousState);
+        toast({
+          title: "Error",
+          description: response.message || (isDisconnect ? "Failed to disconnect." : "Failed to connect."),
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: isDisconnect ? "Disconnected" : "Connected",
+        description: isDisconnect ? "Connection removed successfully." : "Connection request accepted.",
+      });
     } catch (error) {
-      console.error("Error sending connection request:", error);
-      toast({ title: "Error", description: "Failed to send connection request.", variant: "destructive" });
+      console.error("Error updating connection:", error);
+      setAlumni(previousState);
+      toast({ title: "Error", description: "Failed to update connection.", variant: "destructive" });
     }
   };
 
@@ -192,23 +217,7 @@ export default function DirectoryPage() {
         </div>
         
         <div className="flex gap-2 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-1"
-          >
-            <Filter className="h-4 w-4" />
-            <span>Filters</span>
-          </Button>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-1"
-          >
-            <SortAsc className="h-4 w-4" />
-            <span>Sort</span>
-          </Button>
+          <Button variant="outline" size="sm" onClick={handleClearFilters}>Clear</Button>
         </div>
       </div>
 

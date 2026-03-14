@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Users, Plus, Filter, Laptop, Leaf, GraduationCap, Lightbulb, Lock, Globe, MessageSquare } from "lucide-react";
+import { Search, Users, Plus, Laptop, Leaf, GraduationCap, Lightbulb, Lock, Globe, MessageSquare, Trash2 } from "lucide-react";
 import { GroupDiscussionModal } from "@/components/groups/GroupDiscussionModal";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -90,12 +90,12 @@ const checkMembership = (member: any, userId: string | undefined): boolean => {
   }
   
   // If member is an object with _id
-  if (member && member._id) {
+  if (member?._id) {
     return member._id.toString() === userId.toString();
   }
   
   // If member is an object with id
-  if (member && member.id) {
+  if (member?.id) {
     return member.id.toString() === userId.toString();
   }
   
@@ -112,6 +112,10 @@ export default function GroupsPage() {
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const normalizedRole = (currentUser?.role || '').toLowerCase();
+  const isWatcher = normalizedRole === 'admin' || normalizedRole === 'super_admin' || normalizedRole === 'moderator';
+  const isSuperAdmin = normalizedRole === 'super_admin';
 
   useEffect(() => {
     loadGroups();
@@ -134,8 +138,8 @@ export default function GroupsPage() {
 
   const filteredGroups = useMemo(() =>
     groups.filter(group => {
-      const matchesSearch = (group.name && group.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (group.description && group.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesSearch = (group.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (group.description?.toLowerCase().includes(searchQuery.toLowerCase()));
 
       // Check if user is a member by comparing ids or comparing with string values for flexibility
       const checkMembership = (memberId: any, userId: string) => {
@@ -189,16 +193,23 @@ export default function GroupsPage() {
     try {
       const groupId = group.id || group._id;
       if (isJoined) {
-        await apiService.leaveGroup(groupId);
+        const response = await apiService.leaveGroup(groupId);
+        if (!response.success) throw new Error(response.message || 'Failed to leave group');
         toast({ title: "Left Group", description: `You have left the "${group.name}" group.` });
       } else {
-        await apiService.joinGroup(groupId);
-        toast({ title: "Joined Group", description: `You have successfully joined the "${group.name}" group.` });
+        const response = await apiService.joinGroup(groupId);
+        if (!response.success) throw new Error(response.message || 'Failed to join group');
+
+        if (group.privacy === 'private') {
+          toast({ title: "Join Request Sent", description: response.message || `Your request to join "${group.name}" was sent to the admin.` });
+        } else {
+          toast({ title: "Joined Group", description: response.message || `You have successfully joined the "${group.name}" group.` });
+        }
       }
       loadGroups();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error joining/leaving group:', error);
-      toast({ title: "Error", description: "An error occurred. Please try again.", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "An error occurred. Please try again.", variant: "destructive" });
     }
   };
 
@@ -215,6 +226,29 @@ export default function GroupsPage() {
     } catch (error: any) {
       console.error('Error creating group:', error);
       toast({ title: "Error", description: `Failed to create group: ${error.message}`, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteGroup = async (group: any) => {
+    if (!isSuperAdmin) {
+      toast({ title: "Unauthorized", description: "Only super admin can delete groups.", variant: "destructive" });
+      return;
+    }
+
+    const shouldDelete = globalThis.confirm(`Delete group "${group.name}"? This action cannot be undone.`);
+    if (!shouldDelete) return;
+
+    try {
+      const groupId = group.id || group._id;
+      const response = await apiService.deleteGroup(groupId);
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to delete group');
+      }
+
+      toast({ title: "Group Deleted", description: response.message || `"${group.name}" has been deleted.` });
+      await loadGroups();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to delete group.", variant: "destructive" });
     }
   };
 
@@ -327,14 +361,14 @@ export default function GroupsPage() {
                      </div>
                      <div className="flex -space-x-2 overflow-hidden">
                         {Array.isArray(group.members) && group.members.slice(0, 3).map((member: any, index: number) => (
-                           <Avatar key={index} className="inline-block h-8 w-8 rounded-full border-2 border-white ring-1 ring-gray-200">
+                           <Avatar key={member.id || member._id || `${group.id || group._id}-${member.email || member.name || 'member'}`} className="inline-block h-8 w-8 rounded-full border-2 border-white ring-1 ring-gray-200">
                              <AvatarImage src={typeof member === 'object' ? member.profileImage : undefined} />
                              <AvatarFallback className="bg-primary/10 text-foreground/90 font-medium">
-                               {typeof member === 'object' && member.name 
-                                 ? member.name[0] 
-                                 : typeof member === 'object' && member.firstName 
-                                   ? member.firstName[0] 
-                                   : 'A'}
+                               {(() => {
+                                 if (typeof member === 'object' && member?.name) return member.name[0];
+                                 if (typeof member === 'object' && member?.firstName) return member.firstName[0];
+                                 return 'A';
+                               })()}
                              </AvatarFallback>
                            </Avatar>
                         ))}
@@ -352,11 +386,11 @@ export default function GroupsPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleViewDiscussion(group)}
-                        className={`w-full border-gray-300 hover:border-primary hover:text-foreground/90 transition-colors ${isPrivate && !isJoined ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        disabled={isPrivate && !isJoined}
+                        className={`w-full border-gray-300 hover:border-primary hover:text-foreground/90 transition-colors ${isPrivate && !isJoined && !isWatcher ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={isPrivate && !isJoined && !isWatcher}
                       >
                         <MessageSquare className="h-4 w-4 mr-2"/>
-                        {isPrivate && !isJoined ? 'Private' : 'Discuss'}
+                        {isPrivate && !isJoined && !isWatcher ? 'Private' : 'Discuss'}
                       </Button>
 
                       <Button
@@ -367,8 +401,23 @@ export default function GroupsPage() {
                           : 'bg-primary hover:bg-primary/90 text-white transform hover:scale-105 hover:shadow-sm transition-all duration-300'}`}
                         variant={isJoined ? "secondary" : "default"}
                       >
-                        {isJoined ? "Leave" : "Join"}
+                        {(() => {
+                          if (isJoined) return "Leave";
+                          if (isPrivate) return "Request Join";
+                          return "Join";
+                        })()}
                       </Button>
+
+                      {isSuperAdmin && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteGroup(group)}
+                          className="border-red-300 text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                 </CardFooter>
               </Card>

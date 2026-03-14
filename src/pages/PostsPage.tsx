@@ -21,8 +21,9 @@ export default function PostsPage() {
   const [activeTab, setActiveTab] = useState('recent');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const { toast } = useToast();
-  const { currentUser, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   // Load recent posts
   const loadRecentPosts = async (pageNum = 1, append = false) => {
@@ -160,30 +161,10 @@ export default function PostsPage() {
     }
   };
 
-  const getCurrentPosts = () => {
-    switch (activeTab) {
-      case 'saved':
-        return savedPosts;
-      case 'following':
-        return feedPosts;
-      default:
-        return posts;
-    }
-  };
-
-  const getCurrentLoading = () => {
-    switch (activeTab) {
-      case 'saved':
-        return isSavedLoading;
-      case 'following':
-        return isFeedLoading;
-      default:
-        return isLoading;
-    }
-  };
+  const tabsGridClass = isAuthenticated ? 'grid-cols-3' : 'grid-cols-1';
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-background">
       <PageHeader
         title="Posts"
         description="Connect with alumni, share updates, and discover opportunities"
@@ -195,13 +176,17 @@ export default function PostsPage() {
           <div className="mb-6">
             <CreatePostForm
               onPostCreated={handlePostCreated}
+              open={isCreatePostOpen}
+              onOpenChange={setIsCreatePostOpen}
               trigger={
                 <Button 
                   size="lg" 
-                  className="w-full justify-start gap-3 bg-card border-2 border-border hover:border-blue-300 hover:bg-primary/5 text-foreground/90 font-medium shadow-sm"
+                  className="w-full justify-start gap-3 rounded-xl border border-border/70 bg-card text-foreground shadow-sm hover:bg-muted/50"
                 >
-                  <Plus className="h-5 w-5" />
-                  Share what's on your mind...
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Plus className="h-4 w-4" />
+                  </span>
+                  Write a post for your alumni network...
                 </Button>
               }
             />
@@ -210,10 +195,10 @@ export default function PostsPage() {
 
         {/* Posts Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-card border border-border shadow-sm">
+          <TabsList className={`grid w-full ${tabsGridClass} rounded-xl border border-border/70 bg-card p-1 shadow-sm`}>
             <TabsTrigger 
               value="recent" 
-              className="data-[state=active]:bg-primary/5 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
+              className="rounded-lg data-[state=active]:bg-primary/10 data-[state=active]:text-foreground"
             >
               Recent Posts
             </TabsTrigger>
@@ -221,13 +206,13 @@ export default function PostsPage() {
               <>
                 <TabsTrigger 
                   value="following" 
-                  className="data-[state=active]:bg-primary/5 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
+                  className="rounded-lg data-[state=active]:bg-primary/10 data-[state=active]:text-foreground"
                 >
                   Following
                 </TabsTrigger>
                 <TabsTrigger 
                   value="saved" 
-                  className="data-[state=active]:bg-primary/5 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
+                  className="rounded-lg data-[state=active]:bg-primary/10 data-[state=active]:text-foreground"
                 >
                   Saved Posts
                 </TabsTrigger>
@@ -247,10 +232,12 @@ export default function PostsPage() {
                   description="Be the first to share something with the community!"
                   action={isAuthenticated ? {
                     label: "Create Post",
-                    onClick: () => {}
+                    onClick: () => setIsCreatePostOpen(true)
                   } : {
                     label: "Sign in to post",
-                    onClick: () => window.location.href = '/login'
+                    onClick: () => {
+                      globalThis.location.href = '/login';
+                    }
                   }}
                 />
               ) : (
@@ -271,7 +258,7 @@ export default function PostsPage() {
                         onClick={loadMore}
                         disabled={isLoading}
                         variant="outline"
-                        className="border-border/80 text-foreground/90 hover:bg-muted/30"
+                        className="rounded-lg border-border/70 bg-card hover:bg-muted/50"
                       >
                         {isLoading ? (
                           <>
@@ -303,7 +290,9 @@ export default function PostsPage() {
                       description="Start connecting with alumni to see their posts here!"
                       action={{
                         label: "Explore Directory",
-                        onClick: () => window.location.href = '/directory'
+                        onClick: () => {
+                          globalThis.location.href = '/directory';
+                        }
                       }}
                     />
                   ) : (
@@ -350,6 +339,7 @@ export default function PostsPage() {
           )}
         </Tabs>
       </div>
+
     </div>
   );
 }

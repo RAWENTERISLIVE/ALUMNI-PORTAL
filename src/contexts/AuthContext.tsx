@@ -8,7 +8,10 @@ export interface ExtendedUser {
   id: string;
   email: string;
   name: string;
-  role?: 'user' | 'admin' | 'super_admin';
+  role?: 'user' | 'moderator' | 'admin' | 'super_admin';
+  accountType?: 'alumni' | 'faculty';
+  hasPremiumBadge?: boolean;
+  facultyIdCardUrl?: string;
   admissionNumber?: string;
   admissionYear?: string; // changed from graduationYear
   status?: 'pending' | 'active' | 'suspended' | 'deleted';
@@ -58,8 +61,12 @@ interface AuthContextType {
     name: string;
     admissionNumber?: string;
     needsManualVerification?: boolean;
+    forgotAdmissionNumber?: boolean;
     verificationDetails?: string;
+    accountType?: 'alumni' | 'faculty';
+    facultyIdCardUrl?: string;
     admissionYear?: string; // changed from graduationYear
+    graduationYear?: string;
   }) => Promise<any>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -152,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         // Navigate based on role and status
-        if (user.role === 'super_admin' || user.role === 'admin') {
+        if (user.role === 'super_admin' || user.role === 'admin' || user.role === 'moderator') {
           navigate('/admin');
         } else {
           navigate('/dashboard');
@@ -184,8 +191,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     name: string;
     admissionNumber?: string;
     needsManualVerification?: boolean;
+    forgotAdmissionNumber?: boolean;
     verificationDetails?: string;
+    accountType?: 'alumni' | 'faculty';
+    facultyIdCardUrl?: string;
     admissionYear?: string; // changed from graduationYear
+    graduationYear?: string;
   }) => {
     try {
       setIsLoading(true);
@@ -324,6 +335,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
+    if (import.meta.env.DEV) {
+      console.warn('useAuth called without AuthProvider during Fast Refresh. Returning temporary fallback context.');
+      return {
+        currentUser: null,
+        userProfile: null,
+        isLoading: true,
+        isAuthenticated: false,
+        register: async () => ({ success: false, message: 'Auth context unavailable during refresh.' }),
+        login: async () => {
+          throw new Error('Auth context unavailable during refresh.');
+        },
+        logout: async () => {
+          // no-op in refresh fallback
+        },
+        verifyAdmission: async () => false,
+        updateProfile: async () => {
+          throw new Error('Auth context unavailable during refresh.');
+        },
+        refreshUser: async () => {
+          // no-op in refresh fallback
+        },
+      } as AuthContextType;
+    }
+
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

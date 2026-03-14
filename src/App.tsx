@@ -26,6 +26,7 @@ import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import EventsPage from "./pages/EventsPage";
+import MessagesPage from "./pages/MessagesPage";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ function App() {
                 <Route path="/posts" element={<PostsPage />} />
                 <Route path="/groups" element={<GroupsPage />} />
                 <Route path="/events" element={<EventsPage />} />
+                <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/mentorship" element={<MentorshipPage />} />
                 <Route path="/jobs" element={<JobsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />

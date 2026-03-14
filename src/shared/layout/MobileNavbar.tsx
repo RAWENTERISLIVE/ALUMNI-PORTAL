@@ -1,7 +1,7 @@
 
 import { Link, useLocation } from "react-router-dom";
 import { 
-  Home, User, Users, MessageSquare, 
+  Home, User, Users, MessageSquare, MessageCircle,
   Briefcase, Menu, GraduationCap, Shield, BarChart3, Settings, Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,7 @@ export const MobileNavbar = () => {
   
   const allLinks = [
     ...navigation,
+    { name: "Messages", href: "/messages", icon: MessageCircle },
     { name: "Mentors", href: "/mentorship", icon: GraduationCap },
     { name: "Events", href: "/events", icon: Calendar },
     { name: "Profile", href: "/profile", icon: User },

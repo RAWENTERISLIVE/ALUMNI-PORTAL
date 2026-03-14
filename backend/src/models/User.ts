@@ -4,6 +4,7 @@ import prisma from '../config/prisma';
 
 export enum UserRole {
   USER = 'user',
+  MODERATOR = 'moderator',
   ADMIN = 'admin',
   SUPER_ADMIN = 'super_admin'
 }
@@ -56,6 +57,7 @@ export interface IUser {
 
 const toDbRole = (role?: string) => {
   const normalized = (role || UserRole.USER).toLowerCase();
+  if (normalized === UserRole.MODERATOR) return 'MODERATOR';
   if (normalized === UserRole.ADMIN) return 'ADMIN';
   if (normalized === UserRole.SUPER_ADMIN) return 'SUPER_ADMIN';
   return 'USER';

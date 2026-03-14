@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.respondToRequest = exports.requestMentorship = exports.getMentorshipProfile = exports.becomeMentor = exports.getMentors = void 0;
 const prisma_1 = __importDefault(require("../config/prisma"));
+const notifications_1 = require("../utils/notifications");
 const getMentors = async (_req, res) => {
     try {
         const search = typeof _req.query.search === 'string' ? _req.query.search.trim() : '';
@@ -268,6 +269,21 @@ const requestMentorship = async (req, res) => {
             status: 'pending'
         }
     });
+    const mentee = await prisma_1.default.user.findUnique({
+        where: { id: menteeId },
+        select: { name: true }
+    });
+    await (0, notifications_1.createNotification)({
+        userId: mentorProfile.userId,
+        title: 'New mentorship request',
+        message: `${mentee?.name || 'A user'} sent you a mentorship request.`,
+        type: 'mentorship',
+        actionUrl: '/mentorship',
+        metadata: {
+            mentorProfileId: mentorId,
+            menteeId
+        }
+    });
     res.json({ success: true, message: 'Mentorship request sent' });
 };
 exports.requestMentorship = requestMentorship;
@@ -301,6 +317,21 @@ const respondToRequest = async (req, res) => {
         where: { id: requestId },
         data: {
             status: action === 'accept' ? 'accepted' : 'rejected'
+        }
+    });
+    const mentor = await prisma_1.default.user.findUnique({
+        where: { id: req.user.id },
+        select: { name: true }
+    });
+    await (0, notifications_1.createNotification)({
+        userId: request.menteeId,
+        title: action === 'accept' ? 'Mentorship request accepted' : 'Mentorship request rejected',
+        message: `${mentor?.name || 'Your mentor'} ${action === 'accept' ? 'accepted' : 'rejected'} your mentorship request.`,
+        type: 'mentorship',
+        actionUrl: '/mentorship',
+        metadata: {
+            requestId,
+            action
         }
     });
     res.json({ success: true, message: 'Responded to request' });

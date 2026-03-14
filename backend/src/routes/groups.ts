@@ -4,8 +4,12 @@ import {
   getGroups,
   getUserGroups,
   getGroup,
+  updateGroup,
+  deleteGroup,
   joinGroup,
   leaveGroup,
+  getGroupJoinRequests,
+  respondToGroupJoinRequest,
   getGroupMessages,
   postGroupMessage, // Corrected from sendGroupMessage
 } from '../controllers/groupController';
@@ -24,10 +28,14 @@ router.route('/my-groups')
   .get(protect, getUserGroups);
 
 router.route('/:groupId') // Corrected to use a consistent parameter name
-  .get(protect, getGroup);
+  .get(protect, getGroup)
+  .put(protect, updateGroup)
+  .delete(protect, deleteGroup);
 
 router.route('/:groupId/join').post(protect, joinGroup);
 router.route('/:groupId/leave').post(protect, leaveGroup);
+router.route('/:groupId/join-requests').get(protect, getGroupJoinRequests);
+router.route('/:groupId/join-requests/:requestId/respond').patch(protect, respondToGroupJoinRequest);
 
 // Add these routes for messages
 router.route('/:groupId/messages')

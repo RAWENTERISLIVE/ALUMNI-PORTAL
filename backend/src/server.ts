@@ -21,6 +21,8 @@ import commentRoutes from './routes/comments';
 import uploadRoutes from './routes/uploads';
 import reportRoutes from './routes/reports';
 import statusRoutes from './routes/status';
+import notificationRoutes from './routes/notifications';
+import linkedinRoutes from './routes/linkedin';
 
 // Load environment variables
 dotenv.config();
@@ -98,6 +100,8 @@ app.use('/api/mentorship', mentorshipRoutes);
 app.use('/api', commentRoutes); // Comments routes (includes /posts/:postId/comments)
 app.use('/api/uploads', uploadRoutes); // Added uploads routes
 app.use('/api/reports', reportRoutes); // Reports routes
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/linkedin', linkedinRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

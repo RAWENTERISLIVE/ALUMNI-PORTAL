@@ -21,6 +21,8 @@ const verifyPassword = async (inputPassword, storedPassword) => {
 const toClientRole = (role) => {
     if (role === client_1.Role.SUPER_ADMIN)
         return 'super_admin';
+    if (String(role) === 'MODERATOR')
+        return 'moderator';
     if (role === client_1.Role.ADMIN)
         return 'admin';
     return 'user';
@@ -32,7 +34,12 @@ const generateTokens = (userId) => {
     return { accessToken, refreshToken };
 };
 exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const { email, password, firstName, lastName, name, role, admissionNumber, admissionYear } = req.body;
+    const { email, password, firstName, lastName, name, role, admissionNumber, admissionYear, graduationYear } = req.body;
+    const normalizedAdmissionNumber = typeof admissionNumber === 'string' ? admissionNumber.trim() : '';
+    if (!normalizedAdmissionNumber) {
+        res.status(400).json({ success: false, message: 'Admission number is required' });
+        return;
+    }
     const existingUser = await prisma_1.default.user.findUnique({ where: { email } });
     if (existingUser) {
         res.status(400).json({ success: false, message: 'Email already registered' });
@@ -42,17 +49,24 @@ exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const hashedPassword = await bcryptjs_1.default.hash(password, salt);
     const resolvedName = (name || [firstName, lastName].filter(Boolean).join(' ')).trim();
     const inferredAdmissionYear = admissionYear ||
-        (typeof admissionNumber === 'string' && admissionNumber.includes('/')
-            ? `20${admissionNumber.split('/').pop()}`
+        graduationYear ||
+        (normalizedAdmissionNumber.includes('/')
+            ? `20${normalizedAdmissionNumber.split('/').pop()}`
             : undefined) ||
-        new Date().getFullYear().toString();
-    const resolvedRole = role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'USER'
-        ? role
-        : role === 'super_admin'
-            ? client_1.Role.SUPER_ADMIN
-            : role === 'admin'
-                ? client_1.Role.ADMIN
-                : client_1.Role.USER;
+        '';
+    let resolvedRole = client_1.Role.USER;
+    if (role === 'SUPER_ADMIN' || role === 'super_admin') {
+        resolvedRole = client_1.Role.SUPER_ADMIN;
+    }
+    else if (role === 'ADMIN' || role === 'admin') {
+        resolvedRole = client_1.Role.ADMIN;
+    }
+    else if (role === 'MODERATOR' || role === 'moderator') {
+        resolvedRole = 'MODERATOR';
+    }
+    else if (role === 'USER' || role === 'user') {
+        resolvedRole = client_1.Role.USER;
+    }
     const user = await prisma_1.default.user.create({
         data: {
             email,
@@ -61,7 +75,7 @@ exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             name: resolvedName || email.split('@')[0],
             firstName,
             lastName,
-            admissionNumber: admissionNumber || 'N/A',
+            admissionNumber: normalizedAdmissionNumber,
             admissionYear: inferredAdmissionYear
         },
     });
@@ -247,6 +261,10 @@ exports.getMe = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             jobTitle: user.jobTitle,
             isAvailableAsMentor: user.isAvailableAsMentor,
             location: user.location,
+            experiences: user.experiences ?? [],
+            educations: user.educations ?? [],
+            skills: user.skills ?? [],
+            interests: user.interests ?? [],
             notificationSettings: user.notificationSettings,
             privacySettings: user.privacySettings
         }

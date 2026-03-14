@@ -32,7 +32,7 @@ const registerValidation = [
         .optional()
         .isString(),
     (0, express_validator_1.body)('admissionNumber')
-        .optional()
+        .notEmpty()
         .isString()
 ];
 const loginValidation = [

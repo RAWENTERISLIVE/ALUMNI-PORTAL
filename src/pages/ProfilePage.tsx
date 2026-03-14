@@ -31,7 +31,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { User, Briefcase, MapPin, GraduationCap, Mail, Phone, Globe, Linkedin } from "lucide-react";
+import { User, Briefcase, MapPin, GraduationCap, Mail, Phone, Globe, LinkedinIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -42,14 +42,38 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
+interface ExperienceItem {
+  id: string;
+  title: string;
+  company: string;
+  startDate: string;
+  endDate: string;
+  location: string;
+  description: string;
+}
+
+interface EducationItem {
+  id: string;
+  degree: string;
+  institution: string;
+  startYear: string;
+  endYear: string;
+  location: string;
+  description: string;
+}
+
 const profileSchema = z.object({
   name: z.string().min(2, { message: "Name is required" }),
   email: z.string().email({ message: "Please enter a valid email address" }),
   bio: z.string().optional(),
   headline: z.string().optional(),
+  contactEmail: z.string().optional(),
+  contactPhone: z.string().optional(),
   company: z.string().optional(),
   position: z.string().optional(),
   location: z.string().optional(),
+  city: z.string().optional(),
+  country: z.string().optional(),
   website: z.string().optional(),
   linkedin: z.string().optional(),
   twitter: z.string().optional(),
@@ -72,46 +96,29 @@ export default function ProfilePage() {
   const [isExperienceModalOpen, setIsExperienceModalOpen] = useState(false);
   const [isEducationModalOpen, setIsEducationModalOpen] = useState(false);
   const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false);
-  const [currentExperience, setCurrentExperience] = useState<any>(null);
-  const [currentEducation, setCurrentEducation] = useState<any>(null);
+  const [currentExperience, setCurrentExperience] = useState<ExperienceItem | null>(null);
+  const [currentEducation, setCurrentEducation] = useState<EducationItem | null>(null);
   const [newSkill, setNewSkill] = useState("");
-  const [experiences, setExperiences] = useState<any[]>([
-    {
-      id: '1',
-      title: 'Senior Software Engineer',
-      company: 'TechCorp Inc.',
-      startDate: 'Jan 2023',
-      endDate: 'Present',
-      location: 'San Francisco, CA',
-      description: 'Led the development of a full-stack application using React, Node.js, and MongoDB, resulting in a 40% improvement in user engagement.'
-    },
-    {
-      id: '2',
-      title: 'Software Developer',
-      company: 'WebSolutions LLC',
-      startDate: 'Aug 2020',
-      endDate: 'Dec 2022',
-      location: 'Remote',
-      description: 'Developed and maintained multiple client-facing web applications using modern JavaScript frameworks.'
-    }
-  ]);
-  const [educations, setEducations] = useState<any[]>([
-    {
-      id: '1',
-      degree: 'Master of Science in Computer Science',
-      institution: 'Stanford University',
-      startYear: '2018',
-      endYear: '2020',
-      location: 'Stanford, CA',
-      description: 'Specialized in Artificial Intelligence and Machine Learning.'
-    }
-  ]);
-  const [skills, setSkills] = useState<string[]>([
-    'React', 'JavaScript', 'Node.js', 'TypeScript', 'MongoDB', 'SQL', 'GraphQL', 'REST APIs'
-  ]);
-  const [interests, setInterests] = useState<string[]>([
-    'Artificial Intelligence', 'Machine Learning', 'Web Development'
-  ]);
+  const [experiences, setExperiences] = useState<ExperienceItem[]>([]);
+  const [educations, setEducations] = useState<EducationItem[]>([]);
+  const [skills, setSkills] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
+  const [experienceFormData, setExperienceFormData] = useState<Omit<ExperienceItem, 'id'>>({
+    title: '',
+    company: '',
+    startDate: '',
+    endDate: '',
+    location: '',
+    description: '',
+  });
+  const [educationFormData, setEducationFormData] = useState<Omit<EducationItem, 'id'>>({
+    degree: '',
+    institution: '',
+    startYear: '',
+    endYear: '',
+    location: '',
+    description: '',
+  });
   
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -120,9 +127,13 @@ export default function ProfilePage() {
       email: "",
       bio: "",
       headline: "",
+      contactEmail: "",
+      contactPhone: "",
       company: "",
       position: "",
       location: "",
+      city: "",
+      country: "",
       website: "",
       linkedin: "",
       twitter: "",
@@ -212,65 +223,256 @@ export default function ProfilePage() {
         email: profile.email || "",
         bio: profile.bio || "",
         headline: profile.headline || "",
+        contactEmail: profile.contactEmail || profile.email || "",
+        contactPhone: profile.contactPhone || "",
         company: profile.company || "",
         position: profile.jobTitle || "",
         location: profile.location || profile.city || "",
+        city: profile.city || "",
+        country: profile.country || "",
         website: profile.website || "",
         linkedin: profile.linkedInProfile || "",
         twitter: profile.twitterHandle || "",
         github: profile.githubHandle || "",
         availableAsMentor: profile.isAvailableAsMentor || false,
       });
+
+      const normalizedExperiences = Array.isArray(profile.experiences)
+        ? profile.experiences
+            .map((item: any) => ({
+              id: String(item?.id || crypto.randomUUID()),
+              title: item?.title || '',
+              company: item?.company || '',
+              startDate: item?.startDate || '',
+              endDate: item?.endDate || '',
+              location: item?.location || '',
+              description: item?.description || '',
+            }))
+            .filter((item: ExperienceItem) => item.title || item.company)
+        : [];
+
+      const normalizedEducations = Array.isArray(profile.educations)
+        ? profile.educations
+            .map((item: any) => ({
+              id: String(item?.id || crypto.randomUUID()),
+              degree: item?.degree || '',
+              institution: item?.institution || '',
+              startYear: item?.startYear || '',
+              endYear: item?.endYear || '',
+              location: item?.location || '',
+              description: item?.description || '',
+            }))
+            .filter((item: EducationItem) => item.degree || item.institution)
+        : [];
+
+      setExperiences(normalizedExperiences);
+      setEducations(normalizedEducations);
+      setSkills(Array.isArray(profile.skills) ? profile.skills.filter((value: unknown) => typeof value === 'string') : []);
+      setInterests(Array.isArray(profile.interests) ? profile.interests.filter((value: unknown) => typeof value === 'string') : []);
     }
   }, [profile, form]);
   
-  const handleImportLinkedInData = (data: any) => {
+  const saveProfileSections = async (
+    nextExperiences: ExperienceItem[],
+    nextEducations: EducationItem[],
+    nextSkills: string[],
+    nextInterests: string[]
+  ) => {
+    if (!isOwnProfile || !profile) return false;
+
+    const response = await apiService.updateUserProfile(profile.id || profile._id, {
+      experiences: nextExperiences,
+      educations: nextEducations,
+      skills: nextSkills,
+      interests: nextInterests,
+    });
+
+    if (!response.success) {
+      toast({
+        title: 'Update failed',
+        description: response.message || 'Could not save profile sections.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    const updatedProfile = response.data || response.user;
+    if (updatedProfile) {
+      setProfile((previous: any) => ({
+        ...previous,
+        ...updatedProfile,
+      }));
+    }
+
+    return true;
+  };
+
+  const handleImportLinkedInData = async (data: any) => {
+    form.setValue("name", data.name || form.getValues().name);
     form.setValue("headline", data.headline || form.getValues().headline);
+    form.setValue("contactEmail", data.email || form.getValues().contactEmail);
     form.setValue("company", data.company || form.getValues().company);
     form.setValue("position", data.position || form.getValues().position);
     form.setValue("bio", data.bio || form.getValues().bio);
+    form.setValue("location", data.location || form.getValues().location);
     form.setValue("website", data.website || form.getValues().website);
     form.setValue("linkedin", data.linkedin || form.getValues().linkedin);
     form.setValue("twitter", data.twitter || form.getValues().twitter);
     form.setValue("github", data.github || form.getValues().github);
+
+    const nextExperiences = Array.isArray(data.experiences)
+      ? data.experiences
+          .map((item: any) => ({
+            id: String(item?.id || crypto.randomUUID()),
+            title: item?.title || '',
+            company: item?.company || '',
+            startDate: item?.startDate || '',
+            endDate: item?.endDate || '',
+            location: item?.location || '',
+            description: item?.description || '',
+          }))
+          .filter((item: ExperienceItem) => item.title || item.company)
+      : experiences;
+
+    const nextEducations = Array.isArray(data.educations)
+      ? data.educations
+          .map((item: any) => ({
+            id: String(item?.id || crypto.randomUUID()),
+            degree: item?.degree || '',
+            institution: item?.institution || '',
+            startYear: item?.startYear || '',
+            endYear: item?.endYear || '',
+            location: item?.location || '',
+            description: item?.description || '',
+          }))
+          .filter((item: EducationItem) => item.degree || item.institution)
+      : educations;
+
+    const nextSkills = Array.isArray(data.skills)
+      ? data.skills.filter((value: unknown) => typeof value === 'string')
+      : skills;
+
+    setExperiences(nextExperiences);
+    setEducations(nextEducations);
+    setSkills(nextSkills);
+
+    if (isOwnProfile && profile) {
+      const profileResponse = await apiService.updateUserProfile(profile.id || profile._id, {
+        headline: data.headline || form.getValues().headline,
+        company: data.company || form.getValues().company,
+        position: data.position || form.getValues().position,
+        bio: data.bio || form.getValues().bio,
+        location: data.location || form.getValues().location,
+        linkedInProfile: data.connectLinkedIn ? data.linkedin : form.getValues().linkedin,
+        experiences: nextExperiences,
+        educations: nextEducations,
+        skills: nextSkills,
+        interests,
+      });
+
+      if (!profileResponse.success) {
+        throw new Error(profileResponse.message || 'Failed to connect LinkedIn profile');
+      }
+
+      const updatedProfile = profileResponse.user || profileResponse.data;
+      if (updatedProfile) {
+        setProfile((previous: any) => ({
+          ...previous,
+          ...updatedProfile,
+        }));
+      }
+    } else {
+      await saveProfileSections(nextExperiences, nextEducations, nextSkills, interests);
+    }
+
+    if (isOwnProfile && Array.isArray(data.posts) && data.posts.length > 0 && data.importPosts) {
+      const payloadPosts = data.posts
+        .map((item: any) => ({
+          title: typeof item?.title === 'string' ? item.title : undefined,
+          content: typeof item?.content === 'string' ? item.content.trim() : '',
+          postUrl: typeof item?.postUrl === 'string' ? item.postUrl : undefined,
+          publishedAt: typeof item?.publishedAt === 'string' ? item.publishedAt : undefined,
+        }))
+        .filter((item: { content: string }) => item.content.length > 0);
+
+      if (payloadPosts.length > 0) {
+        const importResponse = await apiService.importLinkedInPosts({
+          linkedInProfile: data.linkedin,
+          posts: payloadPosts,
+        });
+
+        if (importResponse.success) {
+          const importedCount = Number(importResponse.importedCount || importResponse.data?.length || 0);
+          const skippedCount = Number(importResponse.skippedCount || 0);
+          return { importedCount, skippedCount };
+        } else {
+          throw new Error(importResponse.message || 'LinkedIn profile connected, but posts could not be imported.');
+        }
+      }
+    }
+
+    return { importedCount: 0, skippedCount: 0 };
   };
   
-  const handleClearFilters = () => {
-    setIsOwnProfile(true);
-  };
-
   // Handle experience functions
   const handleAddExperience = () => {
     setCurrentExperience(null);
+    setExperienceFormData({
+      title: '',
+      company: '',
+      startDate: '',
+      endDate: '',
+      location: '',
+      description: '',
+    });
     setIsExperienceModalOpen(true);
   };
 
-  const handleEditExperience = (experience: any) => {
+  const handleEditExperience = (experience: ExperienceItem) => {
     setCurrentExperience(experience);
+    setExperienceFormData({
+      title: experience.title,
+      company: experience.company,
+      startDate: experience.startDate,
+      endDate: experience.endDate,
+      location: experience.location,
+      description: experience.description,
+    });
     setIsExperienceModalOpen(true);
   };
 
-  const handleDeleteExperience = (id: string) => {
-    setExperiences(experiences.filter(exp => exp.id !== id));
+  const handleDeleteExperience = async (id: string) => {
+    const previousExperiences = experiences;
+    const nextExperiences = experiences.filter((exp) => exp.id !== id);
+    setExperiences(nextExperiences);
+    const saved = await saveProfileSections(nextExperiences, educations, skills, interests);
+    if (!saved) {
+      setExperiences(previousExperiences);
+      return;
+    }
     toast({
       title: "Experience deleted",
       description: "Your experience has been removed successfully."
     });
   };
 
-  const handleSaveExperience = (experienceData: any) => {
+  const handleSaveExperience = async (experienceData: Omit<ExperienceItem, 'id'>) => {
+    let nextExperiences: ExperienceItem[];
+
     if (currentExperience) {
-      // Edit existing experience
-      setExperiences(experiences.map(exp => 
+      nextExperiences = experiences.map((exp) =>
         exp.id === currentExperience.id ? { ...experienceData, id: exp.id } : exp
-      ));
+      );
     } else {
-      // Add new experience
-      setExperiences([
-        { ...experienceData, id: Date.now().toString() }, 
-        ...experiences
-      ]);
+      nextExperiences = [{ ...experienceData, id: crypto.randomUUID() }, ...experiences];
     }
+
+    setExperiences(nextExperiences);
+    const saved = await saveProfileSections(nextExperiences, educations, skills, interests);
+    if (!saved) {
+      return;
+    }
+
     setIsExperienceModalOpen(false);
     toast({
       title: currentExperience ? "Experience updated" : "Experience added",
@@ -281,35 +483,62 @@ export default function ProfilePage() {
   // Handle education functions
   const handleAddEducation = () => {
     setCurrentEducation(null);
+    setEducationFormData({
+      degree: '',
+      institution: '',
+      startYear: '',
+      endYear: '',
+      location: '',
+      description: '',
+    });
     setIsEducationModalOpen(true);
   };
 
-  const handleEditEducation = (education: any) => {
+  const handleEditEducation = (education: EducationItem) => {
     setCurrentEducation(education);
+    setEducationFormData({
+      degree: education.degree,
+      institution: education.institution,
+      startYear: education.startYear,
+      endYear: education.endYear,
+      location: education.location,
+      description: education.description,
+    });
     setIsEducationModalOpen(true);
   };
 
-  const handleDeleteEducation = (id: string) => {
-    setEducations(educations.filter(edu => edu.id !== id));
+  const handleDeleteEducation = async (id: string) => {
+    const previousEducations = educations;
+    const nextEducations = educations.filter((edu) => edu.id !== id);
+    setEducations(nextEducations);
+    const saved = await saveProfileSections(experiences, nextEducations, skills, interests);
+    if (!saved) {
+      setEducations(previousEducations);
+      return;
+    }
     toast({
       title: "Education deleted",
       description: "Your education record has been removed successfully."
     });
   };
 
-  const handleSaveEducation = (educationData: any) => {
+  const handleSaveEducation = async (educationData: Omit<EducationItem, 'id'>) => {
+    let nextEducations: EducationItem[];
+
     if (currentEducation) {
-      // Edit existing education
-      setEducations(educations.map(edu => 
+      nextEducations = educations.map((edu) =>
         edu.id === currentEducation.id ? { ...educationData, id: edu.id } : edu
-      ));
+      );
     } else {
-      // Add new education
-      setEducations([
-        { ...educationData, id: Date.now().toString() }, 
-        ...educations
-      ]);
+      nextEducations = [{ ...educationData, id: crypto.randomUUID() }, ...educations];
     }
+
+    setEducations(nextEducations);
+    const saved = await saveProfileSections(experiences, nextEducations, skills, interests);
+    if (!saved) {
+      return;
+    }
+
     setIsEducationModalOpen(false);
     toast({
       title: currentEducation ? "Education updated" : "Education added",
@@ -318,10 +547,14 @@ export default function ProfilePage() {
   };
 
   // Handle skills and interests
-  const handleAddSkill = () => {
+  const handleAddSkill = async () => {
     if (newSkill && !skills.includes(newSkill)) {
-      setSkills([...skills, newSkill]);
+      const nextSkills = [...skills, newSkill.trim()];
+      setSkills(nextSkills);
       setNewSkill("");
+
+      await saveProfileSections(experiences, educations, nextSkills, interests);
+
       toast({
         title: "Skill added",
         description: `"${newSkill}" has been added to your skills.`
@@ -329,18 +562,24 @@ export default function ProfilePage() {
     }
   };
 
-  const handleRemoveSkill = (skillToRemove: string) => {
-    setSkills(skills.filter(skill => skill !== skillToRemove));
+  const handleRemoveSkill = async (skillToRemove: string) => {
+    const nextSkills = skills.filter(skill => skill !== skillToRemove);
+    setSkills(nextSkills);
+    await saveProfileSections(experiences, educations, nextSkills, interests);
   };
 
-  const handleAddInterest = (interest: string) => {
+  const handleAddInterest = async (interest: string) => {
     if (!interests.includes(interest)) {
-      setInterests([...interests, interest]);
+      const nextInterests = [...interests, interest];
+      setInterests(nextInterests);
+      await saveProfileSections(experiences, educations, skills, nextInterests);
     }
   };
 
-  const handleRemoveInterest = (interestToRemove: string) => {
-    setInterests(interests.filter(interest => interest !== interestToRemove));
+  const handleRemoveInterest = async (interestToRemove: string) => {
+    const nextInterests = interests.filter((interest) => interest !== interestToRemove);
+    setInterests(nextInterests);
+    await saveProfileSections(experiences, educations, skills, nextInterests);
   };
   
   if (isLoading && !profile) {
@@ -432,10 +671,10 @@ export default function ProfilePage() {
                   </div>
                 )}
                 
-                {profile.email && !isOwnProfile && (
+                {(profile.contactEmail || profile.email) && (
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{profile.email}</span>
+                    <span>{profile.contactEmail || profile.email}</span>
                   </div>
                 )}
                 
@@ -455,7 +694,7 @@ export default function ProfilePage() {
                 
                 {profile.linkedInProfile && (
                   <div className="flex items-center gap-2">
-                    <Linkedin className="h-4 w-4 text-muted-foreground" />
+                    <LinkedinIcon className="h-4 w-4 text-muted-foreground" />
                     <a href={profile.linkedInProfile} target="_blank" rel="noopener noreferrer" className="text-foreground/90 hover:underline">LinkedIn Profile</a>
                   </div>
                 )}
@@ -471,6 +710,7 @@ export default function ProfilePage() {
               {!isOwnProfile && (
                 <div className="flex gap-2 mt-4">
                   <Button>Connect</Button>
+                  <Button variant="outline" onClick={() => navigate(`/messages?user=${profile.id || profile._id}`)}>Message</Button>
                   {profile.isAvailableAsMentor && (
                     <Button variant="outline">Request Mentorship</Button>
                   )}
@@ -610,6 +850,66 @@ export default function ProfilePage() {
                               <FormDescription>
                                 City, State, Country
                               </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="contactEmail"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Contact Email</FormLabel>
+                              <FormControl>
+                                <Input {...field} disabled={!isOwnProfile} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="contactPhone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Contact Phone</FormLabel>
+                              <FormControl>
+                                <Input {...field} disabled={!isOwnProfile} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="city"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>City</FormLabel>
+                              <FormControl>
+                                <Input {...field} disabled={!isOwnProfile} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="country"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Country</FormLabel>
+                              <FormControl>
+                                <Input {...field} disabled={!isOwnProfile} />
+                              </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -773,10 +1073,7 @@ export default function ProfilePage() {
                     {isOwnProfile && (
                       <Button
                         className="bg-primary hover:bg-primary/90 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
-                        onClick={() => {
-                          setCurrentEducation(null);
-                          setIsEducationModalOpen(true);
-                        }}
+                        onClick={handleAddEducation}
                       >
                         + Add Education
                       </Button>
@@ -798,10 +1095,7 @@ export default function ProfilePage() {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => {
-                                  setCurrentEducation(education);
-                                  setIsEducationModalOpen(true);
-                                }}
+                                onClick={() => handleEditEducation(education)}
                               >
                                 Edit
                               </Button>
@@ -809,14 +1103,7 @@ export default function ProfilePage() {
                                 variant="outline" 
                                 size="sm" 
                                 className="text-red-500"
-                                onClick={() => {
-                                  setEducations(educations.filter(edu => edu.id !== education.id));
-                                  toast({
-                                    title: "Education deleted",
-                                    description: "The education record has been removed from your profile.",
-                                    variant: "destructive"
-                                  });
-                                }}
+                                onClick={() => handleDeleteEducation(education.id)}
                               >
                                 Delete
                               </Button>
@@ -966,7 +1253,8 @@ export default function ProfilePage() {
                 <Label htmlFor="title">Job Title</Label>
                 <Input 
                   id="title" 
-                  defaultValue={currentExperience?.title || ""} 
+                  value={experienceFormData.title}
+                  onChange={(e) => setExperienceFormData((prev) => ({ ...prev, title: e.target.value }))}
                   className="mt-2"
                   placeholder="e.g. Software Engineer"
                 />
@@ -975,7 +1263,8 @@ export default function ProfilePage() {
                 <Label htmlFor="company">Company</Label>
                 <Input 
                   id="company" 
-                  defaultValue={currentExperience?.company || ""} 
+                  value={experienceFormData.company}
+                  onChange={(e) => setExperienceFormData((prev) => ({ ...prev, company: e.target.value }))}
                   className="mt-2"
                   placeholder="e.g. Tech Company Inc."
                 />
@@ -986,7 +1275,8 @@ export default function ProfilePage() {
                 <Label htmlFor="startDate">Start Date</Label>
                 <Input 
                   id="startDate" 
-                  defaultValue={currentExperience?.startDate || ""} 
+                  value={experienceFormData.startDate}
+                  onChange={(e) => setExperienceFormData((prev) => ({ ...prev, startDate: e.target.value }))}
                   className="mt-2"
                   placeholder="e.g. Jan 2020"
                 />
@@ -995,7 +1285,8 @@ export default function ProfilePage() {
                 <Label htmlFor="endDate">End Date</Label>
                 <Input 
                   id="endDate" 
-                  defaultValue={currentExperience?.endDate || ""} 
+                  value={experienceFormData.endDate}
+                  onChange={(e) => setExperienceFormData((prev) => ({ ...prev, endDate: e.target.value }))}
                   className="mt-2"
                   placeholder="e.g. Present or Dec 2022"
                 />
@@ -1005,7 +1296,8 @@ export default function ProfilePage() {
               <Label htmlFor="location">Location</Label>
               <Input 
                 id="location" 
-                defaultValue={currentExperience?.location || ""} 
+                value={experienceFormData.location}
+                onChange={(e) => setExperienceFormData((prev) => ({ ...prev, location: e.target.value }))}
                 className="mt-2"
                 placeholder="e.g. San Francisco, CA"
               />
@@ -1014,7 +1306,8 @@ export default function ProfilePage() {
               <Label htmlFor="description">Description</Label>
               <Textarea 
                 id="description" 
-                defaultValue={currentExperience?.description || ""} 
+                value={experienceFormData.description}
+                onChange={(e) => setExperienceFormData((prev) => ({ ...prev, description: e.target.value }))}
                 className="mt-2"
                 placeholder="Describe your responsibilities and achievements"
                 rows={4}
@@ -1024,15 +1317,7 @@ export default function ProfilePage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsExperienceModalOpen(false)}>Cancel</Button>
             <Button className="bg-primary hover:bg-primary/90" onClick={() => {
-              const experienceData = {
-                title: (document.getElementById('title') as HTMLInputElement).value,
-                company: (document.getElementById('company') as HTMLInputElement).value,
-                startDate: (document.getElementById('startDate') as HTMLInputElement).value,
-                endDate: (document.getElementById('endDate') as HTMLInputElement).value,
-                location: (document.getElementById('location') as HTMLInputElement).value,
-                description: (document.getElementById('description') as HTMLTextAreaElement).value,
-              };
-              handleSaveExperience(experienceData);
+              handleSaveExperience(experienceFormData);
             }}>
               Save
             </Button>
@@ -1057,7 +1342,8 @@ export default function ProfilePage() {
               <Label htmlFor="degree">Degree / Certificate</Label>
               <Input 
                 id="degree" 
-                defaultValue={currentEducation?.degree || ""} 
+                value={educationFormData.degree}
+                onChange={(e) => setEducationFormData((prev) => ({ ...prev, degree: e.target.value }))}
                 className="mt-2"
                 placeholder="e.g. Bachelor of Science in Computer Science"
               />
@@ -1066,7 +1352,8 @@ export default function ProfilePage() {
               <Label htmlFor="institution">Institution</Label>
               <Input 
                 id="institution" 
-                defaultValue={currentEducation?.institution || ""} 
+                value={educationFormData.institution}
+                onChange={(e) => setEducationFormData((prev) => ({ ...prev, institution: e.target.value }))}
                 className="mt-2"
                 placeholder="e.g. Stanford University"
               />
@@ -1076,7 +1363,8 @@ export default function ProfilePage() {
                 <Label htmlFor="startYear">Start Year</Label>
                 <Input 
                   id="startYear" 
-                  defaultValue={currentEducation?.startYear || ""} 
+                  value={educationFormData.startYear}
+                  onChange={(e) => setEducationFormData((prev) => ({ ...prev, startYear: e.target.value }))}
                   className="mt-2"
                   placeholder="e.g. 2018"
                 />
@@ -1085,7 +1373,8 @@ export default function ProfilePage() {
                 <Label htmlFor="endYear">End Year</Label>
                 <Input 
                   id="endYear" 
-                  defaultValue={currentEducation?.endYear || ""} 
+                  value={educationFormData.endYear}
+                  onChange={(e) => setEducationFormData((prev) => ({ ...prev, endYear: e.target.value }))}
                   className="mt-2"
                   placeholder="e.g. 2022 or Present"
                 />
@@ -1095,7 +1384,8 @@ export default function ProfilePage() {
               <Label htmlFor="eduLocation">Location</Label>
               <Input 
                 id="eduLocation" 
-                defaultValue={currentEducation?.location || ""} 
+                value={educationFormData.location}
+                onChange={(e) => setEducationFormData((prev) => ({ ...prev, location: e.target.value }))}
                 className="mt-2"
                 placeholder="e.g. Stanford, CA"
               />
@@ -1104,7 +1394,8 @@ export default function ProfilePage() {
               <Label htmlFor="eduDescription">Description</Label>
               <Textarea 
                 id="eduDescription" 
-                defaultValue={currentEducation?.description || ""} 
+                value={educationFormData.description}
+                onChange={(e) => setEducationFormData((prev) => ({ ...prev, description: e.target.value }))}
                 className="mt-2"
                 placeholder="Additional details about your studies"
                 rows={3}
@@ -1114,15 +1405,7 @@ export default function ProfilePage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEducationModalOpen(false)}>Cancel</Button>
             <Button className="bg-primary hover:bg-primary/90" onClick={() => {
-              const educationData = {
-                degree: (document.getElementById('degree') as HTMLInputElement).value,
-                institution: (document.getElementById('institution') as HTMLInputElement).value,
-                startYear: (document.getElementById('startYear') as HTMLInputElement).value,
-                endYear: (document.getElementById('endYear') as HTMLInputElement).value,
-                location: (document.getElementById('eduLocation') as HTMLInputElement).value,
-                description: (document.getElementById('eduDescription') as HTMLTextAreaElement).value,
-              };
-              handleSaveEducation(educationData);
+              handleSaveEducation(educationFormData);
             }}>
               Save
             </Button>
@@ -1139,23 +1422,16 @@ export default function ProfilePage() {
             </h3>
             
             <form 
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                if (newSkill) {
-                  // Add new skill
-                  setSkills([...skills, newSkill]);
-                  setNewSkill("");
-                  toast({
-                    title: "Skill added",
-                    description: `"${newSkill}" has been added to your skills.`
-                  });
-                }
+                await handleAddSkill();
               }} 
               className="space-y-4"
             >
               <div>
-                <label className="block text-sm font-medium text-foreground/80">Skill</label>
+                <label htmlFor="new-skill" className="block text-sm font-medium text-foreground/80">Skill</label>
                 <input
+                  id="new-skill"
                   type="text"
                   value={newSkill}
                   onChange={(e) => setNewSkill(e.target.value)}
@@ -1168,6 +1444,7 @@ export default function ProfilePage() {
               <div className="flex justify-end gap-2">
                 <Button 
                   variant="outline"
+                  type="button"
                   onClick={() => setIsSkillsModalOpen(false)}
                   className="w-full sm:w-auto"
                 >

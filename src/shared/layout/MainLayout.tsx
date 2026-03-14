@@ -7,9 +7,10 @@ import { GlobalSearch } from "./GlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, MessageCircle } from "lucide-react";
+import { Bell, MessageCircle, X } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import apiService from "@/services/apiService";
 import {
   Sheet,
   SheetContent,
@@ -18,13 +19,109 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type?: string;
+  actionUrl?: string;
+  isSeen: boolean;
+  createdAt: string;
+}
+
 export const MainLayout = () => {
   const isMobile = useIsMobile();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unseenCount, setUnseenCount] = useState(0);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
-  const showAdminButton = currentUser?.role === "admin" || currentUser?.role === "super_admin";
+  const showAdminButton = currentUser?.role === "moderator" || currentUser?.role === "admin" || currentUser?.role === "super_admin";
+
+  const hasNotifications = notifications.length > 0;
+  const hasUnseen = unseenCount > 0;
+
+  const sortedNotifications = useMemo(
+    () => [...notifications].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [notifications]
+  );
+
+  const loadNotifications = async () => {
+    if (!currentUser) return;
+
+    setIsLoadingNotifications(true);
+    const response = await apiService.getNotifications(25);
+
+    if (response.success) {
+      setNotifications((response.data || []) as NotificationItem[]);
+      setUnseenCount(typeof response.unseenCount === 'number' ? response.unseenCount : 0);
+    }
+
+    setIsLoadingNotifications(false);
+  };
+
+  useEffect(() => {
+    if (!currentUser) return;
+    loadNotifications();
+
+    const interval = setInterval(() => {
+      loadNotifications();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (isNotificationOpen) {
+      loadNotifications();
+    }
+  }, [isNotificationOpen]);
+
+  const handleMarkSeen = async (notification: NotificationItem) => {
+    if (notification.isSeen) return;
+
+    await apiService.markNotificationSeen(notification.id);
+    setNotifications((prev) =>
+      prev.map((item) =>
+        item.id === notification.id ? { ...item, isSeen: true } : item
+      )
+    );
+    setUnseenCount((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleDismiss = async (notificationId: string) => {
+    const response = await apiService.dismissNotification(notificationId);
+    if (!response.success) return;
+
+    setNotifications((prev) => {
+      const target = prev.find((item) => item.id === notificationId);
+      if (target && !target.isSeen) {
+        setUnseenCount((count) => Math.max(0, count - 1));
+      }
+      return prev.filter((item) => item.id !== notificationId);
+    });
+  };
+
+  const handleMarkAllSeen = async () => {
+    if (!hasUnseen) return;
+
+    const response = await apiService.markAllNotificationsSeen();
+    if (!response.success) return;
+
+    setNotifications((prev) => prev.map((item) => ({ ...item, isSeen: true })));
+    setUnseenCount(0);
+  };
+
+  const handleNotificationClick = async (notification: NotificationItem) => {
+    await handleMarkSeen(notification);
+
+    setIsNotificationOpen(false);
+    if (notification.actionUrl) {
+      navigate(notification.actionUrl);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -63,9 +160,11 @@ export const MainLayout = () => {
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative h-8 w-8 hover:bg-primary/10 hover:text-foreground transition-colors">
                   <Bell className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                    3
-                  </span>
+                  {hasUnseen && (
+                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                      {unseenCount > 99 ? '99+' : unseenCount}
+                    </span>
+                  )}
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[360px] sm:w-[420px]">
@@ -73,45 +172,71 @@ export const MainLayout = () => {
                   <SheetTitle>Notifications</SheetTitle>
                 </SheetHeader>
 
-                <div className="mt-6 space-y-3">
-                  <button
-                    className="w-full text-left rounded-md border p-3 hover:bg-muted/40 transition-colors"
-                    onClick={() => {
-                      setIsNotificationOpen(false);
-                      navigate('/groups');
-                    }}
+                <div className="mt-6 flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    {unseenCount} unseen
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={handleMarkAllSeen}
+                    disabled={!hasUnseen}
                   >
-                    <p className="text-sm font-medium">New group activity</p>
-                    <p className="text-xs text-muted-foreground mt-1">Someone replied in your alumni group discussion.</p>
-                  </button>
+                    Mark all as seen
+                  </Button>
+                </div>
 
-                  <button
-                    className="w-full text-left rounded-md border p-3 hover:bg-muted/40 transition-colors"
-                    onClick={() => {
-                      setIsNotificationOpen(false);
-                      navigate('/jobs');
-                    }}
-                  >
-                    <p className="text-sm font-medium">Job recommendation</p>
-                    <p className="text-xs text-muted-foreground mt-1">A new role matching your profile is available.</p>
-                  </button>
+                <div className="mt-3 space-y-3">
+                  {isLoadingNotifications && !hasNotifications ? (
+                    <p className="text-sm text-muted-foreground">Loading notifications...</p>
+                  ) : null}
 
-                  <button
-                    className="w-full text-left rounded-md border p-3 hover:bg-muted/40 transition-colors"
-                    onClick={() => {
-                      setIsNotificationOpen(false);
-                      navigate('/settings');
-                    }}
-                  >
-                    <p className="text-sm font-medium">Notification settings updated</p>
-                    <p className="text-xs text-muted-foreground mt-1">Manage email and push preferences in settings.</p>
-                  </button>
+                  {!isLoadingNotifications && !hasNotifications ? (
+                    <p className="text-sm text-muted-foreground">No notifications yet.</p>
+                  ) : null}
+
+                  {sortedNotifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className={`w-full text-left rounded-md border p-3 transition-colors ${
+                        notification.isSeen ? 'bg-background' : 'bg-muted/40'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <button
+                          className="flex-1 text-left hover:opacity-90"
+                          onClick={() => handleNotificationClick(notification)}
+                        >
+                          <p className="text-sm font-medium">{notification.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDismiss(notification.id);
+                          }}
+                          aria-label="Dismiss notification"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </SheetContent>
             </Sheet>
             
             {/* Messages */}
-            <Button variant="ghost" size="icon" className="hidden sm:inline-flex h-8 w-8 hover:bg-primary/10 hover:text-foreground transition-colors">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden sm:inline-flex h-8 w-8 hover:bg-primary/10 hover:text-foreground transition-colors"
+              onClick={() => navigate('/messages')}
+            >
               <MessageCircle className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
             </Button>
             

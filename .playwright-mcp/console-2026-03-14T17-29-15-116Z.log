@@ -1,0 +1,44 @@
+[   66651ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:8081/api/auth/login:0
+[   66660ms] [ERROR] API Error: Error: Invalid credentials
+    at ApiService.request (http://localhost:8081/src/services/apiService.ts:132:23)
+    at async ApiService.login (http://localhost:8081/src/services/apiService.ts:178:30)
+    at async login (http://localhost:8081/src/contexts/AuthContext.tsx:79:30)
+    at async onSubmit (http://localhost:8081/src/pages/AuthPages/LoginPage.tsx:44:13)
+    at async http://localhost:8081/node_modules/.vite/deps/chunk-YABUFNLM.js?v=691b8933:1675:9 @ http://localhost:8081/src/services/apiService.ts:135
+[   66662ms] [ERROR] Login error: Error: Invalid credentials
+    at ApiService.request (http://localhost:8081/src/services/apiService.ts:132:23)
+    at async ApiService.login (http://localhost:8081/src/services/apiService.ts:178:30)
+    at async login (http://localhost:8081/src/contexts/AuthContext.tsx:79:30)
+    at async onSubmit (http://localhost:8081/src/pages/AuthPages/LoginPage.tsx:44:13)
+    at async http://localhost:8081/node_modules/.vite/deps/chunk-YABUFNLM.js?v=691b8933:1675:9 @ http://localhost:8081/src/services/apiService.ts:195
+[   66663ms] [ERROR] Login error details: Error: Invalid credentials
+    at login (http://localhost:8081/src/contexts/AuthContext.tsx:95:23)
+    at async onSubmit (http://localhost:8081/src/pages/AuthPages/LoginPage.tsx:44:13)
+    at async http://localhost:8081/node_modules/.vite/deps/chunk-YABUFNLM.js?v=691b8933:1675:9 @ http://localhost:8081/src/contexts/AuthContext.tsx:97
+[   66666ms] [ERROR] Login error: Error: Invalid credentials
+    at login (http://localhost:8081/src/contexts/AuthContext.tsx:95:23)
+    at async onSubmit (http://localhost:8081/src/pages/AuthPages/LoginPage.tsx:44:13)
+    at async http://localhost:8081/node_modules/.vite/deps/chunk-YABUFNLM.js?v=691b8933:1675:9 @ http://localhost:8081/src/pages/AuthPages/LoginPage.tsx:47
+[   95704ms] [WARNING] Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}. @ http://localhost:8081/node_modules/.vite/deps/chunk-HCGBN2MA.js?v=691b8933:335
+[  268259ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8081/src/components/posts/PostCard.tsx?t=1773509623215:0
+[  268260ms] [ERROR] [hmr] Failed to reload /src/components/posts/PostCard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:8081/@vite/client:175
+[  717581ms] [ERROR] Error sharing: AbortError: Share canceled @ http://localhost:8081/src/components/posts/PostCard.tsx?t=1773510013708:100
+[  718590ms] [WARNING] Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}. @ http://localhost:8081/node_modules/.vite/deps/chunk-HCGBN2MA.js?v=691b8933:335
+[  724773ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8081/api/users/messages/conversations:0
+[  724779ms] [ERROR] API Error: Error: 
+Invalid `prisma.directMessage.findMany()` invocation in
+/Users/raghav/Developer/ALUMNI-PORTAL-1/backend/src/controllers/userController.ts:673:47
+
+  670   return;
+  671 }
+  672 
+→ 673 const messages = await prisma.directMessage.findMany(
+The table `public.DirectMessage` does not exist in the current database.
+    at ApiService.request (http://localhost:8081/src/services/apiService.ts:132:23)
+    at async ApiService.getDirectConversations (http://localhost:8081/src/services/apiService.ts:653:20)
+    at async loadConversations (http://localhost:8081/src/pages/MessagesPage.tsx?t=1773509367793:40:26) @ http://localhost:8081/src/services/apiService.ts:135
+[  748147ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8081/api/mentorship/profile:0
+[  748162ms] [ERROR] API Error: Error: Server Error
+    at ApiService.request (http://localhost:8081/src/services/apiService.ts:132:23)
+    at async ApiService.getMentorshipProfile (http://localhost:8081/src/services/apiService.ts:1186:20)
+    at async loadMyMentorships (http://localhost:8081/src/pages/MentorshipPage.tsx:79:30) @ http://localhost:8081/src/services/apiService.ts:135

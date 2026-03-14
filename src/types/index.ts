@@ -8,7 +8,7 @@ export interface User {
   course?: string;
   profileImage?: string;
   bio?: string;
-  role: 'user' | 'admin' | 'super_admin';
+  role: 'user' | 'moderator' | 'admin' | 'super_admin';
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   linkedInUrl?: string;
   githubUrl?: string;

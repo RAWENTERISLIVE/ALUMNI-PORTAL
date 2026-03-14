@@ -7,6 +7,13 @@ interface AuthRequest extends Request {
   user?: any;
 }
 
+interface LinkedInImportPostInput {
+  title?: string;
+  content?: string;
+  postUrl?: string;
+  publishedAt?: string;
+}
+
 const postInclude = {
   author: {
     select: {
@@ -330,6 +337,79 @@ export const sharePost = asyncHandler(async (req: AuthRequest, res: Response) =>
   });
 
   res.status(201).json({ success: true, data: normalizedPost, post: normalizedPost });
+});
+
+export const importLinkedInPosts = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const linkedInProfile = typeof req.body?.linkedInProfile === 'string' ? req.body.linkedInProfile.trim() : '';
+  const incomingPosts: LinkedInImportPostInput[] = Array.isArray(req.body?.posts) ? req.body.posts : [];
+
+  if (incomingPosts.length === 0) {
+    res.status(400).json({ success: false, message: 'At least one LinkedIn post is required' });
+    return;
+  }
+
+  const createdPosts: any[] = [];
+  let skipped = 0;
+
+  for (const rawPost of incomingPosts.slice(0, 50)) {
+    const content = typeof rawPost?.content === 'string' ? rawPost.content.trim() : '';
+    if (!content) {
+      skipped += 1;
+      continue;
+    }
+
+    const postUrl = typeof rawPost?.postUrl === 'string' ? rawPost.postUrl.trim() : '';
+    const normalizedTitle = typeof rawPost?.title === 'string' ? rawPost.title.trim() : '';
+    const publishedAt = typeof rawPost?.publishedAt === 'string' ? rawPost.publishedAt : undefined;
+    const parsedPublishedDate = publishedAt ? new Date(publishedAt) : undefined;
+    const hasValidPublishedDate = parsedPublishedDate && !Number.isNaN(parsedPublishedDate.getTime());
+
+    const duplicatePost = await prisma.post.findFirst({
+      where: {
+        authorId: req.user.id,
+        content,
+        tags: { has: 'linkedin-import' },
+        ...(postUrl ? { externalLinks: { has: postUrl } } : {})
+      },
+      select: { id: true }
+    });
+
+    if (duplicatePost) {
+      skipped += 1;
+      continue;
+    }
+
+    const createdPost = await prisma.post.create({
+      data: {
+        authorId: req.user.id,
+        title: normalizedTitle || null,
+        content,
+        category: 'networking',
+        visibility: 'public',
+        tags: ['linkedin-import'],
+        externalLinks: [
+          ...new Set([postUrl, linkedInProfile].filter(Boolean))
+        ],
+        ...(hasValidPublishedDate ? { createdAt: parsedPublishedDate } : {})
+      },
+      include: postInclude
+    });
+
+    createdPosts.push(normalizePost(createdPost, req.user.id));
+  }
+
+  res.status(201).json({
+    success: true,
+    data: createdPosts,
+    importedCount: createdPosts.length,
+    skippedCount: skipped,
+    message: `Imported ${createdPosts.length} LinkedIn post${createdPosts.length === 1 ? '' : 's'}`
+  });
 });
 
 export const getFeedPosts = asyncHandler(async (req: AuthRequest, res: Response) => {

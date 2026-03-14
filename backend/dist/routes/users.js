@@ -44,14 +44,30 @@ const updateProfileValidation = [
         .isLength({ max: 100 })
         .withMessage('Job title must not exceed 100 characters'),
     (0, express_validator_1.body)('contactEmail')
-        .optional()
+        .optional({ checkFalsy: true })
         .isEmail()
         .normalizeEmail()
         .withMessage('Please provide a valid contact email'),
     (0, express_validator_1.body)('linkedInProfile')
-        .optional()
+        .optional({ checkFalsy: true })
         .isURL()
-        .withMessage('Please provide a valid LinkedIn URL')
+        .withMessage('Please provide a valid LinkedIn URL'),
+    (0, express_validator_1.body)('experiences')
+        .optional()
+        .isArray()
+        .withMessage('Experiences must be an array'),
+    (0, express_validator_1.body)('educations')
+        .optional()
+        .isArray()
+        .withMessage('Educations must be an array'),
+    (0, express_validator_1.body)('skills')
+        .optional()
+        .isArray()
+        .withMessage('Skills must be an array'),
+    (0, express_validator_1.body)('interests')
+        .optional()
+        .isArray()
+        .withMessage('Interests must be an array')
 ];
 router.get('/', auth_1.authMiddleware, auth_1.requireAdmin, userController_1.getAllUsers);
 router.get('/pending', auth_1.authMiddleware, auth_1.requireAdmin, userController_1.getPendingUsers);
@@ -60,11 +76,20 @@ router.patch('/:userId/approve', auth_1.authMiddleware, auth_1.requireAdmin, use
 router.patch('/:userId/reject', auth_1.authMiddleware, auth_1.requireAdmin, userController_1.rejectUser);
 router.patch('/:userId/suspend', auth_1.authMiddleware, auth_1.requireAdmin, userController_1.suspendUser);
 router.patch('/:userId/reactivate', auth_1.authMiddleware, auth_1.requireAdmin, userController_1.reactivateUser);
+router.patch('/:userId/promote-moderator', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.promoteToModerator);
 router.patch('/:userId/promote', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.promoteToAdmin);
 router.patch('/:userId/demote', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.demoteAdmin);
 router.delete('/:userId', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.deleteUser);
 router.get('/directory', auth_1.authMiddleware, userController_1.getAlumniDirectory);
 router.get('/suggestions', auth_1.authMiddleware, userController_1.getUserSuggestions);
+router.post('/:userId/connect', auth_1.authMiddleware, userController_1.connectUser);
+router.post('/:userId/connect/accept', auth_1.authMiddleware, userController_1.acceptConnectionRequest);
+router.delete('/:userId/connect', auth_1.authMiddleware, userController_1.disconnectUser);
+router.post('/:userId/follow', auth_1.authMiddleware, userController_1.followUser);
+router.delete('/:userId/follow', auth_1.authMiddleware, userController_1.unfollowUser);
+router.get('/messages/conversations', auth_1.authMiddleware, userController_1.getDirectConversations);
+router.get('/messages/:userId', auth_1.authMiddleware, userController_1.getDirectMessages);
+router.post('/messages/:userId', auth_1.authMiddleware, userController_1.sendDirectMessage);
 router.get('/me', auth_1.authMiddleware, async (req, res, next) => {
     try {
         req.params.userId = req.user._id || req.user.id;

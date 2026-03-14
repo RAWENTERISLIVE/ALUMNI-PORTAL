@@ -13,7 +13,8 @@ import {
   bookmarkPost,
   sharePost,
   getBookmarkedPosts,
-  getFeedPosts
+  getFeedPosts,
+  importLinkedInPosts
 } from '../controllers/postController';
 import { authMiddleware, requireAdmin } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -153,6 +154,37 @@ router.post('/share', authMiddleware, [
     .isIn(['quote', 'simple'])
     .withMessage('Invalid share type')
 ], validate, sharePost);
+
+// Import LinkedIn posts for the authenticated user (optional bulk seed)
+router.post('/import-linkedin', authMiddleware, [
+  body('linkedInProfile')
+    .optional()
+    .isURL()
+    .withMessage('linkedInProfile must be a valid URL'),
+  body('posts')
+    .isArray({ min: 1, max: 50 })
+    .withMessage('posts must be an array with 1 to 50 items'),
+  body('posts.*.content')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 2000 })
+    .withMessage('Each post content must be between 1 and 2000 characters'),
+  body('posts.*.title')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Each post title must not exceed 200 characters'),
+  body('posts.*.postUrl')
+    .optional()
+    .isURL()
+    .withMessage('Each postUrl must be a valid URL'),
+  body('posts.*.publishedAt')
+    .optional()
+    .isISO8601()
+    .withMessage('Each publishedAt must be a valid ISO date')
+], validate, importLinkedInPosts);
 
 // Feature/unfeature a post (admin only)
 router.patch('/:postId/feature', authMiddleware, requireAdmin, toggleFeaturePost);

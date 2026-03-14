@@ -9,9 +9,11 @@ import {
   forgotPassword,
   resetPassword,
   changePassword,
+  uploadVerificationId,
   updateNotificationSettings,
   updatePrivacySettings
 } from '../controllers/authController';
+import { upload } from '../controllers/uploadController';
 import { authMiddleware } from '../middleware/auth';
 import { authLimiter, registrationLimiter, passwordResetLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validation';
@@ -34,7 +36,16 @@ const registerValidation = [
   body('needsManualVerification')
     .optional()
     .isBoolean(),
+  body('forgotAdmissionNumber')
+    .optional()
+    .isBoolean(),
   body('verificationDetails')
+    .optional()
+    .isString(),
+  body('accountType')
+    .optional()
+    .isIn(['ALUMNI', 'FACULTY', 'alumni', 'faculty']),
+  body('facultyIdCardUrl')
     .optional()
     .isString(),
   body('graduationYear')
@@ -101,6 +112,7 @@ const privacySettingsValidation = [
 ];
 
 // Auth routes with enhanced rate limiting for Phase 1
+router.post('/upload-verification-id', upload.single('file') as any, uploadVerificationId);
 router.post('/register', registrationLimiter, registerValidation, validate, register);
 router.post('/login', authLimiter, loginValidation, validate, login);
 router.post('/refresh-token', refreshToken);

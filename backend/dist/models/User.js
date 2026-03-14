@@ -10,6 +10,7 @@ const prisma_1 = __importDefault(require("../config/prisma"));
 var UserRole;
 (function (UserRole) {
     UserRole["USER"] = "user";
+    UserRole["MODERATOR"] = "moderator";
     UserRole["ADMIN"] = "admin";
     UserRole["SUPER_ADMIN"] = "super_admin";
 })(UserRole || (exports.UserRole = UserRole = {}));
@@ -22,6 +23,8 @@ var UserStatus;
 })(UserStatus || (exports.UserStatus = UserStatus = {}));
 const toDbRole = (role) => {
     const normalized = (role || UserRole.USER).toLowerCase();
+    if (normalized === UserRole.MODERATOR)
+        return 'MODERATOR';
     if (normalized === UserRole.ADMIN)
         return 'ADMIN';
     if (normalized === UserRole.SUPER_ADMIN)

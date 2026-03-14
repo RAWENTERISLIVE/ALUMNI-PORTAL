@@ -7,14 +7,24 @@ import {
   rejectUser,
   suspendUser,
   reactivateUser,
+  promoteToModerator,
   promoteToAdmin,
   demoteAdmin,
+  setPremiumBadge,
   deleteUser,
   getUserStats,
   updateUserProfile,
   getUserById,
   getAlumniDirectory,
-  getUserSuggestions
+  getUserSuggestions,
+  connectUser,
+  disconnectUser,
+  acceptConnectionRequest,
+  followUser,
+  unfollowUser,
+  getDirectConversations,
+  getDirectMessages,
+  sendDirectMessage
 } from '../controllers/userController';
 import { authMiddleware, requireAdmin, requireSuperAdmin } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -64,7 +74,23 @@ const updateProfileValidation = [
   body('linkedInProfile')
     .optional({ checkFalsy: true })
     .isURL()
-    .withMessage('Please provide a valid LinkedIn URL')
+    .withMessage('Please provide a valid LinkedIn URL'),
+  body('experiences')
+    .optional()
+    .isArray()
+    .withMessage('Experiences must be an array'),
+  body('educations')
+    .optional()
+    .isArray()
+    .withMessage('Educations must be an array'),
+  body('skills')
+    .optional()
+    .isArray()
+    .withMessage('Skills must be an array'),
+  body('interests')
+    .optional()
+    .isArray()
+    .withMessage('Interests must be an array')
 ];
 
 // User management routes (Admin/Super Admin only)
@@ -79,8 +105,10 @@ router.patch('/:userId/suspend', authMiddleware, requireAdmin, suspendUser);
 router.patch('/:userId/reactivate', authMiddleware, requireAdmin, reactivateUser);
 
 // Admin management (Super Admin only)
+router.patch('/:userId/promote-moderator', authMiddleware, requireSuperAdmin, promoteToModerator);
 router.patch('/:userId/promote', authMiddleware, requireSuperAdmin, promoteToAdmin);
 router.patch('/:userId/demote', authMiddleware, requireSuperAdmin, demoteAdmin);
+router.patch('/:userId/premium-badge', authMiddleware, requireSuperAdmin, setPremiumBadge);
 router.delete('/:userId', authMiddleware, requireSuperAdmin, deleteUser);
 
 // Alumni Directory
@@ -88,6 +116,20 @@ router.get('/directory', authMiddleware, getAlumniDirectory);
 
 // User suggestions - must come before /:userId route
 router.get('/suggestions', authMiddleware, getUserSuggestions);
+
+// Connections
+router.post('/:userId/connect', authMiddleware, connectUser);
+router.post('/:userId/connect/accept', authMiddleware, acceptConnectionRequest);
+router.delete('/:userId/connect', authMiddleware, disconnectUser);
+
+// Following
+router.post('/:userId/follow', authMiddleware, followUser);
+router.delete('/:userId/follow', authMiddleware, unfollowUser);
+
+// Direct messaging
+router.get('/messages/conversations', authMiddleware, getDirectConversations);
+router.get('/messages/:userId', authMiddleware, getDirectMessages);
+router.post('/messages/:userId', authMiddleware, sendDirectMessage);
 
 // Current user profile endpoint
 router.get('/me', authMiddleware, async (req: any, res: any, next: any) => {

@@ -10,6 +10,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormDescription,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/shared/components/LoadingSpinner";
 import { ThemeToggle } from "@/components/theme-toggle";
+import apiService from "@/services/apiService";
 
 const registerSchema = z
   .object({
@@ -28,54 +30,52 @@ const registerSchema = z
       message: "Password must be at least 8 characters",
     }),
     confirmPassword: z.string(),
-    admissionNumber: z.string().optional(),
+    accountType: z.enum(["alumni", "faculty"]).default("alumni"),
     forgotAdmissionNumber: z.boolean().default(false),
+    admissionNumber: z.string().optional(),
     verificationDetails: z.string().optional(),
-    manverifadmissionyear: z.string().optional(), // changed from graduationYear
+    graduationYear: z.string().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
   })
   .superRefine((data, ctx) => {
-    if (data.forgotAdmissionNumber === false) {
-      if (!data.admissionNumber || data.admissionNumber.trim() === "") {
+    if (data.forgotAdmissionNumber) {
+      const details = (data.verificationDetails || '').trim();
+      if (details.length < 10) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Please provide at least 10 characters for manual verification.",
+          path: ["verificationDetails"],
+        });
+      }
+    } else {
+      const admissionNumber = (data.admissionNumber || '').trim();
+      if (!admissionNumber) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Admission number is required.",
           path: ["admissionNumber"],
         });
-      } else if (!/^[a-zA-Z0-9/-]{3,20}$/.test(data.admissionNumber)) {
+      } else if (!/^[a-zA-Z0-9/-]{3,20}$/.test(admissionNumber)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Admission number is not valid.",
           path: ["admissionNumber"],
         });
       }
-    } else {
-      if (!data.verificationDetails || data.verificationDetails.trim().length < 10) {
+    }
+
+    if (data.graduationYear && data.graduationYear.trim() !== "") {
+      const year = Number.parseInt(data.graduationYear, 10);
+      const currentYear = new Date().getFullYear();
+      if (Number.isNaN(year) || year < 1989 || year > currentYear + 10) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Please provide details for manual verification (minimum 10 characters).",
-          path: ["verificationDetails"],
+          message: `Passing year must be between 1989 and ${currentYear + 10}.`,
+          path: ["graduationYear"],
         });
-      }
-      if (!data.manverifadmissionyear || data.manverifadmissionyear.trim() === "") {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Admission year is required for manual verification.",
-          path: ["manverifadmissionyear"],
-        });
-      } else {
-        const year = Number.parseInt(data.manverifadmissionyear, 10);
-        const currentYear = new Date().getFullYear();
-        if (Number.isNaN(year) || year < 1989 || year > currentYear + 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Admission year must be between 1989 and ${currentYear + 1}.`,
-            path: ["manverifadmissionyear"],
-          });
-        }
       }
     }
   });
@@ -85,35 +85,62 @@ export default function RegisterPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [authError, setAuthError] = useState<string | null>(null);
+  const [facultyIdCardFile, setFacultyIdCardFile] = useState<File | null>(null);
+  const [isUploadingIdCard, setIsUploadingIdCard] = useState(false);
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       name: "",
       email: "",
+      accountType: "alumni",
+      forgotAdmissionNumber: false,
       admissionNumber: "",
+      verificationDetails: "",
       password: "",
       confirmPassword: "",
-      forgotAdmissionNumber: false,
-      verificationDetails: "",
-      manverifadmissionyear: "",
+      graduationYear: "",
     },
   });
 
   const forgotAdmissionNumber = form.watch("forgotAdmissionNumber");
+  const accountType = form.watch("accountType");
 
   async function onSubmit(values: z.infer<typeof registerSchema>) {
     try {
       setAuthError(null);
+
+      let facultyIdCardUrl: string | undefined;
+      if (values.accountType === 'faculty') {
+        if (!facultyIdCardFile) {
+          setAuthError('Faculty ID card image is required for verification.');
+          return;
+        }
+
+        setIsUploadingIdCard(true);
+        const uploadResult = await apiService.uploadVerificationIdCard(facultyIdCardFile);
+        setIsUploadingIdCard(false);
+
+        if (!uploadResult.success || !uploadResult.data?.url) {
+          setAuthError(uploadResult.message || 'Failed to upload faculty ID card image.');
+          return;
+        }
+
+        facultyIdCardUrl = uploadResult.data.url;
+      }
       
       const registrationData = {
         name: values.name,
         email: values.email,
         password: values.password,
+        accountType: values.accountType,
         admissionNumber: values.forgotAdmissionNumber ? undefined : values.admissionNumber,
-        needsManualVerification: values.forgotAdmissionNumber,
-        verificationDetails: values.verificationDetails,
-        admissionYear: values.manverifadmissionyear,
+        forgotAdmissionNumber: values.forgotAdmissionNumber,
+        needsManualVerification: values.forgotAdmissionNumber || values.accountType === 'faculty',
+        verificationDetails: values.forgotAdmissionNumber ? values.verificationDetails : undefined,
+        facultyIdCardUrl,
+        graduationYear: values.graduationYear,
+        admissionYear: values.graduationYear,
       };
 
       console.log('Frontend sending registration data:', registrationData);
@@ -123,15 +150,14 @@ export default function RegisterPage() {
       if (result?.success) {
         toast({
           title: "Registration Successful",
-          description: values.forgotAdmissionNumber
-            ? "Your account is pending manual verification. You will be notified via email."
-            : "Welcome! Please log in to continue.",
+          description: "Welcome! Please log in to continue.",
         });
         navigate("/login");
       } else {
         setAuthError(result?.message || "Registration failed.");
       }
     } catch (error: any) {
+      setIsUploadingIdCard(false);
       setAuthError(error.message || "An unexpected error occurred.");
       console.error("Registration error:", error);
     }
@@ -198,6 +224,48 @@ export default function RegisterPage() {
 
               <FormField
                 control={form.control}
+                name="accountType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-foreground/80 font-medium">Account Type</FormLabel>
+                    <FormControl>
+                      <select
+                        value={field.value}
+                        onChange={field.onChange}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                      >
+                        <option value="alumni">Alumni / Student</option>
+                        <option value="faculty">Faculty (Teacher / Staff)</option>
+                      </select>
+                    </FormControl>
+                    <FormDescription>
+                      Faculty accounts are reviewed in a dedicated verification queue.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {accountType === 'faculty' && (
+                <div className="space-y-2">
+                  <FormLabel className="text-foreground/80 font-medium">Faculty ID Card Photo</FormLabel>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const nextFile = event.target.files?.[0] || null;
+                      setFacultyIdCardFile(nextFile);
+                    }}
+                    className="text-foreground"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Upload a clear image of your school/college faculty ID card for verification.
+                  </p>
+                </div>
+              )}
+
+              <FormField
+                control={form.control}
                 name="forgotAdmissionNumber"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center space-x-3 space-y-0 pt-2">
@@ -208,68 +276,71 @@ export default function RegisterPage() {
                       />
                     </FormControl>
                     <FormLabel className="font-normal text-sm text-muted-foreground">
-                      I don&apos;t have/remember my Admission Number
+                      Forgot Admission Number? Submit manual verification details.
                     </FormLabel>
                   </FormItem>
                 )}
               />
 
-              {forgotAdmissionNumber ? (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="manverifadmissionyear"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-foreground/80 font-medium">Admission Year</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g. 2010"
-                            {...field}
-                            className="text-foreground placeholder:text-muted-foreground"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="verificationDetails"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-foreground/80 font-medium">Details for Manual Verification</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Please provide your course, any teachers you remember, or other details to help us verify your identity."
-                            {...field}
-                            className="text-foreground placeholder:text-muted-foreground"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
-              ) : (
+              <FormField
+                control={form.control}
+                name="admissionNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-foreground/80 font-medium">Admission Number / Student ID</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g. 12345/89 or 00123/05"
+                        {...field}
+                        disabled={forgotAdmissionNumber}
+                        className="text-foreground placeholder:text-muted-foreground"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {forgotAdmissionNumber && (
                 <FormField
                   control={form.control}
-                  name="admissionNumber"
+                  name="verificationDetails"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-foreground/80 font-medium">Admission Number / Student ID</FormLabel>
+                      <FormLabel className="text-foreground/80 font-medium">Verification Details</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="e.g. 12345/89 or 00123/05" 
-                          {...field} 
+                        <Textarea
+                          placeholder="Share batch, class teacher, section, campus or any past details that help verify your ID."
+                          {...field}
                           className="text-foreground placeholder:text-muted-foreground"
                         />
                       </FormControl>
+                      <FormDescription>
+                        This goes to a separate manual verification queue for super admin/moderator review.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               )}
+
+              <FormField
+                control={form.control}
+                name="graduationYear"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-foreground/80 font-medium">Graduation / Passing Year (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g. 2028"
+                        {...field}
+                        className="text-foreground placeholder:text-muted-foreground"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
@@ -311,9 +382,9 @@ export default function RegisterPage() {
               <Button 
                 type="submit" 
                 className="w-full bg-primary hover:bg-primary/90 text-white" 
-                disabled={isLoading}
+                disabled={isLoading || isUploadingIdCard}
               >
-                {isLoading ? <LoadingSpinner /> : "Create Account"}
+                {isLoading || isUploadingIdCard ? <LoadingSpinner /> : "Create Account"}
               </Button>
             </form>
           </Form>

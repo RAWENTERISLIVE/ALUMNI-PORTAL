@@ -17,21 +17,25 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Search, UserX, Check, X, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw, Activity } from "lucide-react";
+import { Search, UserX, Check, X, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import apiService from "@/services/apiService";
-import Phase1Dashboard from "@/components/admin/Phase1Dashboard";
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: 'user' | 'admin' | 'super_admin';
+  role: 'user' | 'moderator' | 'admin' | 'super_admin';
+  accountType?: 'alumni' | 'faculty';
+  hasPremiumBadge?: boolean;
+  facultyIdCardUrl?: string;
   status: 'pending' | 'active' | 'suspended' | 'deleted';
   admissionNumber: string;
   admissionYear: string; // changed from graduationYear
+  needsManualVerification?: boolean;
+  verificationDetails?: string;
   isVerified: boolean;
   createdAt: string;
   lastLogin?: string;
@@ -42,6 +46,7 @@ interface UserStats {
   activeUsers: number;
   pendingUsers: number;
   suspendedUsers: number;
+  moderatorUsers: number;
   adminUsers: number;
   superAdminUsers: number;
   recentRegistrations: number;
@@ -84,6 +89,7 @@ export default function AdminPage() {
     activeUsers: 0,
     pendingUsers: 0,
     suspendedUsers: 0,
+    moderatorUsers: 0,
     adminUsers: 0,
     superAdminUsers: 0,
     recentRegistrations: 0,
@@ -97,7 +103,7 @@ export default function AdminPage() {
   const [roleFilter, setRoleFilter] = useState<string>('');
 
   // Check if user has admin permissions
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'moderator' || currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const isSuperAdmin = currentUser?.role === 'super_admin';
 
   // Redirect if not admin
@@ -250,6 +256,18 @@ export default function AdminPage() {
     }, `promote-${userId}`);
   };
 
+  const promoteToModerator = async (userId: string, userName: string) => {
+    await handleAction(async () => {
+      const response = await apiService.promoteToModerator(userId);
+      if (response.success) {
+        toast({
+          title: "User Promoted",
+          description: `${userName} has been promoted to moderator.`,
+        });
+      }
+    }, `promote-moderator-${userId}`);
+  };
+
   const demoteAdmin = async (userId: string, userName: string) => {
     await handleAction(async () => {
       const response = await apiService.demoteAdmin(userId);
@@ -260,6 +278,20 @@ export default function AdminPage() {
         });
       }
     }, `demote-${userId}`);
+  };
+
+  const togglePremiumBadge = async (userId: string, userName: string, enabled: boolean) => {
+    await handleAction(async () => {
+      const response = await apiService.setPremiumBadge(userId, enabled);
+      if (response.success) {
+        toast({
+          title: enabled ? "Premium Badge Assigned" : "Premium Badge Removed",
+          description: enabled
+            ? `${userName} now has Premium Alumni badge.`
+            : `${userName}'s Premium Alumni badge was removed.`,
+        });
+      }
+    }, `premium-${userId}-${enabled ? 'on' : 'off'}`);
   };
 
   const deleteUser = async (userId: string, userName: string) => {
@@ -307,6 +339,8 @@ export default function AdminPage() {
     switch (role) {
       case 'super_admin':
         return 'bg-red-100 text-red-800';
+      case 'moderator':
+        return 'bg-amber-100 text-amber-800';
       case 'admin':
         return 'bg-primary/10 text-blue-800';
       default:
@@ -346,6 +380,9 @@ export default function AdminPage() {
     );
   }
 
+  const manualVerificationPendingUsers = pendingUsers.filter((user) => user.needsManualVerification);
+  const regularPendingUsers = pendingUsers.filter((user) => !user.needsManualVerification);
+
   return (
     <div className="space-y-6">
       <PageHeader 
@@ -370,13 +407,13 @@ export default function AdminPage() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Admins</CardTitle>
+            <CardTitle className="text-sm font-medium">Admin Team</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.adminUsers + stats.superAdminUsers}</div>
+            <div className="text-2xl font-bold">{stats.moderatorUsers + stats.adminUsers + stats.superAdminUsers}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats.superAdminUsers} super admins, {stats.adminUsers} admins
+              {stats.superAdminUsers} super admins, {stats.adminUsers} admins, {stats.moderatorUsers} moderators
             </p>
           </CardContent>
         </Card>
@@ -408,12 +445,8 @@ export default function AdminPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="phase1">
+      <Tabs defaultValue="users">
         <TabsList className="mb-4">
-          <TabsTrigger value="phase1">
-            <Activity className="h-4 w-4 mr-2" />
-            Phase 1 Status
-          </TabsTrigger>
           <TabsTrigger value="users">All Users</TabsTrigger>
           <TabsTrigger value="pending">
             Pending Approval ({pendingUsers.length})
@@ -421,10 +454,6 @@ export default function AdminPage() {
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="phase1">
-          <Phase1Dashboard />
-        </TabsContent>
         
         <TabsContent value="users">
           <Card>
@@ -458,6 +487,7 @@ export default function AdminPage() {
                   >
                     <option value="">All Roles</option>
                     <option value="user">User</option>
+                    <option value="moderator">Moderator</option>
                     <option value="admin">Admin</option>
                     <option value="super_admin">Super Admin</option>
                   </select>
@@ -472,6 +502,8 @@ export default function AdminPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Badge</TableHead>
                     <TableHead>Admission</TableHead>
                     <TableHead>Year</TableHead>
                     <TableHead>Actions</TableHead>
@@ -491,6 +523,16 @@ export default function AdminPage() {
                         <Badge className={getStatusColor(user.status)}>
                           {user.status.toUpperCase()}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{(user.accountType || 'alumni').toUpperCase()}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.hasPremiumBadge ? (
+                          <Badge className="bg-amber-100 text-amber-800">PREMIUM</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>{user.admissionNumber}</TableCell>
                       <TableCell>{user.admissionYear}</TableCell>
@@ -530,6 +572,21 @@ export default function AdminPage() {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => promoteToModerator(user.id, user.name)}
+                              disabled={actionLoading === `promote-moderator-${user.id}`}
+                            >
+                              {actionLoading === `promote-moderator-${user.id}` ? (
+                                <LoadingSpinner size="sm" />
+                              ) : (
+                                <Shield className="h-3 w-3" />
+                              )}
+                            </Button>
+                          )}
+
+                          {isSuperAdmin && user.role === 'moderator' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => promoteToAdmin(user.id, user.name)}
                               disabled={actionLoading === `promote-${user.id}`}
                             >
@@ -541,7 +598,7 @@ export default function AdminPage() {
                             </Button>
                           )}
 
-                          {isSuperAdmin && user.role === 'admin' && (
+                          {isSuperAdmin && (user.role === 'admin' || user.role === 'moderator') && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -553,6 +610,17 @@ export default function AdminPage() {
                               ) : (
                                 <UserMinus className="h-3 w-3" />
                               )}
+                            </Button>
+                          )}
+
+                          {isSuperAdmin && user.role !== 'super_admin' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => togglePremiumBadge(user.id, user.name, !user.hasPremiumBadge)}
+                              disabled={actionLoading === `premium-${user.id}-${user.hasPremiumBadge ? 'off' : 'on'}`}
+                            >
+                              Premium
                             </Button>
                           )}
 
@@ -624,14 +692,14 @@ export default function AdminPage() {
         </TabsContent>
 
         <TabsContent value="pending">
-          <Card>
+          <Card className="mb-4">
             <CardHeader>
-              <CardTitle>Pending User Approvals</CardTitle>
+              <CardTitle>Pending Approvals - Regular Queue</CardTitle>
             </CardHeader>
             <CardContent>
-              {pendingUsers.length === 0 ? (
+              {regularPendingUsers.length === 0 ? (
                 <div className="text-center py-8 text-muted/300">
-                  No pending user approvals
+                  No regular pending approvals
                 </div>
               ) : (
                 <Table>
@@ -639,16 +707,20 @@ export default function AdminPage() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Admission Number</TableHead>
                       <TableHead>Registration Date</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingUsers.map((user) => (
+                    {regularPendingUsers.map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.name}</TableCell>
                         <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{(user.accountType || 'alumni').toUpperCase()}</Badge>
+                        </TableCell>
                         <TableCell>{user.admissionNumber}</TableCell>
                         <TableCell>
                           {new Date(user.createdAt).toLocaleDateString()}
@@ -683,6 +755,83 @@ export default function AdminPage() {
                                   Reject
                                 </>
                               )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Pending Approvals - Manual Admission Verification</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {manualVerificationPendingUsers.length === 0 ? (
+                <div className="text-center py-8 text-muted/300">
+                  No manual verification requests
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>ID Card</TableHead>
+                      <TableHead>Verification Details</TableHead>
+                      <TableHead>Submitted</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {manualVerificationPendingUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">{user.name}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{(user.accountType || 'alumni').toUpperCase()}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {user.facultyIdCardUrl ? (
+                            <a
+                              href={user.facultyIdCardUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-primary hover:underline"
+                            >
+                              View ID
+                            </a>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">N/A</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-[360px] whitespace-pre-wrap break-words text-sm">
+                          {user.verificationDetails || 'No details provided'}
+                        </TableCell>
+                        <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => approveUser(user.id, user.name)}
+                              disabled={actionLoading === `approve-${user.id}`}
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => rejectUser(user.id, user.name)}
+                              disabled={actionLoading === `reject-${user.id}`}
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Reject
                             </Button>
                           </div>
                         </TableCell>

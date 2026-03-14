@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
+import { createNotification } from '../utils/notifications';
 
 interface AuthRequest extends Request {
   user?: {
@@ -293,6 +294,23 @@ export const requestMentorship = async (req: AuthRequest, res: Response) => {
     }
   });
 
+  const mentee = await prisma.user.findUnique({
+    where: { id: menteeId },
+    select: { name: true }
+  });
+
+  await createNotification({
+    userId: mentorProfile.userId,
+    title: 'New mentorship request',
+    message: `${mentee?.name || 'A user'} sent you a mentorship request.`,
+    type: 'mentorship',
+    actionUrl: '/mentorship',
+    metadata: {
+      mentorProfileId: mentorId,
+      menteeId
+    }
+  });
+
   res.json({ success: true, message: 'Mentorship request sent' });
 };
 
@@ -333,6 +351,23 @@ export const respondToRequest = async (req: AuthRequest, res: Response) => {
     where: { id: requestId },
     data: {
       status: action === 'accept' ? 'accepted' : 'rejected'
+    }
+  });
+
+  const mentor = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { name: true }
+  });
+
+  await createNotification({
+    userId: request.menteeId,
+    title: action === 'accept' ? 'Mentorship request accepted' : 'Mentorship request rejected',
+    message: `${mentor?.name || 'Your mentor'} ${action === 'accept' ? 'accepted' : 'rejected'} your mentorship request.`,
+    type: 'mentorship',
+    actionUrl: '/mentorship',
+    metadata: {
+      requestId,
+      action
     }
   });
 

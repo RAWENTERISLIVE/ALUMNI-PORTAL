@@ -38,7 +38,10 @@ export interface UserData {
   id: string;
   email: string;
   name: string;
-  role: 'user' | 'admin' | 'super_admin';
+  role: 'user' | 'moderator' | 'admin' | 'super_admin';
+  accountType?: 'alumni' | 'faculty';
+  hasPremiumBadge?: boolean;
+  facultyIdCardUrl?: string;
   status: 'pending' | 'active' | 'suspended' | 'deleted';
   isVerified?: boolean;
   admissionNumber?: string;
@@ -81,6 +84,10 @@ export interface RegistrationData {
   name: string;
   admissionNumber?: string;
   graduationYear?: string;
+  accountType?: 'alumni' | 'faculty';
+  forgotAdmissionNumber?: boolean;
+  verificationDetails?: string;
+  facultyIdCardUrl?: string;
   needsManualVerification?: boolean;
 }
 

@@ -1,7 +1,7 @@
 
 import { Link, useLocation } from "react-router-dom";
 import { 
-  User, Users, Briefcase, GraduationCap, Home, MessageSquare, 
+  User, Users, Briefcase, GraduationCap, Home, MessageSquare, MessageCircle,
   BookOpen, Settings, Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,11 @@ export const Sidebar = () => {
       name: "Posts", 
       href: "/posts", 
       icon: MessageSquare
+    },
+    {
+      name: "Messages",
+      href: "/messages",
+      icon: MessageCircle
     },
     { 
       name: "Groups", 

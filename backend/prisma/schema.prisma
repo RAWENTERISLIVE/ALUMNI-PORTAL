@@ -8,8 +8,14 @@ datasource db {
 
 enum Role {
   USER
+  MODERATOR
   ADMIN
   SUPER_ADMIN
+}
+
+enum AccountType {
+  ALUMNI
+  FACULTY
 }
 
 enum Status {
@@ -28,6 +34,12 @@ enum Visibility {
   CONNECTIONS_ONLY
 }
 
+enum ConnectionRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 model User {
   id                       String    @id @default(uuid())
   email                    String    @unique
@@ -37,6 +49,7 @@ model User {
   lastName                 String?
   admissionNumber          String
   admissionYear            String
+  accountType              AccountType @default(ALUMNI)
   role                     Role      @default(USER)
   status                   Status    @default(PENDING)
   isVerified               Boolean   @default(false)
@@ -60,10 +73,16 @@ model User {
   emailVerificationExpires DateTime?
   needsManualVerification  Boolean   @default(false)
   verificationDetails      String?
+  facultyIdCardUrl         String?
+  hasPremiumBadge          Boolean   @default(false)
 
   // Settings as JSON or separate relationships (using JSON for simplicity with Prisma/Postgres)
   notificationSettings Json?
   privacySettings      Json?
+  experiences          Json?
+  educations           Json?
+  skills               String[]
+  interests            String[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -82,6 +101,13 @@ model User {
   connections User[] @relation("UserConnections")
   connectedTo User[] @relation("UserConnections")
 
+  sentConnectionRequests     ConnectionRequest[] @relation("ConnectionRequestSender")
+  receivedConnectionRequests ConnectionRequest[] @relation("ConnectionRequestReceiver")
+  followingRelationships     Follow[]            @relation("UserFollowing")
+  followerRelationships      Follow[]            @relation("UserFollowers")
+  sentDirectMessages         DirectMessage[]     @relation("DirectMessageSender")
+  receivedDirectMessages     DirectMessage[]     @relation("DirectMessageReceiver")
+
   // Additional relationships
   mentorshipProfile MentorshipProfile? @relation("UserMentorshipProfile")
   mentorshipRequestsAsMentee MentorshipRequest[] @relation("MenteeRequests")
@@ -89,11 +115,79 @@ model User {
   eventsAttended    Event[]            @relation("EventAttendees")
   groupsCreated     Group[]            @relation("GroupCreator")
   groupsJoined      Group[]            @relation("GroupMembers")
+  groupJoinRequests GroupJoinRequest[] @relation("GroupJoinRequestRequester")
   groupMessages     GroupMessage[]     @relation("GroupMessageAuthor")
   reportsSubmitted  Report[]           @relation("ReportedBy")
   reportsAgainst    Report[]           @relation("ReportedUser")
   reportsReviewed   Report[]           @relation("ReviewedBy")
   filesUploaded     File[]             @relation("FileUploader")
+  notifications     Notification[]     @relation("UserNotifications")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("info")
+  actionUrl String?
+  metadata  Json?
+  isSeen    Boolean  @default(false)
+  seenAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isSeen, createdAt])
+}
+
+model ConnectionRequest {
+  id         String                  @id @default(uuid())
+  senderId   String
+  receiverId String
+  sender     User                    @relation("ConnectionRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User                    @relation("ConnectionRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  status     ConnectionRequestStatus @default(PENDING)
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status, createdAt])
+  @@index([senderId, status, createdAt])
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId, createdAt])
+  @@index([followerId, createdAt])
+}
+
+model DirectMessage {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  sender     User     @relation("DirectMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("DirectMessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String
+  isRead     Boolean  @default(false)
+  readAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, isRead, createdAt])
 }
 
 model Post {
@@ -273,6 +367,24 @@ model Group {
   updatedAt DateTime @updatedAt
 
   messages GroupMessage[] @relation("GroupMessages")
+  joinRequests GroupJoinRequest[] @relation("GroupJoinRequestGroup")
+}
+
+model GroupJoinRequest {
+  id          String   @id @default(uuid())
+  groupId     String
+  group       Group    @relation("GroupJoinRequestGroup", fields: [groupId], references: [id], onDelete: Cascade)
+  requesterId String
+  requester   User     @relation("GroupJoinRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  status      String   @default("pending") // pending | approved | rejected
+  reviewedById String?
+  reviewedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([groupId, requesterId])
+  @@index([groupId, status, createdAt])
 }
 
 model GroupMessage {

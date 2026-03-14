@@ -63,7 +63,7 @@ interface PostCardProps {
   onPostDelete?: (postId: string) => void;
 }
 
-export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
+export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCardProps>) {
   const [isLiking, setIsLiking] = useState(false);
   const [isBookmarking, setIsBookmarking] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
@@ -137,10 +137,10 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
         await navigator.share({
           title: post.title || 'Check out this post',
           text: post.content.substring(0, 100) + '...',
-          url: window.location.href,
+          url: globalThis.location.href,
         });
       } else {
-        await navigator.clipboard.writeText(window.location.href);
+        await navigator.clipboard.writeText(globalThis.location.href);
         toast({
           title: "Link copied",
           description: "Post link has been copied to clipboard.",
@@ -151,10 +151,31 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
     }
   };
 
+  const handleCommentClick = () => {
+    toast({
+      title: 'Comments',
+      description: 'Comments support is coming soon for this view.',
+    });
+  };
+
+  const handleEditPost = () => {
+    toast({
+      title: 'Edit post',
+      description: 'Post editing UI is coming soon.',
+    });
+  };
+
+  const handleReportPost = () => {
+    toast({
+      title: 'Report post',
+      description: 'Post reporting flow is coming soon.',
+    });
+  };
+
   const handleDelete = async () => {
     if (!isAuthor) return;
     
-    if (confirm('Are you sure you want to delete this post?')) {
+    if (globalThis.confirm('Are you sure you want to delete this post?')) {
       try {
         const response = await apiService.deletePost(post.id);
         if (response.success) {
@@ -179,7 +200,7 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const getFileIcon = (type: string) => {
@@ -204,13 +225,13 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
     : post.content;
 
   return (
-    <Card className="bg-card border border-border shadow-sm hover:shadow-md transition-shadow duration-200">
+    <Card className="rounded-xl border border-border/60 bg-card shadow-sm transition-all duration-200 hover:border-border hover:shadow-md">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
               <AvatarImage src={post.author.profileImage} />
-              <AvatarFallback className="bg-primary/10 text-blue-700 font-medium">
+              <AvatarFallback className="bg-primary/10 text-primary font-medium">
                 {post.author.name.charAt(0)}
               </AvatarFallback>
             </Avatar>
@@ -222,8 +243,8 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
                     {post.author.role}
                   </Badge>
                 )}
-                {post.author.classYear && (
-                  <Badge variant="outline" className="text-xs border-slate-300 text-muted-foreground">
+                {!!post.author.classYear && (
+                  <Badge variant="outline" className="text-xs border-border text-muted-foreground">
                     Class of {post.author.classYear}
                   </Badge>
                 )}
@@ -232,7 +253,7 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
                 <Badge className={`text-xs font-medium border ${getCategoryColor(post.category)}`}>
                   {post.category.charAt(0).toUpperCase() + post.category.slice(1)}
                 </Badge>
-                <span className="text-sm text-muted/300">
+                <span className="text-sm text-muted-foreground">
                   {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
                 </span>
               </div>
@@ -241,14 +262,17 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-muted/300 hover:text-slate-700">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-card border-border">
               {isAuthor && (
                 <>
-                  <DropdownMenuItem className="text-slate-700 hover:bg-muted/30">
+                  <DropdownMenuItem
+                    onClick={handleEditPost}
+                    className="text-foreground hover:bg-muted"
+                  >
                     Edit Post
                   </DropdownMenuItem>
                   <DropdownMenuItem 
@@ -259,7 +283,10 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
                   </DropdownMenuItem>
                 </>
               )}
-              <DropdownMenuItem className="text-slate-700 hover:bg-muted/30">
+              <DropdownMenuItem
+                onClick={handleReportPost}
+                className="text-foreground hover:bg-muted"
+              >
                 Report Post
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -274,12 +301,12 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
         )}
         
         {/* Content */}
-        <div className="prose prose-sm max-w-none text-slate-700 mb-4">
+        <div className="prose prose-sm max-w-none text-foreground/90 mb-4">
           <p className="whitespace-pre-wrap leading-relaxed">{displayContent}</p>
           {shouldTruncateContent && (
             <button
               onClick={() => setShowFullContent(!showFullContent)}
-              className="text-foreground/90 hover:text-blue-700 font-medium text-sm mt-2"
+              className="mt-2 text-sm font-medium text-primary hover:text-primary/90"
             >
               {showFullContent ? 'Show less' : 'Show more'}
             </button>
@@ -291,9 +318,9 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
           <div className="flex flex-wrap gap-2 mb-4">
             {post.tags.map((tag, index) => (
               <Badge 
-                key={index} 
+                key={`${tag}-${index}`} 
                 variant="secondary" 
-                className="text-xs bg-primary/5 text-blue-700 border-blue-200"
+                className="text-xs bg-primary/10 text-primary border-primary/20"
               >
                 #{tag}
               </Badge>
@@ -304,28 +331,28 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
         {/* Attachments */}
         {post.attachments && post.attachments.length > 0 && (
           <div className="space-y-2 mb-4">
-            <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+            <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
               <Paperclip className="h-4 w-4" />
               Attachments ({post.attachments.length})
             </h4>
             <div className="grid gap-2">
               {post.attachments.map((attachment, index) => (
                 <div 
-                  key={index} 
-                  className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border"
+                  key={`${attachment.url}-${attachment.name}-${index}`} 
+                  className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/70"
                 >
                   <div className="flex items-center gap-3">
                     {getFileIcon(attachment.type)}
                     <div>
                       <p className="text-sm font-medium text-foreground">{attachment.name}</p>
-                      <p className="text-xs text-muted/300">{formatFileSize(attachment.size)}</p>
+                      <p className="text-xs text-muted-foreground">{formatFileSize(attachment.size)}</p>
                     </div>
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
                     asChild
-                    className="text-foreground/90 hover:text-blue-700 hover:bg-primary/5"
+                    className="text-foreground/90 hover:text-primary hover:bg-primary/10"
                   >
                     <a href={attachment.url} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4" />
@@ -340,21 +367,21 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
         {/* External Links */}
         {post.externalLinks && post.externalLinks.length > 0 && (
           <div className="space-y-2 mb-4">
-            <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+            <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
               <ExternalLink className="h-4 w-4" />
               Links ({post.externalLinks.length})
             </h4>
             <div className="space-y-2">
               {post.externalLinks.map((link, index) => (
                 <a
-                  key={index}
+                  key={`${link}-${index}`}
                   href={link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border hover:bg-muted transition-colors"
+                  className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/70 hover:bg-muted transition-colors"
                 >
                   <ExternalLink className="h-4 w-4 text-foreground/90 flex-shrink-0" />
-                  <span className="text-sm text-foreground/90 hover:text-blue-700 truncate">
+                  <span className="text-sm text-foreground/90 hover:text-primary truncate">
                     {link}
                   </span>
                 </a>
@@ -364,40 +391,41 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
         )}
         
         {/* Actions */}
-        <div className="flex items-center justify-between pt-3 border-t border-border">
+        <div className="flex items-center justify-between pt-3 border-t border-border/70">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleLike}
               disabled={isLiking}
-              className={`gap-2 ${
+              className={`gap-2 rounded-lg ${
                 post.isLiked 
                   ? 'text-red-600 hover:text-red-700' 
-                  : 'text-muted-foreground hover:text-slate-700'
-              } hover:bg-muted/30`}
+                  : 'text-muted-foreground hover:text-foreground'
+              } hover:bg-muted`}
             >
               <Heart className={`h-4 w-4 ${post.isLiked ? 'fill-current' : ''}`} />
-              {likeCount > 0 && <span className="text-sm">{likeCount}</span>}
+              <span className="text-sm">{likeCount > 0 ? likeCount : 'Like'}</span>
             </Button>
             
             <Button
               variant="ghost"
               size="sm"
-              className="gap-2 text-muted-foreground hover:text-slate-700 hover:bg-muted/30"
+              onClick={handleCommentClick}
+              className="gap-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               <MessageCircle className="h-4 w-4" />
-              {post.commentCount > 0 && <span className="text-sm">{post.commentCount}</span>}
+              <span className="text-sm">{post.commentCount > 0 ? post.commentCount : 'Comment'}</span>
             </Button>
             
             <Button
               variant="ghost"
               size="sm"
               onClick={handleShare}
-              className="gap-2 text-muted-foreground hover:text-slate-700 hover:bg-muted/30"
+              className="gap-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               <Share2 className="h-4 w-4" />
-              {post.shareCount > 0 && <span className="text-sm">{post.shareCount}</span>}
+              <span className="text-sm">{post.shareCount > 0 ? post.shareCount : 'Share'}</span>
             </Button>
           </div>
           
@@ -406,13 +434,14 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: PostCardProps) {
             size="sm"
             onClick={handleBookmark}
             disabled={isBookmarking}
-            className={`gap-2 ${
+            className={`gap-2 rounded-lg ${
               post.isBookmarked 
-                ? 'text-foreground/90 hover:text-blue-700' 
-                : 'text-muted-foreground hover:text-slate-700'
-            } hover:bg-muted/30`}
+                ? 'text-primary hover:text-primary/90' 
+                : 'text-muted-foreground hover:text-foreground'
+            } hover:bg-muted`}
           >
             <Bookmark className={`h-4 w-4 ${post.isBookmarked ? 'fill-current' : ''}`} />
+            <span className="text-sm">{bookmarkCount > 0 ? bookmarkCount : 'Save'}</span>
           </Button>
         </div>
       </CardContent>

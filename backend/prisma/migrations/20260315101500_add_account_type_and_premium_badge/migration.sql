@@ -1,0 +1,9 @@
+DO $$ BEGIN
+  CREATE TYPE "AccountType" AS ENUM ('ALUMNI', 'FACULTY');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+ALTER TABLE "User"
+  ADD COLUMN IF NOT EXISTS "accountType" "AccountType" NOT NULL DEFAULT 'ALUMNI',
+  ADD COLUMN IF NOT EXISTS "hasPremiumBadge" BOOLEAN NOT NULL DEFAULT false;

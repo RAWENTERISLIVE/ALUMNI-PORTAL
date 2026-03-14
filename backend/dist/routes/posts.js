@@ -114,6 +114,35 @@ router.post('/share', auth_1.authMiddleware, [
         .isIn(['quote', 'simple'])
         .withMessage('Invalid share type')
 ], validation_1.validate, postController_1.sharePost);
+router.post('/import-linkedin', auth_1.authMiddleware, [
+    (0, express_validator_1.body)('linkedInProfile')
+        .optional()
+        .isURL()
+        .withMessage('linkedInProfile must be a valid URL'),
+    (0, express_validator_1.body)('posts')
+        .isArray({ min: 1, max: 50 })
+        .withMessage('posts must be an array with 1 to 50 items'),
+    (0, express_validator_1.body)('posts.*.content')
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ min: 1, max: 2000 })
+        .withMessage('Each post content must be between 1 and 2000 characters'),
+    (0, express_validator_1.body)('posts.*.title')
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ max: 200 })
+        .withMessage('Each post title must not exceed 200 characters'),
+    (0, express_validator_1.body)('posts.*.postUrl')
+        .optional()
+        .isURL()
+        .withMessage('Each postUrl must be a valid URL'),
+    (0, express_validator_1.body)('posts.*.publishedAt')
+        .optional()
+        .isISO8601()
+        .withMessage('Each publishedAt must be a valid ISO date')
+], validation_1.validate, postController_1.importLinkedInPosts);
 router.patch('/:postId/feature', auth_1.authMiddleware, auth_1.requireAdmin, postController_1.toggleFeaturePost);
 exports.default = router;
 //# sourceMappingURL=posts.js.map

@@ -24,6 +24,9 @@ export interface ApiResponse<T = any> {
   errors?: any[];
   post?: any;
   posts?: any[];
+  unseenCount?: number;
+  importedCount?: number;
+  skippedCount?: number;
 }
 
 class ApiService {
@@ -52,6 +55,10 @@ class ApiService {
       ...((payload.isAvailableAsMentor ?? payload.availableAsMentor) !== undefined
         ? { isAvailableAsMentor: payload.isAvailableAsMentor ?? payload.availableAsMentor }
         : {}),
+      ...(payload.experiences !== undefined ? { experiences: payload.experiences } : {}),
+      ...(payload.educations !== undefined ? { educations: payload.educations } : {}),
+      ...(payload.skills !== undefined ? { skills: payload.skills } : {}),
+      ...(payload.interests !== undefined ? { interests: payload.interests } : {}),
     };
   }
 
@@ -368,6 +375,62 @@ class ApiService {
     }
   }
 
+  async importLinkedInPosts(payload: {
+    linkedInProfile?: string;
+    posts: Array<{
+      title?: string;
+      content: string;
+      postUrl?: string;
+      publishedAt?: string;
+    }>;
+  }): Promise<ApiResponse> {
+    try {
+      return await this.request('/posts/import-linkedin', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to import LinkedIn posts.',
+      };
+    }
+  }
+
+  async getLinkedInOAuthUrl(): Promise<ApiResponse<{ url: string }>> {
+    try {
+      return await this.request<{ url: string }>('/linkedin/oauth-url');
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to start LinkedIn OAuth.',
+      };
+    }
+  }
+
+  async getLinkedInOAuthStatus(): Promise<ApiResponse<{
+    state: 'pending' | 'success' | 'error';
+    message?: string;
+    profile?: {
+      name?: string;
+      firstName?: string;
+      lastName?: string;
+      profileImage?: string;
+      contactEmail?: string;
+      linkedInProfile?: string;
+    };
+    updatedAt: number;
+  }>> {
+    try {
+      return await this.request('/linkedin/oauth-status');
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch LinkedIn OAuth status.',
+      };
+    }
+  }
+
   async getFeedPosts(params: {
     page?: number;
     limit?: number;
@@ -609,7 +672,8 @@ class ApiService {
           total: 0,
           approved: 0,
           pending: 0,
-          suspended: 0
+          suspended: 0,
+          moderatorUsers: 0
         }
       };
     }
@@ -624,6 +688,109 @@ class ApiService {
         success: false,
         message: error.message || 'Failed to fetch user suggestions.',
         data: []
+      };
+    }
+  }
+
+  async connectWithUser(userId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/connect`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to connect with user.'
+      };
+    }
+  }
+
+  async acceptConnectionRequest(userId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/connect/accept`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to accept connection request.'
+      };
+    }
+  }
+
+  async disconnectFromUser(userId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/connect`, {
+        method: 'DELETE'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to disconnect from user.'
+      };
+    }
+  }
+
+  async followUser(userId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/follow`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to follow user.'
+      };
+    }
+  }
+
+  async unfollowUser(userId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/follow`, {
+        method: 'DELETE'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to unfollow user.'
+      };
+    }
+  }
+
+  async getDirectConversations(): Promise<ApiResponse> {
+    try {
+      return await this.request('/users/messages/conversations');
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch conversations.',
+        data: []
+      };
+    }
+  }
+
+  async getDirectMessages(userId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/messages/${userId}`);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch messages.',
+        data: []
+      };
+    }
+  }
+
+  async sendDirectMessage(userId: string, content: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/messages/${userId}`, {
+        method: 'POST',
+        body: JSON.stringify({ content })
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to send message.'
       };
     }
   }
@@ -694,6 +861,19 @@ class ApiService {
     }
   }
 
+  async promoteToModerator(userId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/promote-moderator`, {
+        method: 'PATCH'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to promote user to moderator.'
+      };
+    }
+  }
+
   async demoteAdmin(userId: string): Promise<ApiResponse> {
     try {
       return await this.request(`/users/${userId}/demote`, {
@@ -716,6 +896,20 @@ class ApiService {
       return {
         success: false,
         message: error.message || 'Failed to delete user.'
+      };
+    }
+  }
+
+  async setPremiumBadge(userId: string, enabled: boolean): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/premium-badge`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled })
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to update premium badge.'
       };
     }
   }
@@ -913,7 +1107,7 @@ class ApiService {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${this.baseURL}/upload`, {
+      const response = await fetch(`${this.baseURL}/uploads/single`, {
         method: 'POST',
         headers: {
           ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
@@ -937,6 +1131,31 @@ class ApiService {
       return {
         success: false,
         message: error.message || 'Failed to upload file.',
+      };
+    }
+  }
+
+  async uploadVerificationIdCard(file: File): Promise<ApiResponse> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${this.baseURL}/auth/upload-verification-id`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || 'Failed to upload faculty ID card.');
+      }
+
+      return data;
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to upload faculty ID card.',
       };
     }
   }
@@ -987,6 +1206,36 @@ class ApiService {
         success: false,
         message: error.message || 'Failed to fetch group messages.',
         data: []
+      };
+    }
+  }
+
+  async getGroup(groupId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}`);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch group details.'
+      };
+    }
+  }
+
+  async updateGroup(groupId: string, data: {
+    name?: string;
+    description?: string;
+    category?: string;
+    privacy?: 'public' | 'private';
+  }): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to update group settings.'
       };
     }
   }
@@ -1065,9 +1314,20 @@ class ApiService {
     }
   }
 
-  async applyToJob(jobId: string): Promise<ApiResponse> {
+  async applyToJob(
+    jobId: string,
+    applicationData: {
+      coverLetter?: string;
+      resumeUrl?: string;
+      resumeFilename?: string;
+      portfolioUrl?: string;
+    } = {}
+  ): Promise<ApiResponse> {
     try {
-      return await this.request(`/jobs/${jobId}/apply`, { method: 'POST' });
+      return await this.request(`/jobs/${jobId}/apply`, {
+        method: 'POST',
+        body: JSON.stringify(applicationData)
+      });
     } catch (error: any) {
       return {
         success: false,
@@ -1197,6 +1457,57 @@ class ApiService {
     }
   }
 
+  async getNotifications(limit = 20): Promise<ApiResponse> {
+    try {
+      return await this.request(`/notifications?limit=${limit}`);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch notifications.',
+        data: [],
+      };
+    }
+  }
+
+  async markNotificationSeen(notificationId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/notifications/${notificationId}/seen`, {
+        method: 'PATCH'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to mark notification as seen.'
+      };
+    }
+  }
+
+  async markAllNotificationsSeen(): Promise<ApiResponse> {
+    try {
+      return await this.request('/notifications/mark-all-seen', {
+        method: 'PATCH'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to mark all notifications as seen.'
+      };
+    }
+  }
+
+  async dismissNotification(notificationId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/notifications/${notificationId}`, {
+        method: 'DELETE'
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to dismiss notification.'
+      };
+    }
+  }
+
   async updatePrivacySettings(data: any): Promise<ApiResponse> {
     try {
       return await this.request('/auth/privacy-settings', {
@@ -1234,6 +1545,14 @@ class ApiService {
     }
   }
 
+  async deleteGroup(groupId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}`, { method: 'DELETE' });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to delete group.' };
+    }
+  }
+
   async sendGroupMessage(groupId: string, message: string): Promise<ApiResponse> {
     try {
       const content = message.trim();
@@ -1245,6 +1564,26 @@ class ApiService {
       return { success: false, message: error.message || 'Failed to send message.' };
     }
   }
+
+  async getGroupJoinRequests(groupId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}/join-requests`);
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch group join requests.', data: [] };
+    }
+  }
+
+  async respondToGroupJoinRequest(groupId: string, requestId: string, action: 'approve' | 'reject'): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}/join-requests/${requestId}/respond`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action })
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || `Failed to ${action} join request.` };
+    }
+  }
+
   // --- Events API ---
   async getEvents(params?: any): Promise<ApiResponse> {
     try {

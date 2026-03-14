@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { Role } from '@prisma/client';
+import { Role, Status } from '@prisma/client';
 import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
 import bcrypt from 'bcryptjs';
@@ -24,9 +24,17 @@ const verifyPassword = async (inputPassword: string, storedPassword: string): Pr
 
 const toClientRole = (role: Role) => {
   if (role === Role.SUPER_ADMIN) return 'super_admin';
+  if (String(role) === 'MODERATOR') return 'moderator';
   if (role === Role.ADMIN) return 'admin';
   return 'user';
 };
+
+const getAccountTypeLabel = (user: unknown) => {
+  const value = (user as { accountType?: string } | undefined)?.accountType;
+  return (value || 'ALUMNI').toLowerCase();
+};
+
+const hasPremiumBadge = (user: unknown) => Boolean((user as { hasPremiumBadge?: boolean } | undefined)?.hasPremiumBadge);
 
 const generateTokens = (userId: string) => {
   const payload = { userId };
@@ -47,7 +55,49 @@ const generateTokens = (userId: string) => {
 };
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password, firstName, lastName, name, role, admissionNumber, admissionYear } = req.body;
+  const {
+    email,
+    password,
+    firstName,
+    lastName,
+    name,
+    role,
+    admissionNumber,
+    admissionYear,
+    graduationYear,
+    needsManualVerification,
+    forgotAdmissionNumber,
+    verificationDetails,
+    accountType,
+    facultyIdCardUrl,
+  } = req.body;
+
+  const normalizedAdmissionNumber =
+    typeof admissionNumber === 'string' ? admissionNumber.trim() : '';
+
+  const normalizedVerificationDetails = typeof verificationDetails === 'string' ? verificationDetails.trim() : '';
+  const normalizedFacultyIdCardUrl = typeof facultyIdCardUrl === 'string' ? facultyIdCardUrl.trim() : '';
+  const normalizedAccountType = String(accountType || '').toUpperCase();
+  const resolvedAccountType = normalizedAccountType === 'FACULTY' ? 'FACULTY' : 'ALUMNI';
+
+  const requiresManualVerification =
+    resolvedAccountType === 'FACULTY' ||
+    Boolean(needsManualVerification) ||
+    Boolean(forgotAdmissionNumber) ||
+    normalizedAdmissionNumber.length === 0;
+
+  if (!requiresManualVerification && !normalizedAdmissionNumber) {
+    res.status(400).json({ success: false, message: 'Admission number is required' });
+    return;
+  }
+
+  if (requiresManualVerification && normalizedVerificationDetails.length < 10 && !normalizedFacultyIdCardUrl) {
+    res.status(400).json({
+      success: false,
+      message: 'Please provide verification details (minimum 10 characters) or upload faculty ID card for manual verification.'
+    });
+    return;
+  }
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
@@ -61,19 +111,30 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const resolvedName = (name || [firstName, lastName].filter(Boolean).join(' ')).trim();
   const inferredAdmissionYear =
     admissionYear ||
-    (typeof admissionNumber === 'string' && admissionNumber.includes('/')
-      ? `20${admissionNumber.split('/').pop()}`
+    graduationYear ||
+    (normalizedAdmissionNumber.includes('/')
+      ? `20${normalizedAdmissionNumber.split('/').pop()}`
       : undefined) ||
-    new Date().getFullYear().toString();
+    '';
 
-  const resolvedRole =
-    role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'USER'
-      ? role
-      : role === 'super_admin'
-      ? Role.SUPER_ADMIN
-      : role === 'admin'
-      ? Role.ADMIN
-      : Role.USER;
+  if (resolvedAccountType === 'FACULTY' && !normalizedFacultyIdCardUrl) {
+    res.status(400).json({
+      success: false,
+      message: 'Faculty ID card photo is required for verification.'
+    });
+    return;
+  }
+
+  let resolvedRole: Role = Role.USER;
+  if (role === 'SUPER_ADMIN' || role === 'super_admin') {
+    resolvedRole = Role.SUPER_ADMIN;
+  } else if (role === 'ADMIN' || role === 'admin') {
+    resolvedRole = Role.ADMIN;
+  } else if (role === 'MODERATOR' || role === 'moderator') {
+    resolvedRole = 'MODERATOR' as Role;
+  } else if (role === 'USER' || role === 'user') {
+    resolvedRole = Role.USER;
+  }
 
   const user = await prisma.user.create({
     data: {
@@ -83,9 +144,16 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       name: resolvedName || email.split('@')[0],
       firstName,
       lastName,
-      admissionNumber: admissionNumber || 'N/A',
-      admissionYear: inferredAdmissionYear
-    },
+      admissionNumber: normalizedAdmissionNumber || 'MANUAL_VERIFICATION',
+      admissionYear: inferredAdmissionYear,
+      accountType: resolvedAccountType,
+      needsManualVerification: requiresManualVerification,
+      verificationDetails: requiresManualVerification
+        ? normalizedVerificationDetails || (resolvedAccountType === 'FACULTY' ? 'Faculty ID card submitted for verification.' : null)
+        : null,
+      facultyIdCardUrl: normalizedFacultyIdCardUrl || null,
+      status: Status.PENDING,
+    } as any,
   });
 
   const { accessToken, refreshToken } = generateTokens(user.id);
@@ -105,6 +173,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       email: user.email,
       name: user.name,
       role: toClientRole(user.role),
+      accountType: getAccountTypeLabel(user),
+      hasPremiumBadge: hasPremiumBadge(user),
+      facultyIdCardUrl: (user as { facultyIdCardUrl?: string | null }).facultyIdCardUrl || undefined,
       admissionNumber: user.admissionNumber,
       admissionYear: user.admissionYear,
       status: user.status.toLowerCase(),
@@ -118,6 +189,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
         email: user.email,
         name: user.name,
         role: toClientRole(user.role),
+        accountType: getAccountTypeLabel(user),
+        hasPremiumBadge: hasPremiumBadge(user),
+        facultyIdCardUrl: (user as { facultyIdCardUrl?: string | null }).facultyIdCardUrl || undefined,
         admissionNumber: user.admissionNumber,
         admissionYear: user.admissionYear,
         status: user.status.toLowerCase(),
@@ -143,6 +217,22 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const isMatch = await verifyPassword(password, user.password);
   if (!isMatch) {
     res.status(401).json({ success: false, message: 'Invalid credentials' });
+    return;
+  }
+
+  if (user.status === Status.PENDING) {
+    res.status(403).json({
+      success: false,
+      message: 'Your account is pending approval by super admin/moderator.'
+    });
+    return;
+  }
+
+  if (user.status === Status.SUSPENDED || user.status === Status.DELETED) {
+    res.status(403).json({
+      success: false,
+      message: 'Your account is not active. Please contact support.'
+    });
     return;
   }
 
@@ -180,6 +270,9 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       email: user.email,
       name: user.name,
       role: toClientRole(user.role),
+      accountType: getAccountTypeLabel(user),
+      hasPremiumBadge: hasPremiumBadge(user),
+      facultyIdCardUrl: (user as { facultyIdCardUrl?: string | null }).facultyIdCardUrl || undefined,
       admissionNumber: user.admissionNumber,
       admissionYear: user.admissionYear,
       status: user.status.toLowerCase(),
@@ -200,6 +293,9 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
         email: user.email,
         name: user.name,
         role: toClientRole(user.role),
+        accountType: getAccountTypeLabel(user),
+        hasPremiumBadge: hasPremiumBadge(user),
+        facultyIdCardUrl: (user as { facultyIdCardUrl?: string | null }).facultyIdCardUrl || undefined,
         admissionNumber: user.admissionNumber,
         admissionYear: user.admissionYear,
         status: user.status.toLowerCase(),
@@ -282,6 +378,9 @@ export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
       email: user.email,
       name: user.name,
       role: toClientRole(user.role),
+      accountType: getAccountTypeLabel(user),
+      hasPremiumBadge: hasPremiumBadge(user),
+      facultyIdCardUrl: (user as { facultyIdCardUrl?: string | null }).facultyIdCardUrl || undefined,
       admissionNumber: user.admissionNumber,
       admissionYear: user.admissionYear,
       status: user.status.toLowerCase(),
@@ -298,8 +397,36 @@ export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
       jobTitle: user.jobTitle,
       isAvailableAsMentor: user.isAvailableAsMentor,
       location: user.location,
+      experiences: (user as any).experiences ?? [],
+      educations: (user as any).educations ?? [],
+      skills: (user as any).skills ?? [],
+      interests: (user as any).interests ?? [],
       notificationSettings: user.notificationSettings,
       privacySettings: user.privacySettings
+    }
+  });
+});
+
+export const uploadVerificationId = asyncHandler(async (req: Request & { file?: Express.Multer.File }, res: Response) => {
+  if (!req.file) {
+    res.status(400).json({ success: false, message: 'ID card image is required' });
+    return;
+  }
+
+  if (!req.file.mimetype.startsWith('image/')) {
+    res.status(400).json({ success: false, message: 'Only image files are allowed for faculty ID verification' });
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'ID card uploaded successfully',
+    data: {
+      url: `/api/uploads/${req.file.filename}`,
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
     }
   });
 });

@@ -2,30 +2,18 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { 
   Search, 
   Briefcase, 
-  Building, 
   MapPin, 
   Clock,
-  ExternalLink,
   Bookmark,
   BookmarkCheck,
-  Filter,
   Plus,
-  CalendarRange,
   CircleDollarSign,
-  GraduationCap,
   Users
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -33,14 +21,18 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { JobDetailsModal } from "@/components/jobs/JobDetailsModal";
 import { PostJobForm } from "@/components/jobs/PostJobForm";
+import { ApplyJobDialog } from "@/components/jobs/ApplyJobDialog";
 import apiService from "@/services/apiService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Job } from "@/types";
 
-const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Internship", "Remote"];
-const EXPERIENCE_LEVELS = ["Entry Level", "Mid-Level", "Senior", "Manager", "Executive"];
-const SALARY_RANGES = ["$0-50k", "$50-100k", "$100-150k", "$150-200k", "$200k+"];
-const JOB_CATEGORIES = ["Technology", "Finance", "Healthcare", "Education", "Marketing", "Engineering"];
+const formatJobTypeLabel = (value: string) =>
+  value
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const normalizeJobType = (value?: string) => (value || "").trim().toLowerCase().replaceAll(/\s+/g, "-");
 
 export default function JobsPage() {
   const { toast } = useToast();
@@ -50,15 +42,16 @@ export default function JobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [applyJob, setApplyJob] = useState<Job | null>(null);
   const [isJobDetailsModalOpen, setIsJobDetailsModalOpen] = useState(false);
   const [isPostJobModalOpen, setIsPostJobModalOpen] = useState(false);
+  const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
+  const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
+  const [applicationSubmitStatus, setApplicationSubmitStatus] = useState<string>("");
   const [activeTab, setActiveTab] = useState("all");
   
   // Additional filters
   const [jobTypeFilter, setJobTypeFilter] = useState<string | null>(null);
-  const [experienceLevelFilter, setExperienceLevelFilter] = useState<string | null>(null);
-  const [salaryRangeFilter, setSalaryRangeFilter] = useState<string | null>(null);
-  const [jobCategoryFilter, setJobCategoryFilter] = useState<string | null>(null);
   
   // Saved and applied jobs
   const [savedJobs, setSavedJobs] = useState<string[]>([]);
@@ -71,7 +64,7 @@ export default function JobsPage() {
   const loadJobs = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getJobs();
+      const response = await apiService.getJobs({ limit: 100 });
       if (response.success) {
         setJobs(response.data as Job[] || []);
         
@@ -117,12 +110,20 @@ export default function JobsPage() {
       const isSaved = savedJobs.includes(jobId);
       
       if (isSaved) {
-        await apiService.unsaveJob(jobId);
-        setSavedJobs(savedJobs.filter(id => id !== jobId));
+        const response = await apiService.unsaveJob(jobId);
+        if (!response.success) {
+          throw new Error(response.message || "Failed to unsave job");
+        }
+
+        setSavedJobs((prev) => prev.filter(id => id !== jobId));
         toast({ title: "Removed", description: "Job removed from saved jobs." });
       } else {
-        await apiService.saveJob(jobId);
-        setSavedJobs([...savedJobs, jobId]);
+        const response = await apiService.saveJob(jobId);
+        if (!response.success) {
+          throw new Error(response.message || "Failed to save job");
+        }
+
+        setSavedJobs((prev) => [...prev, jobId]);
         toast({ title: "Saved", description: "Job saved to your profile." });
       }
     } catch (error) {
@@ -131,14 +132,79 @@ export default function JobsPage() {
     }
   };
 
-  const handleApplyJob = async (jobId: string) => {
+  const handleApplyJob = async ({
+    job,
+    coverLetter,
+    resumeFile,
+    portfolioUrl,
+  }: {
+    job: Job;
+    coverLetter: string;
+    resumeFile?: File;
+    portfolioUrl?: string;
+  }): Promise<boolean> => {
     try {
-      await apiService.applyToJob(jobId);
-      setAppliedJobs([...appliedJobs, jobId]);
-      toast({ title: "Applied", description: "Your application has been submitted." });
-    } catch (error) {
+      if (!currentUser) {
+        toast({ title: "Sign in required", description: "Please sign in to apply for jobs.", variant: "destructive" });
+        return false;
+      }
+
+      if (job.postedBy?.id === currentUser.id) {
+        toast({ title: "Not allowed", description: "You cannot apply to your own job posting.", variant: "destructive" });
+        return false;
+      }
+
+      setIsSubmittingApplication(true);
+      setApplicationSubmitStatus("Preparing application...");
+
+      let resumeUrl: string | undefined;
+      let resumeFilename: string | undefined;
+      const normalizedPortfolioUrl = portfolioUrl?.trim() || undefined;
+
+      if (resumeFile) {
+        setApplicationSubmitStatus("Uploading resume...");
+        const uploadResponse = await apiService.uploadFile(resumeFile);
+        if (!uploadResponse.success || !uploadResponse.data?.url) {
+          throw new Error(uploadResponse.message || "Resume upload failed");
+        }
+
+        resumeUrl = uploadResponse.data.url;
+        resumeFilename = uploadResponse.data.originalName || resumeFile.name;
+      }
+
+      setApplicationSubmitStatus("Submitting application...");
+      const response = await apiService.applyToJob(job.id, {
+        coverLetter,
+        resumeUrl,
+        resumeFilename,
+        portfolioUrl: normalizedPortfolioUrl,
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to submit application");
+      }
+
+      const alreadyApplied = Boolean(response.data?.alreadyApplied);
+
+      setAppliedJobs((prev) => (prev.includes(job.id) ? prev : [...prev, job.id]));
+      setIsApplyDialogOpen(false);
+      setApplyJob(null);
+
+      toast({
+        title: alreadyApplied ? "Already applied" : "Applied",
+        description: alreadyApplied
+          ? "You already submitted an application for this job."
+          : "Your application has been submitted.",
+      });
+
+      return true;
+    } catch (error: any) {
       console.error("Error applying to job:", error);
-      toast({ title: "Error", description: "Failed to submit application.", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to submit application.", variant: "destructive" });
+      return false;
+    } finally {
+      setApplicationSubmitStatus("");
+      setIsSubmittingApplication(false);
     }
   };
 
@@ -147,14 +213,36 @@ export default function JobsPage() {
     setIsJobDetailsModalOpen(true);
   };
 
+  const openApplyDialog = (job: Job) => {
+    if (!currentUser) {
+      toast({ title: "Sign in required", description: "Please sign in to apply for jobs.", variant: "destructive" });
+      return;
+    }
+
+    if (job.postedBy?.id === currentUser.id) {
+      toast({ title: "Not allowed", description: "You cannot apply to your own job posting.", variant: "destructive" });
+      return;
+    }
+
+    setApplyJob(job);
+    setIsApplyDialogOpen(true);
+  };
+
   const clearFilters = () => {
     setSearchQuery("");
     setLocationFilter("");
     setJobTypeFilter(null);
-    setExperienceLevelFilter(null);
-    setSalaryRangeFilter(null);
-    setJobCategoryFilter(null);
   };
+
+  const jobTypes = useMemo(() => {
+    return Array.from(
+      new Set(
+        jobs
+          .map((job) => normalizeJobType(job.type))
+          .filter(Boolean)
+      )
+    );
+  }, [jobs]);
 
   const filteredJobs = useMemo(() => {
     // First, filter according to the active tab
@@ -169,25 +257,17 @@ export default function JobsPage() {
     return filtered.filter(job => {
       const matchesSearch = !searchQuery || 
         job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (typeof job.company === 'object' && job.company.name 
-          ? job.company.name.toLowerCase().includes(searchQuery.toLowerCase()) 
-          : String(job.company).toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (typeof job.company === 'object'
+          ? (job.company?.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+          : (job.company || '').toLowerCase().includes(searchQuery.toLowerCase())) ||
         job.description.toLowerCase().includes(searchQuery.toLowerCase());
         
       const matchesLocation = !locationFilter || 
         job.location.toLowerCase().includes(locationFilter.toLowerCase());
         
-      const matchesJobType = !jobTypeFilter || job.type === jobTypeFilter;
+      const matchesJobType = !jobTypeFilter || normalizeJobType(job.type) === normalizeJobType(jobTypeFilter);
       
-      const matchesExperience = !experienceLevelFilter || 
-        job.experienceLevel === experienceLevelFilter;
-        
-      const matchesSalary = !salaryRangeFilter || job.salary === salaryRangeFilter;
-      
-      const matchesCategory = !jobCategoryFilter || job.category === jobCategoryFilter;
-      
-      return matchesSearch && matchesLocation && matchesJobType && 
-             matchesExperience && matchesSalary && matchesCategory;
+      return matchesSearch && matchesLocation && matchesJobType;
     });
   }, [
     jobs, 
@@ -196,27 +276,38 @@ export default function JobsPage() {
     appliedJobs, 
     searchQuery, 
     locationFilter, 
-    jobTypeFilter, 
-    experienceLevelFilter, 
-    salaryRangeFilter, 
-    jobCategoryFilter
+    jobTypeFilter
   ]);
 
   // Helper function to get company name
   const getCompanyName = (job: Job): string => {
-    if (typeof job.company === 'object' && job.company && job.company.name) {
-      return job.company.name;
+    if (typeof job.company === 'object') {
+      return job.company?.name || '';
     }
-    return String(job.company || '');
+    return job.company || '';
   };
 
   // Helper function to get company logo
   const getCompanyLogo = (job: Job): string => {
-    if (typeof job.company === 'object' && job.company && job.company.logo) {
-      return job.company.logo;
+    if (typeof job.company === 'object') {
+      return job.company?.logo || '';
     }
     return '';
   };
+
+  const emptyStateTitle =
+    activeTab === "saved"
+      ? "No saved jobs"
+      : activeTab === "applied"
+      ? "No applied jobs"
+      : "No jobs found";
+
+  const emptyStateDescription =
+    activeTab === "saved"
+      ? "Save jobs you're interested in to view them later."
+      : activeTab === "applied"
+      ? "Track your job applications here."
+      : "Try adjusting your filters or search terms.";
 
   return (
     <div className="container mx-auto px-4 sm:px-6 py-6">
@@ -284,20 +375,8 @@ export default function JobsPage() {
             </div>
           ) : filteredJobs.length === 0 ? (
             <EmptyState
-              title={
-                activeTab === "saved" 
-                  ? "No saved jobs" 
-                  : activeTab === "applied" 
-                  ? "No applied jobs" 
-                  : "No jobs found"
-              }
-              description={
-                activeTab === "saved" 
-                  ? "Save jobs you're interested in to view them later."
-                  : activeTab === "applied" 
-                  ? "Track your job applications here."
-                  : "Try adjusting your filters or search terms."
-              }
+              title={emptyStateTitle}
+              description={emptyStateDescription}
               action={{
                 label: activeTab !== "all" ? "View All Jobs" : "Clear Filters",
                 onClick: activeTab !== "all" ? () => setActiveTab("all") : clearFilters
@@ -353,7 +432,7 @@ export default function JobsPage() {
                             className={isApplied 
                               ? "border-green-500 text-green-700 hover:bg-green-50" 
                               : "bg-primary hover:bg-primary/90 text-white transform hover:scale-105 transition-transform"}
-                            onClick={() => isApplied ? openJobDetails(job) : handleApplyJob(job.id)}
+                            onClick={() => isApplied ? openJobDetails(job) : openApplyDialog(job)}
                           >
                             {isApplied ? "Applied" : "Apply"}
                           </Button>
@@ -437,7 +516,7 @@ export default function JobsPage() {
                 <div>
                   <label className="text-sm font-medium text-foreground/80 mb-1 block">Job Type</label>
                   <div className="flex flex-wrap gap-2">
-                    {JOB_TYPES.map(type => (
+                    {jobTypes.map(type => (
                       <Button
                         key={type}
                         size="sm"
@@ -447,64 +526,13 @@ export default function JobsPage() {
                           : "hover:bg-muted/50 text-foreground/80"}
                         onClick={() => setJobTypeFilter(jobTypeFilter === type ? null : type)}
                       >
-                        {type}
+                        {formatJobTypeLabel(type)}
                       </Button>
                     ))}
                   </div>
                 </div>
                 
-                <div>
-                  <label className="text-sm font-medium text-foreground/80 mb-1 block">Experience Level</label>
-                  <div className="flex flex-wrap gap-2">
-                    {EXPERIENCE_LEVELS.map(level => (
-                      <Button
-                        key={level}
-                        size="sm"
-                        variant={experienceLevelFilter === level ? "default" : "outline"}
-                        className={experienceLevelFilter === level ? "bg-primary" : ""}
-                        onClick={() => setExperienceLevelFilter(experienceLevelFilter === level ? null : level)}
-                      >
-                        {level}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-foreground/80 mb-1 block">Salary Range</label>
-                  <div className="flex flex-wrap gap-2">
-                    {SALARY_RANGES.map(range => (
-                      <Button
-                        key={range}
-                        size="sm"
-                        variant={salaryRangeFilter === range ? "default" : "outline"}
-                        className={salaryRangeFilter === range ? "bg-primary" : ""}
-                        onClick={() => setSalaryRangeFilter(salaryRangeFilter === range ? null : range)}
-                      >
-                        {range}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-foreground/80 mb-1 block">Industry / Category</label>
-                  <div className="flex flex-wrap gap-2">
-                    {JOB_CATEGORIES.map(category => (
-                      <Button
-                        key={category}
-                        size="sm"
-                        variant={jobCategoryFilter === category ? "default" : "outline"}
-                        className={jobCategoryFilter === category ? "bg-primary" : ""}
-                        onClick={() => setJobCategoryFilter(jobCategoryFilter === category ? null : category)}
-                      >
-                        {category}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                
-                {(jobTypeFilter || experienceLevelFilter || salaryRangeFilter || jobCategoryFilter) && (
+                {jobTypeFilter && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -539,12 +567,37 @@ export default function JobsPage() {
           job={selectedJob}
           isOpen={isJobDetailsModalOpen}
           onClose={() => setIsJobDetailsModalOpen(false)}
-          onApply={() => handleApplyJob(selectedJob.id)}
-          onSave={() => handleToggleSaveJob(selectedJob.id)}
+          onApply={async () => {
+            setIsJobDetailsModalOpen(false);
+            openApplyDialog(selectedJob);
+          }}
+          onSave={async () => handleToggleSaveJob(selectedJob.id)}
           isSaved={savedJobs.includes(selectedJob.id)}
           isApplied={appliedJobs.includes(selectedJob.id)}
         />
       )}
+
+      <ApplyJobDialog
+        isOpen={isApplyDialogOpen}
+        onClose={() => {
+          setIsApplyDialogOpen(false);
+          setApplyJob(null);
+        }}
+        job={applyJob}
+        isSubmitting={isSubmittingApplication}
+        submitStatusText={applicationSubmitStatus}
+        isAlreadyApplied={applyJob ? appliedJobs.includes(applyJob.id) : false}
+        onSubmit={async ({ coverLetter, resumeFile, portfolioUrl }) => {
+          if (!applyJob) return false;
+
+          return handleApplyJob({
+            job: applyJob,
+            coverLetter,
+            resumeFile,
+            portfolioUrl,
+          });
+        }}
+      />
       
       <PostJobForm
         isOpen={isPostJobModalOpen}
