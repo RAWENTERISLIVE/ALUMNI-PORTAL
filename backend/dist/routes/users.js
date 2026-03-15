@@ -79,6 +79,7 @@ router.patch('/:userId/reactivate', auth_1.authMiddleware, auth_1.requireAdmin, 
 router.patch('/:userId/promote-moderator', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.promoteToModerator);
 router.patch('/:userId/promote', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.promoteToAdmin);
 router.patch('/:userId/demote', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.demoteAdmin);
+router.patch('/:userId/premium-badge', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.setPremiumBadge);
 router.delete('/:userId', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.deleteUser);
 router.get('/directory', auth_1.authMiddleware, userController_1.getAlumniDirectory);
 router.get('/suggestions', auth_1.authMiddleware, userController_1.getUserSuggestions);

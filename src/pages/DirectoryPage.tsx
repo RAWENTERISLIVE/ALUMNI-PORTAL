@@ -150,18 +150,6 @@ export default function DirectoryPage() {
     if (!target) return;
 
     const isDisconnect = target.connectionStatus === "connected";
-    const previousState = alumni;
-
-    setAlumni((current) =>
-      current.map((person) =>
-        person.id === userId
-          ? {
-              ...person,
-              connectionStatus: isDisconnect ? "none" : "connected",
-            }
-          : person
-      )
-    );
 
     try {
       const response = isDisconnect
@@ -169,7 +157,6 @@ export default function DirectoryPage() {
         : await apiService.connectWithUser(userId);
 
       if (!response.success) {
-        setAlumni(previousState);
         toast({
           title: "Error",
           description: response.message || (isDisconnect ? "Failed to disconnect." : "Failed to connect."),
@@ -178,13 +165,32 @@ export default function DirectoryPage() {
         return;
       }
 
+      const nextStatus = response.data?.connectionStatus || (isDisconnect ? "none" : "pending");
+      setAlumni((current) =>
+        current.map((person) =>
+          person.id === userId
+            ? {
+                ...person,
+                connectionStatus: nextStatus,
+              }
+            : person
+        )
+      );
+
       toast({
-        title: isDisconnect ? "Disconnected" : "Connected",
-        description: isDisconnect ? "Connection removed successfully." : "Connection request accepted.",
+        title: isDisconnect
+          ? "Disconnected"
+          : nextStatus === "connected"
+            ? "Connected"
+            : "Request Sent",
+        description: isDisconnect
+          ? "Connection removed successfully."
+          : nextStatus === "connected"
+            ? "You are now connected."
+            : "Connection request sent successfully.",
       });
     } catch (error) {
       console.error("Error updating connection:", error);
-      setAlumni(previousState);
       toast({ title: "Error", description: "Failed to update connection.", variant: "destructive" });
     }
   };

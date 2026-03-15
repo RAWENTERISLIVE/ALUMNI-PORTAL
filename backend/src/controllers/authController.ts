@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import type { SignOptions } from 'jsonwebtoken';
 import { Role, Status } from '@prisma/client';
 import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -36,19 +37,64 @@ const getAccountTypeLabel = (user: unknown) => {
 
 const hasPremiumBadge = (user: unknown) => Boolean((user as { hasPremiumBadge?: boolean } | undefined)?.hasPremiumBadge);
 
+const extractRefreshToken = (req: Request): string | null => {
+  const cookieToken = req.cookies?.refreshToken;
+  const bodyToken = typeof req.body?.refreshToken === 'string' ? req.body.refreshToken : null;
+  const headerToken = typeof req.header('x-refresh-token') === 'string' ? req.header('x-refresh-token') : null;
+  return bodyToken || headerToken || cookieToken || null;
+};
+
+const parseBrowserFromUserAgent = (userAgent: string): string => {
+  const ua = userAgent.toLowerCase();
+
+  if (ua.includes('edg/')) return 'Edge';
+  if (ua.includes('opr/') || ua.includes('opera')) return 'Opera';
+  if (ua.includes('chrome/')) return 'Chrome';
+  if (ua.includes('safari/') && !ua.includes('chrome/')) return 'Safari';
+  if (ua.includes('firefox/')) return 'Firefox';
+
+  return 'Unknown Browser';
+};
+
+const parseDeviceFromUserAgent = (userAgent: string): string => {
+  const ua = userAgent.toLowerCase();
+
+  if (ua.includes('iphone')) return 'iPhone';
+  if (ua.includes('ipad')) return 'iPad';
+  if (ua.includes('android')) return 'Android Device';
+  if (ua.includes('macintosh') || ua.includes('mac os')) return 'Mac Device';
+  if (ua.includes('windows')) return 'Windows Device';
+  if (ua.includes('linux')) return 'Linux Device';
+
+  return 'Unknown Device';
+};
+
+const ACCESS_TOKEN_EXPIRES_IN =
+  process.env.JWT_EXPIRES_IN ||
+  process.env.JWT_EXPIRE ||
+  '12h';
+
+const REFRESH_TOKEN_EXPIRES_IN =
+  process.env.JWT_REFRESH_EXPIRES_IN ||
+  process.env.JWT_REFRESH_EXPIRE ||
+  '30d';
+
+const DEFAULT_REFRESH_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const REFRESH_COOKIE_MAX_AGE_MS = Number(process.env.JWT_REFRESH_COOKIE_MAX_AGE_MS) || DEFAULT_REFRESH_COOKIE_MAX_AGE_MS;
+
 const generateTokens = (userId: string) => {
   const payload = { userId };
   
   const accessToken = jwt.sign(
     payload, 
     process.env.JWT_SECRET || 'fallback_secret',
-    { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+    { expiresIn: ACCESS_TOKEN_EXPIRES_IN as NonNullable<SignOptions['expiresIn']> }
   );
 
   const refreshToken = jwt.sign(
     payload,
     process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret',
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    { expiresIn: REFRESH_TOKEN_EXPIRES_IN as NonNullable<SignOptions['expiresIn']> }
   );
 
   return { accessToken, refreshToken };
@@ -158,11 +204,16 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
   const { accessToken, refreshToken } = generateTokens(user.id);
 
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { refreshTokens: { push: refreshToken } }
+  });
+
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    maxAge: REFRESH_COOKIE_MAX_AGE_MS
   });
 
   res.status(201).json({
@@ -255,11 +306,16 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
   const { accessToken, refreshToken } = generateTokens(user.id);
 
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { refreshTokens: { push: refreshToken } }
+  });
+
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000
+    maxAge: REFRESH_COOKIE_MAX_AGE_MS
   });
 
   res.status(200).json({
@@ -314,7 +370,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const refreshToken = asyncHandler(async (req: Request, res: Response) => {
-  const token = req.cookies.refreshToken;
+  const token = extractRefreshToken(req);
   
   if (!token) {
     res.status(401).json({ success: false, message: 'Refresh token not found' });
@@ -327,25 +383,44 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
       process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret'
     ) as any;
 
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, refreshTokens: true }
+    });
 
     if (!user) {
       res.status(401).json({ success: false, message: 'Invalid refresh token' });
       return;
     }
 
+    if (!Array.isArray(user.refreshTokens) || !user.refreshTokens.includes(token)) {
+      res.status(401).json({ success: false, message: 'Refresh token has been revoked' });
+      return;
+    }
+
     const tokens = generateTokens(user.id);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshTokens: user.refreshTokens.map((storedToken) =>
+          storedToken === token ? tokens.refreshToken : storedToken
+        )
+      }
+    });
 
     res.cookie('refreshToken', tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      maxAge: REFRESH_COOKIE_MAX_AGE_MS
     });
 
     res.status(200).json({
       success: true,
-      data: { accessToken: tokens.accessToken }
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      data: { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }
     });
   } catch (error) {
     res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
@@ -353,8 +428,126 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 });
 
 export const logout = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const token = extractRefreshToken(req);
+
+  if (req.user?.id && token) {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { refreshTokens: true }
+    });
+
+    if (user) {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { refreshTokens: (user.refreshTokens || []).filter((storedToken) => storedToken !== token) }
+      });
+    }
+  }
+
   res.clearCookie('refreshToken');
   res.status(200).json({ success: true, message: 'Logged out successfully' });
+});
+
+export const getActiveSessions = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user?.id) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const token = extractRefreshToken(req);
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { refreshTokens: true, lastLogin: true, updatedAt: true }
+  });
+
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  const activeTokens = Array.isArray(user.refreshTokens) ? user.refreshTokens : [];
+  const hasCurrentToken = Boolean(token && activeTokens.includes(token));
+  const otherSessionsCount = hasCurrentToken
+    ? Math.max(0, activeTokens.length - 1)
+    : activeTokens.length;
+
+  const userAgent = String(req.headers['user-agent'] || 'Unknown Device');
+  const browser = parseBrowserFromUserAgent(userAgent);
+  const device = parseDeviceFromUserAgent(userAgent);
+  const lastActive = (user.lastLogin || user.updatedAt || new Date()).toISOString();
+
+  const sessions = [
+    {
+      id: 'current',
+      device,
+      browser,
+      location: 'Current Device',
+      time: 'Current Session',
+      lastActive,
+      isCurrent: true,
+    },
+    ...Array.from({ length: otherSessionsCount }, (_, index) => ({
+      id: `other-${index + 1}`,
+      device: `Other Device ${index + 1}`,
+      browser: 'Unknown',
+      location: 'Unknown',
+      time: 'Active',
+      lastActive,
+      isCurrent: false,
+    })),
+  ];
+
+  res.status(200).json({
+    success: true,
+    data: {
+      sessions,
+      totalSessions: sessions.length,
+      otherSessionsCount,
+    }
+  });
+});
+
+export const logoutOtherSessions = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user?.id) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const token = extractRefreshToken(req);
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { refreshTokens: true }
+  });
+
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  const activeTokens = Array.isArray(user.refreshTokens) ? user.refreshTokens : [];
+  const updatedTokens = token && activeTokens.includes(token) ? [token] : [];
+
+  await prisma.user.update({
+    where: { id: req.user.id },
+    data: { refreshTokens: updatedTokens }
+  });
+
+  res.status(200).json({ success: true, message: 'Signed out from other devices' });
+});
+
+export const deactivateAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user?.id) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  await prisma.user.update({
+    where: { id: req.user.id },
+    data: { status: Status.DELETED, refreshTokens: [] }
+  });
+
+  res.clearCookie('refreshToken');
+  res.status(200).json({ success: true, message: 'Account deactivated successfully' });
 });
 
 export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {

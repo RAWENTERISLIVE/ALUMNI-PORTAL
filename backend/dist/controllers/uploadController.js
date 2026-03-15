@@ -3,30 +3,30 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.serveFile = exports.uploadMultipleFiles = exports.uploadFile = exports.upload = void 0;
+exports.serveFile = exports.uploadMultipleFiles = exports.uploadFile = exports.handleUploadError = exports.upload = void 0;
 const multer_1 = __importDefault(require("multer"));
-const path_1 = __importDefault(require("path"));
-const fs_1 = __importDefault(require("fs"));
+const node_path_1 = __importDefault(require("node:path"));
+const node_fs_1 = __importDefault(require("node:fs"));
 const errorHandler_1 = require("../middleware/errorHandler");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const storage = multer_1.default.diskStorage({
     destination: (_req, _file, cb) => {
-        const uploadDir = path_1.default.join(__dirname, '../../uploads');
-        if (!fs_1.default.existsSync(uploadDir)) {
-            fs_1.default.mkdirSync(uploadDir, { recursive: true });
+        const uploadDir = node_path_1.default.join(__dirname, '../../uploads');
+        if (!node_fs_1.default.existsSync(uploadDir)) {
+            node_fs_1.default.mkdirSync(uploadDir, { recursive: true });
         }
         cb(null, uploadDir);
     },
     filename: (_req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const extension = path_1.default.extname(file.originalname);
-        const basename = path_1.default.basename(file.originalname, extension);
+        const extension = node_path_1.default.extname(file.originalname);
+        const basename = node_path_1.default.basename(file.originalname, extension);
         cb(null, `${basename}-${uniqueSuffix}${extension}`);
     }
 });
 const fileFilter = (_req, file, cb) => {
     const allowedTypes = [
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
         'application/pdf',
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -48,6 +48,31 @@ exports.upload = (0, multer_1.default)({
         fileSize: 50 * 1024 * 1024,
     }
 });
+const handleUploadError = (err, _req, res, next) => {
+    if (!err) {
+        next();
+        return;
+    }
+    if (err instanceof multer_1.default.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            res.status(400).json({
+                success: false,
+                message: 'File is too large. Maximum allowed size is 50MB.'
+            });
+            return;
+        }
+        res.status(400).json({
+            success: false,
+            message: err.message || 'File upload failed.'
+        });
+        return;
+    }
+    res.status(400).json({
+        success: false,
+        message: err.message || 'Unsupported file type'
+    });
+};
+exports.handleUploadError = handleUploadError;
 exports.uploadFile = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     if (!req.file) {
         res.status(400).json({
@@ -142,8 +167,8 @@ exports.serveFile = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
         return;
     }
-    const filePath = path_1.default.join(__dirname, '../../uploads', filename);
-    if (!fs_1.default.existsSync(filePath)) {
+    const filePath = node_path_1.default.join(__dirname, '../../uploads', filename);
+    if (!node_fs_1.default.existsSync(filePath)) {
         res.status(404).json({
             success: false,
             message: 'File not found'

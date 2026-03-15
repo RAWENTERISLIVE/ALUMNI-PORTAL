@@ -282,6 +282,62 @@ export const cancelRsvp = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
+export const getEventAttendees = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+
+    if (!eventId) {
+      res.status(400).json({ success: false, message: 'Event ID is required' });
+      return;
+    }
+
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'User not authenticated' });
+      return;
+    }
+
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        attendees: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            contactPhone: true,
+            contactEmail: true,
+            admissionNumber: true
+          }
+        }
+      }
+    });
+
+    if (!event) {
+      res.status(404).json({ success: false, message: 'Event not found' });
+      return;
+    }
+
+    if (event.organizerId !== userId && !isAdminRole(req.user?.role)) {
+      res.status(403).json({ success: false, message: 'Not authorized to view attendees for this event' });
+      return;
+    }
+
+    const attendees = event.attendees.map((attendee) => ({
+      id: attendee.id,
+      name: attendee.name,
+      email: attendee.contactEmail || attendee.email,
+      phone: attendee.contactPhone,
+      admissionNumber: attendee.admissionNumber
+    }));
+
+    res.json({ success: true, data: attendees });
+  } catch (error) {
+    console.error('Error fetching event attendees:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch event attendees' });
+  }
+};
+
 export const getUserEvents = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;

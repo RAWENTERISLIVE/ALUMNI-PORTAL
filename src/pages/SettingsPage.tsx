@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,10 +65,19 @@ interface PasswordFormData {
   confirmPassword: string;
 }
 
+interface SessionActivityItem {
+  id: string;
+  device: string;
+  location: string;
+  time: string;
+  browser: string;
+  isCurrent: boolean;
+}
+
 export default function SettingsPage() {
   const { toast } = useToast();
   const { currentUser, logout, refreshUser } = useAuth();
-  const [activeTab, setActiveTab] = useState("profile");
+  const [activeTab, setActiveTab] = useState("notifications");
   const [loading, setLoading] = useState(false);
 
   // Profile settings
@@ -113,12 +122,26 @@ export default function SettingsPage() {
     confirmPassword: ""
   });
 
-  // Mock session activity
-  const [sessionActivity] = useState([
-    { device: "MacBook Pro", location: "San Francisco, CA", time: "Current Session", browser: "Chrome" },
-    { device: "iPhone 15", location: "San Francisco, CA", time: "2 hours ago", browser: "Safari" },
-    { device: "Windows PC", location: "New York, NY", time: "2 days ago", browser: "Firefox" }
-  ]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [profilePhotoLoading, setProfilePhotoLoading] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionActivity, setSessionActivity] = useState<SessionActivityItem[]>([]);
+
+  const loadSessions = async () => {
+    try {
+      setSessionLoading(true);
+      const response = await apiService.getActiveSessions();
+      if (response.success && response.data?.sessions) {
+        setSessionActivity(response.data.sessions as SessionActivityItem[]);
+      } else {
+        setSessionActivity([]);
+      }
+    } catch {
+      setSessionActivity([]);
+    } finally {
+      setSessionLoading(false);
+    }
+  };
 
   // Update state when currentUser changes
   useEffect(() => {
@@ -154,8 +177,49 @@ export default function SettingsPage() {
         allowConnection: currentUser.privacySettings?.allowConnection ?? true,
         allowProfileSearch: currentUser.privacySettings?.allowProfileSearch ?? true
       });
+
+      loadSessions();
     }
   }, [currentUser]);
+
+  const handlePhotoChangeClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile) return;
+
+    try {
+      setProfilePhotoLoading(true);
+      const uploadResponse = await apiService.uploadFile(selectedFile);
+      const imageUrl = uploadResponse.data?.url;
+
+      if (!uploadResponse.success || !imageUrl) {
+        throw new Error(uploadResponse.message || "Failed to upload profile photo");
+      }
+
+      const profileResponse = await apiService.updateProfile({ profileImage: imageUrl });
+      if (!profileResponse.success) {
+        throw new Error(profileResponse.message || "Failed to update profile photo");
+      }
+
+      await refreshUser();
+      toast({
+        title: "Photo Updated",
+        description: "Your profile photo has been updated.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile photo.",
+        variant: "destructive",
+      });
+    } finally {
+      event.target.value = "";
+      setProfilePhotoLoading(false);
+    }
+  };
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,7 +374,11 @@ export default function SettingsPage() {
     if (globalThis.confirm("Are you sure you want to deactivate your account? This action cannot be undone.")) {
       try {
         setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        const response = await apiService.deactivateAccount();
+
+        if (!response.success) {
+          throw new Error(response.message || "Failed to deactivate account");
+        }
 
         toast({ 
           title: "Account Deactivated", 
@@ -328,6 +396,89 @@ export default function SettingsPage() {
         setLoading(false);
       }
     }
+  };
+
+  const handleLogoutOtherSessions = async () => {
+    try {
+      setSessionLoading(true);
+      const response = await apiService.logoutOtherSessions();
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to sign out other devices");
+      }
+
+      toast({
+        title: "Other Devices Signed Out",
+        description: "All other active sessions have been ended.",
+      });
+
+      await loadSessions();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to sign out other devices.",
+        variant: "destructive",
+      });
+    } finally {
+      setSessionLoading(false);
+    }
+  };
+
+  const handleContactSupport = () => {
+    const subject = encodeURIComponent("Support request - Account settings");
+    const body = encodeURIComponent(
+      `Hi Support Team,\n\nI need help with my account settings.\n\nUser: ${currentUser?.email || ""}\n\nThanks.`
+    );
+    globalThis.open(`mailto:support@alumniconnect.com?subject=${subject}&body=${body}`, "_self");
+  };
+
+  const renderSessionsContent = () => {
+    if (sessionLoading) {
+      return (
+        <div className="py-8 flex justify-center">
+          <LoadingSpinner />
+        </div>
+      );
+    }
+
+    if (sessionActivity.length === 0) {
+      return <p className="text-sm text-muted-foreground py-2">No active session details available.</p>;
+    }
+
+    return sessionActivity.map((session) => (
+      <div key={session.id} className="flex items-center justify-between py-3 border-b last:border-0">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-medium">{session.device}</p>
+              {session.isCurrent && (
+                <Badge className="bg-green-100 text-green-800 text-xs">Current</Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{session.browser}</span>
+              <span>•</span>
+              <span>{session.location}</span>
+              <span>•</span>
+              <span>{session.time}</span>
+            </div>
+          </div>
+        </div>
+
+        {!session.isCurrent && (
+          <Button variant="ghost" size="sm" className="text-red-500" onClick={handleLogoutOtherSessions}>
+            Sign Out Others
+          </Button>
+        )}
+      </div>
+    ));
   };
 
   if (!currentUser) {
@@ -350,11 +501,7 @@ export default function SettingsPage() {
         {/* Main Content */}
         <div className="flex-1 max-w-4xl">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto gap-1">
-              <TabsTrigger value="profile" className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                <span className="hidden sm:inline">Profile</span>
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 h-auto gap-1">
               <TabsTrigger value="notifications" className="flex items-center gap-2">
                 <Bell className="h-4 w-4" />
                 <span className="hidden sm:inline">Notifications</span>
@@ -390,7 +537,15 @@ export default function SettingsPage() {
                               {currentUser.name?.charAt(0) || "U"}
                             </AvatarFallback>
                           </Avatar>
-                          <Button type="button" variant="outline" size="sm">
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handlePhotoUpload}
+                          />
+                          <Button type="button" variant="outline" size="sm" onClick={handlePhotoChangeClick} disabled={profilePhotoLoading}>
+                            {profilePhotoLoading ? <LoadingSpinner size="sm" className="mr-2" /> : null}
                             Change Photo
                           </Button>
                         </div>
@@ -878,46 +1033,13 @@ export default function SettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {sessionActivity.map((session) => (
-                        <div key={`${session.device}-${session.time}`} className="flex items-center justify-between py-3 border-b last:border-0">
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                                <line x1="8" y1="21" x2="16" y2="21"/>
-                                <line x1="12" y1="17" x2="12" y2="21"/>
-                              </svg>
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium">{session.device}</p>
-                                {session.time === "Current Session" && (
-                                  <Badge className="bg-green-100 text-green-800 text-xs">Current</Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span>{session.browser}</span>
-                                <span>•</span>
-                                <span>{session.location}</span>
-                                <span>•</span>
-                                <span>{session.time}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {session.time !== "Current Session" && (
-                            <Button variant="ghost" size="sm" className="text-red-500">
-                              Sign Out
-                            </Button>
-                          )}
-                        </div>
-                      ))}
+                      {renderSessionsContent()}
                     </div>
 
                     <div className="flex justify-end mt-4">
-                      <Button variant="outline" className="flex items-center gap-2">
+                      <Button variant="outline" className="flex items-center gap-2" onClick={handleLogoutOtherSessions} disabled={sessionLoading}>
                         <LogOut className="h-4 w-4" />
-                        Sign Out All Devices
+                        Sign Out Other Devices
                       </Button>
                     </div>
                   </CardContent>
@@ -1000,6 +1122,7 @@ export default function SettingsPage() {
               <Button
                 variant="outline"
                 className="w-full"
+                onClick={handleContactSupport}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Contact Support

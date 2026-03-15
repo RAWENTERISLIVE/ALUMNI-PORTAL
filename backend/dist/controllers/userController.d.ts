@@ -25,6 +25,7 @@ export declare const reactivateUser: (req: Request, res: Response, next: import(
 export declare const promoteToAdmin: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const promoteToModerator: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const demoteAdmin: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const setPremiumBadge: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const updateUserProfile: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getAlumniDirectory: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getUserSuggestions: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;

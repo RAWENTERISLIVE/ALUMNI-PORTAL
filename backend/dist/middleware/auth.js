@@ -130,5 +130,5 @@ const requireRole = (roles) => {
 };
 exports.requireRole = requireRole;
 exports.requireSuperAdmin = (0, exports.requireRole)([User_1.UserRole.SUPER_ADMIN]);
-exports.requireAdmin = (0, exports.requireRole)([User_1.UserRole.MODERATOR, User_1.UserRole.ADMIN, User_1.UserRole.SUPER_ADMIN]);
+exports.requireAdmin = (0, exports.requireRole)([User_1.UserRole.ADMIN, User_1.UserRole.SUPER_ADMIN]);
 //# sourceMappingURL=auth.js.map

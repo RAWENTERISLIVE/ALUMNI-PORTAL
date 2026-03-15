@@ -1,7 +1,7 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+import path from 'node:path';
+import fs from 'node:fs';
 import { asyncHandler } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/prisma';
@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
 // File filter to allow specific file types
 const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedTypes = [
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -51,6 +51,39 @@ export const upload = multer({
     fileSize: 50 * 1024 * 1024, // 50MB limit
   }
 });
+
+export const handleUploadError = (
+  err: any,
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (!err) {
+    next();
+    return;
+  }
+
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      res.status(400).json({
+        success: false,
+        message: 'File is too large. Maximum allowed size is 50MB.'
+      });
+      return;
+    }
+
+    res.status(400).json({
+      success: false,
+      message: err.message || 'File upload failed.'
+    });
+    return;
+  }
+
+  res.status(400).json({
+    success: false,
+    message: err.message || 'Unsupported file type'
+  });
+};
 
 // Upload single file
 export const uploadFile = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {

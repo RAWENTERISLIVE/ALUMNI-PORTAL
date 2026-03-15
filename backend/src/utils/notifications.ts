@@ -19,17 +19,26 @@ export const createNotification = async ({
   metadata
 }: NotificationInput) => {
   try {
-    const notificationId = randomUUID();
-    const metadataJson = metadata ? JSON.stringify(metadata) : null;
-
-    await prisma.$executeRaw`
-      INSERT INTO "Notification" ("id", "userId", "title", "message", "type", "actionUrl", "metadata", "isSeen", "createdAt", "updatedAt")
-      VALUES (${notificationId}, ${userId}, ${title}, ${message}, ${type}, ${actionUrl ?? null}, CAST(${metadataJson} AS jsonb), false, NOW(), NOW())
-    `;
+    await prisma.notification.create({
+      data: {
+        id: randomUUID(),
+        userId,
+        title,
+        message,
+        type,
+        actionUrl: actionUrl ?? null,
+        metadata: metadata ?? undefined
+      }
+    });
 
     return true;
   } catch (error) {
-    console.error('Failed to create notification:', error);
+    console.error('Failed to create notification:', {
+      userId,
+      title,
+      type,
+      error
+    });
     return null;
   }
 };

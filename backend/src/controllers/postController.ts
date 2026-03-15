@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Role } from '@prisma/client';
 import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
+import { createNotification } from '../utils/notifications';
 
 interface AuthRequest extends Request {
   user?: any;
@@ -225,6 +226,16 @@ export const likePost = asyncHandler(async (req: AuthRequest, res: Response) => 
     return;
   }
 
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { id: true, authorId: true }
+  });
+
+  if (!post) {
+    res.status(404).json({ success: false, message: 'Post not found' });
+    return;
+  }
+
   const reactionType = req.body?.reactionType || 'like';
 
   const existingReaction = await prisma.postReaction.findUnique({
@@ -232,6 +243,7 @@ export const likePost = asyncHandler(async (req: AuthRequest, res: Response) => 
   });
 
   let message = '';
+  let shouldNotifyAuthor = false;
   if (existingReaction) {
     if (existingReaction.type === reactionType) {
       await prisma.postReaction.delete({
@@ -244,10 +256,33 @@ export const likePost = asyncHandler(async (req: AuthRequest, res: Response) => 
         data: { type: reactionType }
       });
       message = 'Post reaction updated';
+      shouldNotifyAuthor = true;
     }
   } else {
     await prisma.postReaction.create({ data: { postId, userId: req.user.id, type: reactionType } });
     message = 'Post reacted';
+    shouldNotifyAuthor = true;
+  }
+
+  if (shouldNotifyAuthor && post.authorId !== req.user.id) {
+    const actor = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { name: true }
+    });
+
+    await createNotification({
+      userId: post.authorId,
+      title: 'New reaction on your post',
+      message: `${actor?.name || 'Someone'} reacted to your post.`,
+      type: 'post',
+      actionUrl: `/posts/${postId}`,
+      metadata: {
+        postId,
+        actorId: req.user.id,
+        reactionType,
+        event: 'post_reaction'
+      }
+    });
   }
 
   const updatedPost = await prisma.post.findUnique({

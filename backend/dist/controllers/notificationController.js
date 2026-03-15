@@ -13,21 +13,28 @@ const getNotifications = async (req, res) => {
             return;
         }
         const limit = Math.min(Number(req.query.limit) || 20, 100);
-        const [notifications, unseenCountResult] = await Promise.all([
-            prisma_1.default.$queryRaw `
-        SELECT "id", "title", "message", "type", "actionUrl", "isSeen", "createdAt"
-        FROM "Notification"
-        WHERE "userId" = ${userId}
-        ORDER BY "createdAt" DESC
-        LIMIT ${limit}
-      `,
-            prisma_1.default.$queryRaw `
-        SELECT COUNT(*)::bigint AS count
-        FROM "Notification"
-        WHERE "userId" = ${userId} AND "isSeen" = false
-      `
+        const [notifications, unseenCount] = await Promise.all([
+            prisma_1.default.notification.findMany({
+                where: { userId },
+                orderBy: { createdAt: 'desc' },
+                take: limit,
+                select: {
+                    id: true,
+                    title: true,
+                    message: true,
+                    type: true,
+                    actionUrl: true,
+                    isSeen: true,
+                    createdAt: true
+                }
+            }),
+            prisma_1.default.notification.count({
+                where: {
+                    userId,
+                    isSeen: false
+                }
+            })
         ]);
-        const unseenCount = Number(unseenCountResult[0]?.count ?? 0n);
         res.json({ success: true, data: notifications, unseenCount });
     }
     catch (error) {
@@ -44,11 +51,16 @@ const markNotificationSeen = async (req, res) => {
             return;
         }
         const { notificationId } = req.params;
-        const updatedCount = await prisma_1.default.$executeRaw `
-      UPDATE "Notification"
-      SET "isSeen" = true, "seenAt" = NOW(), "updatedAt" = NOW()
-      WHERE "id" = ${notificationId} AND "userId" = ${userId}
-    `;
+        const { count: updatedCount } = await prisma_1.default.notification.updateMany({
+            where: {
+                id: notificationId,
+                userId
+            },
+            data: {
+                isSeen: true,
+                seenAt: new Date()
+            }
+        });
         if (updatedCount === 0) {
             res.status(404).json({ success: false, message: 'Notification not found' });
             return;
@@ -68,11 +80,16 @@ const markAllNotificationsSeen = async (req, res) => {
             res.status(401).json({ success: false, message: 'Authentication required' });
             return;
         }
-        await prisma_1.default.$executeRaw `
-      UPDATE "Notification"
-      SET "isSeen" = true, "seenAt" = NOW(), "updatedAt" = NOW()
-      WHERE "userId" = ${userId} AND "isSeen" = false
-    `;
+        await prisma_1.default.notification.updateMany({
+            where: {
+                userId,
+                isSeen: false
+            },
+            data: {
+                isSeen: true,
+                seenAt: new Date()
+            }
+        });
         res.json({ success: true, message: 'All notifications marked as seen' });
     }
     catch (error) {
@@ -89,10 +106,12 @@ const dismissNotification = async (req, res) => {
             return;
         }
         const { notificationId } = req.params;
-        const deletedCount = await prisma_1.default.$executeRaw `
-      DELETE FROM "Notification"
-      WHERE "id" = ${notificationId} AND "userId" = ${userId}
-    `;
+        const { count: deletedCount } = await prisma_1.default.notification.deleteMany({
+            where: {
+                id: notificationId,
+                userId
+            }
+        });
         if (deletedCount === 0) {
             res.status(404).json({ success: false, message: 'Notification not found' });
             return;

@@ -1,7 +1,18 @@
 import rateLimit from 'express-rate-limit';
 
+const isNonProduction = process.env.NODE_ENV !== 'production';
+
+const withEnvironmentBypass = (config: Parameters<typeof rateLimit>[0]) =>
+  rateLimit({
+    ...config,
+    skip: (...args) => {
+      if (isNonProduction) return true;
+      return typeof config.skip === 'function' ? config.skip(...args) : false;
+    }
+  });
+
 // Phase 1 - Enhanced rate limiting for authentication security
-export const authLimiter = rateLimit({
+export const authLimiter = withEnvironmentBypass({
   windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes default
   max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '5'), // 5 attempts default
   message: {
@@ -21,7 +32,7 @@ export const authLimiter = rateLimit({
   }
 });
 
-export const generalLimiter = rateLimit({
+export const generalLimiter = withEnvironmentBypass({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes default
   max: parseInt(process.env.RATE_LIMIT_MAX || '100'), // 100 requests default
   message: {
@@ -42,7 +53,7 @@ export const generalLimiter = rateLimit({
 });
 
 // Specific limiter for registration attempts
-export const registrationLimiter = rateLimit({
+export const registrationLimiter = withEnvironmentBypass({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // 3 registration attempts per hour per IP
   message: {
@@ -63,7 +74,7 @@ export const registrationLimiter = rateLimit({
 });
 
 // Password reset rate limiter
-export const passwordResetLimiter = rateLimit({
+export const passwordResetLimiter = withEnvironmentBypass({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // 3 password reset attempts per hour per IP
   message: {

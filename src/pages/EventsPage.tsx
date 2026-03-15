@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, MapPin, Users, Plus, Clock } from "lucide-react";
+import { Calendar, MapPin, Users, Plus, Clock, Download } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,18 @@ interface EventAttendee {
   id: string;
 }
 
+interface EventOrganizer {
+  id: string;
+}
+
+interface EventAttendeeDetails {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  admissionNumber?: string | null;
+}
+
 interface EventItem {
   id: string;
   title: string;
@@ -38,6 +50,7 @@ interface EventItem {
   category?: string;
   imageUrl?: string;
   isVirtual?: boolean;
+  organizer?: EventOrganizer;
   attendees?: EventAttendee[];
 }
 
@@ -59,6 +72,10 @@ export default function EventsPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
+  const [isAttendeesModalOpen, setIsAttendeesModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+  const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
+  const [attendeeList, setAttendeeList] = useState<EventAttendeeDetails[]>([]);
   const [newEvent, setNewEvent] = useState<CreateEventPayload>({
     title: "",
     description: "",
@@ -204,9 +221,67 @@ export default function EventsPage() {
     void fetchEvents();
   };
 
+  const handleViewAttendees = async (event: EventItem) => {
+    setSelectedEvent(event);
+    setIsAttendeesModalOpen(true);
+    setIsLoadingAttendees(true);
+
+    const response = await apiService.getEventAttendees(event.id);
+    setIsLoadingAttendees(false);
+
+    if (!response.success) {
+      setAttendeeList([]);
+      toast({
+        title: "Error",
+        description: response.message || "Failed to load attendees.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAttendeeList(response.data || []);
+  };
+
+  const handleExportAttendees = () => {
+    if (!selectedEvent || attendeeList.length === 0) {
+      return;
+    }
+
+    const escapeCsvField = (value: string) => `"${value.split('"').join('""')}"`;
+    const headers = ["Name", "Phone", "Email", "Admission Number"];
+
+    const rows = attendeeList.map((attendee) => [
+      attendee.name || "",
+      attendee.phone || "",
+      attendee.email || "",
+      attendee.admissionNumber || "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((field) => escapeCsvField(String(field))).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+
+    const safeTitle = selectedEvent.title
+      .toLowerCase()
+      .match(/[a-z0-9]+/g)
+      ?.join("-") || "";
+
+    link.download = `${safeTitle || "event"}-attendees.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const renderEventCard = (event: EventItem) => {
     const eventDate = new Date(event.date);
     const isAttending = Boolean(currentUser?.id && event.attendees?.some((a) => a.id === currentUser.id));
+    const isOrganizer = Boolean(currentUser?.id && event.organizer?.id === currentUser.id);
 
     return (
       <Card key={event.id} className="flex flex-col">
@@ -246,13 +321,24 @@ export default function EventsPage() {
           <p className="line-clamp-3 text-foreground/80">{event.description}</p>
         </CardContent>
         <CardFooter className="p-6 pt-0 mt-auto border-t border-border mt-4">
-          <Button 
-            className="w-full" 
-            variant={isAttending ? "outline" : "default"}
-            onClick={() => handleRSVP(event.id, isAttending)}
-          >
-            {isAttending ? 'Cancel RSVP' : 'RSVP Now'}
-          </Button>
+          <div className="w-full space-y-2">
+            {isOrganizer && (
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => handleViewAttendees(event)}
+              >
+                View Attendees
+              </Button>
+            )}
+            <Button
+              className="w-full"
+              variant={isAttending ? "outline" : "default"}
+              onClick={() => handleRSVP(event.id, isAttending)}
+            >
+              {isAttending ? 'Cancel RSVP' : 'RSVP Now'}
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     );
@@ -298,6 +384,45 @@ export default function EventsPage() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {myEvents.map(renderEventCard)}
+      </div>
+    );
+  };
+
+  const renderAttendeesModalContent = () => {
+    if (isLoadingAttendees) {
+      return <div className="h-full py-12"><LoadingSpinner /></div>;
+    }
+
+    if (attendeeList.length === 0) {
+      return (
+        <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+          No attendees yet for this event.
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-full overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40">
+            <tr>
+              <th className="text-left p-3 font-medium">Name</th>
+              <th className="text-left p-3 font-medium">Phone</th>
+              <th className="text-left p-3 font-medium">Email</th>
+              <th className="text-left p-3 font-medium">Admission No.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {attendeeList.map((attendee) => (
+              <tr key={attendee.id} className="border-t">
+                <td className="p-3">{attendee.name}</td>
+                <td className="p-3">{attendee.phone || "-"}</td>
+                <td className="p-3">{attendee.email || "-"}</td>
+                <td className="p-3">{attendee.admissionNumber || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   };
@@ -406,7 +531,7 @@ export default function EventsPage() {
                     variant={newEvent.isVirtual ? "default" : "outline"}
                     onClick={() => {
                       setNewEvent((prev) => {
-                        const nextIsVirtual = prev.isVirtual ? false : true;
+                        const nextIsVirtual = !prev.isVirtual;
                         const nextLocation = nextIsVirtual ? "" : prev.location;
                         return {
                           ...prev,
@@ -466,6 +591,35 @@ export default function EventsPage() {
           {renderMyEventsContent()}
         </TabsContent>
       </Tabs>
+
+      <Dialog open={isAttendeesModalOpen} onOpenChange={setIsAttendeesModalOpen}>
+        <DialogContent className="sm:max-w-[760px] max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Attendees</DialogTitle>
+            <DialogDescription>
+              {selectedEvent ? `People attending ${selectedEvent.title}` : "People attending this event"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Total attendees: {attendeeList.length}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExportAttendees}
+              disabled={attendeeList.length === 0}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+          </div>
+
+          <div className="border rounded-md overflow-hidden flex-1 min-h-[220px]">
+            {renderAttendeesModalContent()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

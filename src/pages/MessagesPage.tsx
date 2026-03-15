@@ -52,6 +52,7 @@ export default function MessagesPage() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [lastInfoMessage, setLastInfoMessage] = useState('');
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
 
   const activeConversation = useMemo(
     () => {
@@ -94,6 +95,10 @@ export default function MessagesPage() {
   };
 
   const loadConversations = async () => {
+    if (rateLimitedUntil && Date.now() < rateLimitedUntil) {
+      return;
+    }
+
     setIsLoadingConversations(true);
     const response = await apiService.getDirectConversations();
 
@@ -106,6 +111,19 @@ export default function MessagesPage() {
     }
 
     if (!response.success) {
+      if ((response.message || '').toLowerCase().includes('too many requests')) {
+        setRateLimitedUntil(Date.now() + 30000);
+        if (lastInfoMessage !== 'rate-limited') {
+          toast({
+            title: 'Sync paused briefly',
+            description: 'Too many requests detected. Retrying in 30 seconds.',
+          });
+          setLastInfoMessage('rate-limited');
+        }
+        setIsLoadingConversations(false);
+        return;
+      }
+
       toast({
         title: "Error",
         description: response.message || "Failed to load conversations.",
@@ -137,6 +155,10 @@ export default function MessagesPage() {
   };
 
   const loadMessages = async (targetUserId: string) => {
+    if (rateLimitedUntil && Date.now() < rateLimitedUntil) {
+      return;
+    }
+
     setIsLoadingMessages(true);
     const response = await apiService.getDirectMessages(targetUserId);
 
@@ -149,6 +171,19 @@ export default function MessagesPage() {
     }
 
     if (!response.success) {
+      if ((response.message || '').toLowerCase().includes('too many requests')) {
+        setRateLimitedUntil(Date.now() + 30000);
+        if (lastInfoMessage !== 'rate-limited') {
+          toast({
+            title: 'Sync paused briefly',
+            description: 'Too many requests detected. Retrying in 30 seconds.',
+          });
+          setLastInfoMessage('rate-limited');
+        }
+        setIsLoadingMessages(false);
+        return;
+      }
+
       toast({
         title: "Error",
         description: response.message || "Failed to load messages.",
@@ -165,9 +200,9 @@ export default function MessagesPage() {
 
   useEffect(() => {
     loadConversations();
-    const interval = setInterval(loadConversations, 15000);
+    const interval = setInterval(loadConversations, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [rateLimitedUntil]);
 
   useEffect(() => {
     const queryUser = searchParams.get("user");
@@ -183,11 +218,10 @@ export default function MessagesPage() {
 
     const interval = setInterval(() => {
       loadMessages(selectedUserId);
-      loadConversations();
-    }, 8000);
+    }, 20000);
 
     return () => clearInterval(interval);
-  }, [selectedUserId]);
+  }, [selectedUserId, rateLimitedUntil]);
 
   const handleSelectConversation = (userId: string) => {
     setSelectedUserId(userId);

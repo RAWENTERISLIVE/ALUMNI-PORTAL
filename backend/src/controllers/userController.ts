@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { ConnectionRequestStatus, Prisma, Role, Status } from '@prisma/client';
 import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
+import { getHiddenSystemAccountEmails, isHiddenSystemAccountEmail } from '../config/systemAccounts';
+import { createNotification } from '../utils/notifications';
 
 interface AuthRequest extends Request {
   user?: any;
@@ -22,6 +24,10 @@ const isAdminRole = (role?: string) => {
 };
 
 const isSuperAdminRole = (role?: string) => normalizeRole(role) === 'SUPER_ADMIN';
+
+const hiddenSystemEmails = () => [...getHiddenSystemAccountEmails()];
+
+const notHiddenSystemAccountsFilter = () => ({ notIn: hiddenSystemEmails() });
 
 const getTargetUserId = (req: Request): string | undefined => {
   return (req.params as any).id || (req.params as any).userId;
@@ -52,6 +58,7 @@ export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
   const { role, status, search } = req.query;
 
   const where: any = {};
+  where.email = notHiddenSystemAccountsFilter();
   if (role) where.role = normalizeRole(String(role)) as Role;
   if (status) where.status = normalizeStatus(String(status)) as Status;
   if (search) {
@@ -123,7 +130,10 @@ export const getPublicAlumni = asyncHandler(async (req: Request, res: Response) 
     }
   }
 
-  const where: any = { status: Status.ACTIVE };
+  const where: any = {
+    status: Status.ACTIVE,
+    email: notHiddenSystemAccountsFilter()
+  };
 
   if (search) {
     where.OR = [
@@ -191,14 +201,74 @@ export const getUserById = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const user = await prisma.user.findUnique({
-    where: { id }
+    where: { id },
+    include: {
+      mentorshipProfile: {
+        select: {
+          id: true,
+          isMentor: true,
+          isActive: true,
+          expertise: true,
+          availability: true,
+          communicationPreferences: true
+        }
+      }
+    }
   });
 
-  if (!user) {
+  const authReq = req as AuthRequest;
+  const currentUserId = getAuthenticatedUserId(authReq);
+
+  if (!user || (isHiddenSystemAccountEmail(user.email) && currentUserId !== user.id)) {
     res.status(404).json({ success: false, message: 'User not found' });
     return;
   }
-  res.status(200).json({ success: true, data: serializeUser(user) });
+
+  let connectionStatus: 'none' | 'pending' | 'incoming' | 'connected' = 'none';
+
+  if (currentUserId && currentUserId !== user.id) {
+    const [isConnected, sentPending, incomingPending] = await Promise.all([
+      prisma.user.findFirst({
+        where: {
+          id: currentUserId,
+          OR: [
+            { connections: { some: { id: user.id } } },
+            { connectedTo: { some: { id: user.id } } }
+          ]
+        },
+        select: { id: true }
+      }),
+      prisma.connectionRequest.findFirst({
+        where: {
+          senderId: currentUserId,
+          receiverId: user.id,
+          status: ConnectionRequestStatus.PENDING
+        },
+        select: { id: true }
+      }),
+      prisma.connectionRequest.findFirst({
+        where: {
+          senderId: user.id,
+          receiverId: currentUserId,
+          status: ConnectionRequestStatus.PENDING
+        },
+        select: { id: true }
+      })
+    ]);
+
+    if (isConnected) {
+      connectionStatus = 'connected';
+    } else if (incomingPending) {
+      connectionStatus = 'incoming';
+    } else if (sentPending) {
+      connectionStatus = 'pending';
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    data: serializeUser({ ...user, connectionStatus })
+  });
 });
 
 export const getUserProfile = asyncHandler(async (req: Request, res: Response) => {
@@ -212,6 +282,7 @@ export const getUserProfile = asyncHandler(async (req: Request, res: Response) =
     where: { id },
     select: {
       id: true,
+      email: true,
       name: true,
       firstName: true,
       lastName: true,
@@ -231,11 +302,17 @@ export const getUserProfile = asyncHandler(async (req: Request, res: Response) =
     }
   });
 
-  if (!user) {
+  const authReq = req as AuthRequest;
+  const currentUserId = getAuthenticatedUserId(authReq);
+
+  if (!user || (isHiddenSystemAccountEmail((user as { email?: string | null }).email) && currentUserId !== user.id)) {
     res.status(404).json({ success: false, message: 'Profile not found' });
     return;
   }
-  res.status(200).json({ success: true, data: user });
+  const profileData = { ...user } as Record<string, unknown>;
+  delete profileData.email;
+
+  res.status(200).json({ success: true, data: profileData });
 });
 
 export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -275,6 +352,12 @@ export const approveUser = asyncHandler(async (req: AuthRequest, res: Response) 
     return;
   }
 
+  const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  if (!target || isHiddenSystemAccountEmail(target.email)) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: { status: Status.ACTIVE }
@@ -292,6 +375,12 @@ export const rejectUser = asyncHandler(async (req: AuthRequest, res: Response) =
 
   if (!req.user || !isAdminRole(req.user.role)) {
     res.status(403).json({ success: false, message: 'Not authorized' });
+    return;
+  }
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  if (!target || isHiddenSystemAccountEmail(target.email)) {
+    res.status(404).json({ success: false, message: 'User not found' });
     return;
   }
 
@@ -315,6 +404,12 @@ export const blockUser = asyncHandler(async (req: AuthRequest, res: Response) =>
     return;
   }
 
+  const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  if (!target || isHiddenSystemAccountEmail(target.email)) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: { status: Status.SUSPENDED }
@@ -335,6 +430,12 @@ export const deleteUser = asyncHandler(async (req: AuthRequest, res: Response) =
     return;
   }
 
+  const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  if (!target || isHiddenSystemAccountEmail(target.email)) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
   await prisma.user.delete({ where: { id } });
   res.status(200).json({ success: true, data: {} });
 });
@@ -345,15 +446,17 @@ export const getUserStats = asyncHandler(async (req: AuthRequest, res: Response)
     return;
   }
 
+  const hiddenEmailFilter = { email: notHiddenSystemAccountsFilter() };
+
   const [total, active, pending, suspended, moderatorUsers, adminUsers, superAdminUsers, recentRegistrations] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { status: Status.ACTIVE } }),
-    prisma.user.count({ where: { status: Status.PENDING } }),
-    prisma.user.count({ where: { status: Status.SUSPENDED } }),
-    prisma.user.count({ where: { role: 'MODERATOR' as Role } }),
-    prisma.user.count({ where: { role: Role.ADMIN } }),
-    prisma.user.count({ where: { role: Role.SUPER_ADMIN } }),
-    prisma.user.count({ where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } })
+    prisma.user.count({ where: hiddenEmailFilter }),
+    prisma.user.count({ where: { ...hiddenEmailFilter, status: Status.ACTIVE } }),
+    prisma.user.count({ where: { ...hiddenEmailFilter, status: Status.PENDING } }),
+    prisma.user.count({ where: { ...hiddenEmailFilter, status: Status.SUSPENDED } }),
+    prisma.user.count({ where: { ...hiddenEmailFilter, role: 'MODERATOR' as Role } }),
+    prisma.user.count({ where: { ...hiddenEmailFilter, role: Role.ADMIN } }),
+    prisma.user.count({ where: { ...hiddenEmailFilter, role: Role.SUPER_ADMIN } }),
+    prisma.user.count({ where: { ...hiddenEmailFilter, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } })
   ]);
 
   const stats = {
@@ -394,10 +497,10 @@ export const connectUser = asyncHandler(async (req: AuthRequest, res: Response) 
 
   const targetUser = await prisma.user.findUnique({
     where: { id: targetUserId },
-    select: { id: true, status: true }
+    select: { id: true, status: true, email: true }
   });
 
-  if (!targetUser || targetUser.status !== Status.ACTIVE) {
+  if (!targetUser || targetUser.status !== Status.ACTIVE || isHiddenSystemAccountEmail(targetUser.email)) {
     res.status(404).json({ success: false, message: 'Target user not found or inactive' });
     return;
   }
@@ -427,6 +530,11 @@ export const connectUser = asyncHandler(async (req: AuthRequest, res: Response) 
     select: { id: true }
   });
 
+  const currentUser = await prisma.user.findUnique({
+    where: { id: currentUserId },
+    select: { id: true, name: true }
+  });
+
   if (incomingPendingRequest) {
     await prisma.$transaction([
       prisma.connectionRequest.update({
@@ -442,6 +550,15 @@ export const connectUser = asyncHandler(async (req: AuthRequest, res: Response) 
         data: { connections: { connect: { id: currentUserId } } }
       })
     ]);
+
+    await createNotification({
+      userId: targetUserId,
+      title: 'Connection accepted',
+      message: `${currentUser?.name || 'A user'} accepted your connection request.`,
+      type: 'connection',
+      actionUrl: `/directory/profile/${currentUserId}`,
+      metadata: { userId: currentUserId, event: 'connection_accepted' }
+    });
 
     res.status(200).json({
       success: true,
@@ -485,6 +602,15 @@ export const connectUser = asyncHandler(async (req: AuthRequest, res: Response) 
       receiverId: targetUserId,
       status: ConnectionRequestStatus.PENDING
     }
+  });
+
+  await createNotification({
+    userId: targetUserId,
+    title: 'New connection request',
+    message: `${currentUser?.name || 'A user'} sent you a connection request.`,
+    type: 'connection',
+    actionUrl: `/directory/profile/${currentUserId}`,
+    metadata: { userId: currentUserId, event: 'connection_request' }
   });
 
   res.status(200).json({
@@ -536,6 +662,20 @@ export const acceptConnectionRequest = asyncHandler(async (req: AuthRequest, res
       data: { connections: { connect: { id: currentUserId } } }
     })
   ]);
+
+  const currentUser = await prisma.user.findUnique({
+    where: { id: currentUserId },
+    select: { id: true, name: true }
+  });
+
+  await createNotification({
+    userId: targetUserId,
+    title: 'Connection accepted',
+    message: `${currentUser?.name || 'A user'} accepted your connection request.`,
+    type: 'connection',
+    actionUrl: `/directory/profile/${currentUserId}`,
+    metadata: { userId: currentUserId, event: 'connection_accepted' }
+  });
 
   res.status(200).json({
     success: true,
@@ -636,10 +776,10 @@ export const followUser = asyncHandler(async (req: AuthRequest, res: Response) =
 
   const targetUser = await prisma.user.findUnique({
     where: { id: targetUserId },
-    select: { id: true, status: true }
+    select: { id: true, status: true, email: true }
   });
 
-  if (!targetUser || targetUser.status !== Status.ACTIVE) {
+  if (!targetUser || targetUser.status !== Status.ACTIVE || isHiddenSystemAccountEmail(targetUser.email)) {
     res.status(404).json({ success: false, message: 'Target user not found or inactive' });
     return;
   }
@@ -767,7 +907,7 @@ export const getDirectConversations = asyncHandler(async (req: AuthRequest, res:
   const participants = participantIds.length > 0
     ? await prisma.user.findMany({
       where: { id: { in: participantIds } },
-      select: { id: true, name: true, profileImage: true, status: true }
+      select: { id: true, name: true, profileImage: true, status: true, email: true }
     })
     : [];
 
@@ -776,7 +916,7 @@ export const getDirectConversations = asyncHandler(async (req: AuthRequest, res:
   const conversations = [...conversationMap.values()]
     .map((conversation) => {
       const participant = participantById.get(conversation.userId);
-      if (!participant || participant.status !== Status.ACTIVE) {
+      if (!participant || participant.status !== Status.ACTIVE || isHiddenSystemAccountEmail(participant.email)) {
         return null;
       }
 
@@ -806,6 +946,16 @@ export const getDirectMessages = asyncHandler(async (req: AuthRequest, res: Resp
 
   if (!targetUserId) {
     res.status(400).json({ success: false, message: 'Target user ID is required' });
+    return;
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, email: true }
+  });
+
+  if (!targetUser || isHiddenSystemAccountEmail(targetUser.email)) {
+    res.status(404).json({ success: false, message: 'Target user not found' });
     return;
   }
 
@@ -893,6 +1043,16 @@ export const sendDirectMessage = asyncHandler(async (req: AuthRequest, res: Resp
 
   if (!targetUserId) {
     res.status(400).json({ success: false, message: 'Target user ID is required' });
+    return;
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, email: true }
+  });
+
+  if (!targetUser || isHiddenSystemAccountEmail(targetUser.email)) {
+    res.status(404).json({ success: false, message: 'Target user not found' });
     return;
   }
 
@@ -1002,7 +1162,8 @@ export const getConnectionSuggestions = asyncHandler(async (req: AuthRequest, re
   const candidates = await prisma.user.findMany({
     where: {
       status: Status.ACTIVE,
-      id: { notIn: [...excludedIds] }
+      id: { notIn: [...excludedIds] },
+      email: notHiddenSystemAccountsFilter()
     },
     select: {
       id: true,
@@ -1063,7 +1224,7 @@ export const getPendingUsers = asyncHandler(async (req: Request, res: Response) 
   const limit = Number.parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
 
-  const where = { status: Status.PENDING };
+  const where = { status: Status.PENDING, email: notHiddenSystemAccountsFilter() };
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
@@ -1099,6 +1260,12 @@ export const reactivateUser = asyncHandler(async (req: AuthRequest, res: Respons
     return;
   }
 
+  const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  if (!target || isHiddenSystemAccountEmail(target.email)) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: { status: Status.ACTIVE }
@@ -1116,6 +1283,12 @@ export const promoteToAdmin = asyncHandler(async (req: AuthRequest, res: Respons
 
   if (!req.user || !isSuperAdminRole(req.user.role)) {
     res.status(403).json({ success: false, message: 'Not authorized' });
+    return;
+  }
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  if (!target || isHiddenSystemAccountEmail(target.email)) {
+    res.status(404).json({ success: false, message: 'User not found' });
     return;
   }
 
@@ -1139,6 +1312,12 @@ export const promoteToModerator = asyncHandler(async (req: AuthRequest, res: Res
     return;
   }
 
+  const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  if (!target || isHiddenSystemAccountEmail(target.email)) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: { role: 'MODERATOR' as Role }
@@ -1159,9 +1338,9 @@ export const demoteAdmin = asyncHandler(async (req: AuthRequest, res: Response) 
     return;
   }
 
-  const targetUser = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+  const targetUser = await prisma.user.findUnique({ where: { id }, select: { role: true, email: true } });
 
-  if (!targetUser) {
+  if (!targetUser || isHiddenSystemAccountEmail(targetUser.email)) {
     res.status(404).json({ success: false, message: 'User not found' });
     return;
   }
@@ -1185,6 +1364,12 @@ export const setPremiumBadge = asyncHandler(async (req: AuthRequest, res: Respon
 
   if (!req.user || !isSuperAdminRole(req.user.role)) {
     res.status(403).json({ success: false, message: 'Only super admin can assign premium badge' });
+    return;
+  }
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  if (!target || isHiddenSystemAccountEmail(target.email)) {
+    res.status(404).json({ success: false, message: 'User not found' });
     return;
   }
 

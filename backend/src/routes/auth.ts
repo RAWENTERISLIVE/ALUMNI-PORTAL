@@ -11,7 +11,10 @@ import {
   changePassword,
   uploadVerificationId,
   updateNotificationSettings,
-  updatePrivacySettings
+  updatePrivacySettings,
+  getActiveSessions,
+  logoutOtherSessions,
+  deactivateAccount
 } from '../controllers/authController';
 import { upload } from '../controllers/uploadController';
 import { authMiddleware } from '../middleware/auth';
@@ -127,5 +130,8 @@ router.patch('/change-password', authMiddleware, changePasswordValidation, valid
 // Settings endpoints  
 router.patch('/notification-settings', authMiddleware, notificationSettingsValidation, validate, updateNotificationSettings);
 router.patch('/privacy-settings', authMiddleware, privacySettingsValidation, validate, updatePrivacySettings);
+router.get('/sessions', authMiddleware, getActiveSessions);
+router.post('/logout-other-sessions', authMiddleware, logoutOtherSessions);
+router.patch('/deactivate-account', authMiddleware, deactivateAccount);
 
 export default router;

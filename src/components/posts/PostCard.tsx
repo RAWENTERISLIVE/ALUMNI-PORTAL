@@ -3,7 +3,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { 
   Heart, 
   MessageCircle, 
-  Share2, 
   Bookmark, 
   MoreHorizontal,
   ExternalLink,
@@ -24,6 +23,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import apiService from '@/services/apiService';
 import { useAuth } from '@/contexts/AuthContext';
+import { CommentSection } from './CommentSection';
 
 interface PostCardProps {
   post: {
@@ -67,6 +67,7 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCard
   const [isLiking, setIsLiking] = useState(false);
   const [isBookmarking, setIsBookmarking] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const { toast } = useToast();
   const { currentUser } = useAuth();
 
@@ -131,32 +132,55 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCard
     }
   };
 
-  const handleShare = async () => {
+  const getShareText = () => {
+    const contentPreview = post.content.length > 120 ? `${post.content.substring(0, 120)}...` : post.content;
+    return `${post.title || 'Check this alumni update'}\n\n${contentPreview}`;
+  };
+
+  const getShareUrl = () => globalThis.location.origin;
+
+  const handleCopyShareLink = async () => {
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: post.title || 'Check out this post',
-          text: post.content.substring(0, 100) + '...',
-          url: globalThis.location.href,
-        });
-      } else {
-        await navigator.clipboard.writeText(globalThis.location.href);
-        toast({
-          title: "Link copied",
-          description: "Post link has been copied to clipboard.",
-        });
-      }
+      await navigator.clipboard.writeText(getShareUrl());
+      toast({
+        title: 'Link copied',
+        description: 'App link copied. You can paste it in any app.',
+      });
     } catch (error) {
-      console.error('Error sharing:', error);
+      toast({
+        title: 'Copy failed',
+        description: 'Unable to copy the link right now.',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleCommentClick = () => {
-    toast({
-      title: 'Comments',
-      description: 'Comments support is coming soon for this view.',
-    });
+  const openShareWindow = (url: string) => {
+    globalThis.open(url, '_blank', 'noopener,noreferrer');
   };
+
+  const handleShareLinkedIn = () => {
+    const shareUrl = encodeURIComponent(getShareUrl());
+    openShareWindow(`https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`);
+  };
+
+  const handleShareInstagram = async () => {
+    await handleCopyShareLink();
+    openShareWindow('https://www.instagram.com/');
+  };
+
+  const handleShareYouTube = async () => {
+    await handleCopyShareLink();
+    openShareWindow('https://www.youtube.com/');
+  };
+
+  const handleShareX = () => {
+    const shareUrl = encodeURIComponent(getShareUrl());
+    const shareText = encodeURIComponent(getShareText());
+    openShareWindow(`https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`);
+  };
+
+  const handleCommentClick = () => setShowComments((prev) => !prev);
 
   const handleEditPost = () => {
     toast({
@@ -289,6 +313,36 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCard
               >
                 Report Post
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleShareLinkedIn}
+                className="text-foreground hover:bg-muted"
+              >
+                Share on LinkedIn
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleShareX}
+                className="text-foreground hover:bg-muted"
+              >
+                Share on X
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleShareInstagram}
+                className="text-foreground hover:bg-muted"
+              >
+                Share to Instagram
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleShareYouTube}
+                className="text-foreground hover:bg-muted"
+              >
+                Share to YouTube
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleCopyShareLink}
+                className="text-foreground hover:bg-muted"
+              >
+                Copy App Link
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -418,15 +472,6 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCard
               <span className="text-sm">{post.commentCount > 0 ? post.commentCount : 'Comment'}</span>
             </Button>
             
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleShare}
-              className="gap-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
-            >
-              <Share2 className="h-4 w-4" />
-              <span className="text-sm">{post.shareCount > 0 ? post.shareCount : 'Share'}</span>
-            </Button>
           </div>
           
           <Button
@@ -444,6 +489,8 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCard
             <span className="text-sm">{bookmarkCount > 0 ? bookmarkCount : 'Save'}</span>
           </Button>
         </div>
+
+        {showComments && <CommentSection postId={post.id} />}
       </CardContent>
     </Card>
   );

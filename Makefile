@@ -136,6 +136,7 @@ db-reset: ## Reset database (WARNING: destroys all data)
 		cd backend && docker-compose down -v; \
 		$(MAKE) db-start; \
 		$(MAKE) db-migrate; \
+		$(MAKE) db-seed; \
 		echo "$(GREEN)✓ Database reset complete$(NC)"; \
 	else \
 		echo ""; \

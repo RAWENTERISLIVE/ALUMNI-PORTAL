@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LinkedInImporter } from "@/components/profile/LinkedInImporter";
+import { RequestMentorshipModal } from "@/components/mentorship/RequestMentorshipModal";
 import apiService from "@/services/apiService";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
@@ -440,6 +441,9 @@ export default function ProfilePage() {
   const [detailedSections, setDetailedSections] = useState<Record<DetailedSectionKey, DetailedProfileItem[]>>(createEmptyDetailedSections());
   const [isAddToProfileModalOpen, setIsAddToProfileModalOpen] = useState(false);
   const [isDetailedItemModalOpen, setIsDetailedItemModalOpen] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionState, setConnectionState] = useState<'none' | 'pending' | 'incoming' | 'connected'>('none');
+  const [isRequestMentorshipModalOpen, setIsRequestMentorshipModalOpen] = useState(false);
   const [activeDetailedSection, setActiveDetailedSection] = useState<DetailedSectionKey>('projects');
   const [currentDetailedItem, setCurrentDetailedItem] = useState<DetailedProfileItem | null>(null);
   const [detailedFormData, setDetailedFormData] = useState<DetailedFormData>(createDetailedFormData('projects'));
@@ -495,14 +499,16 @@ export default function ProfilePage() {
           const response = await apiService.getUserById(id);
           console.log('Profile response:', response);
           
-          if (response.success && response.user) {
+          const userData = response.user || response.data;
+
+          if (response.success && userData) {
             // Ensure id property exists alongside _id for consistency
-            const userData = response.user;
             if (userData._id && !userData.id) {
               userData.id = userData._id;
             }
             setProfile(userData);
             setIsOwnProfile(false);
+            setConnectionState((userData.connectionStatus as 'none' | 'pending' | 'incoming' | 'connected') || 'none');
           } else {
             setIsError(true);
             toast({
@@ -536,10 +542,12 @@ export default function ProfilePage() {
               id: userData.id || userData._id || currentUser.id,
             });
             setIsOwnProfile(true);
+            setConnectionState('none');
           } catch (error) {
             const fallbackUser = { ...currentUser, id: currentUser.id };
             setProfile(fallbackUser);
             setIsOwnProfile(true);
+            setConnectionState('none');
           } finally {
             setIsLoading(false);
             setIsError(false);
@@ -1132,6 +1140,100 @@ export default function ProfilePage() {
 
     updateDetailedExtraField(key, nextSelected);
   };
+
+  const handleConnectAction = async () => {
+    if (!profile || isOwnProfile) return;
+    const targetId = profile.id || profile._id;
+    if (!targetId) return;
+
+    try {
+      setIsConnecting(true);
+
+      const response =
+        connectionState === 'connected' || connectionState === 'pending'
+          ? await apiService.disconnectFromUser(targetId)
+          : connectionState === 'incoming'
+            ? await apiService.acceptConnectionRequest(targetId)
+            : await apiService.connectWithUser(targetId);
+
+      if (!response.success) {
+        toast({
+          title: 'Connection action failed',
+          description: response.message || 'Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const nextState = (response.data?.connectionStatus as 'none' | 'pending' | 'incoming' | 'connected') || 'none';
+      setConnectionState(nextState);
+
+      toast({
+        title:
+          nextState === 'connected'
+            ? 'Connected'
+            : nextState === 'pending'
+              ? 'Request sent'
+              : nextState === 'none'
+                ? 'Connection removed'
+                : 'Connection updated',
+        description:
+          nextState === 'connected'
+            ? 'You are now connected.'
+            : nextState === 'pending'
+              ? 'Connection request sent.'
+              : nextState === 'none'
+                ? 'Connection request/connection removed.'
+                : 'Status updated.',
+      });
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const mentorshipProfileId = profile?.mentorshipProfile?.id;
+  const parseMentorshipAvailability = (raw?: string) => {
+    if (!raw) return { monthlyAvailability: '', sessionMode: 'chat', availableSlots: [] as Array<{ day: string; startTime: string; endTime: string }>, iceBreakerTemplate: '' };
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        monthlyAvailability: parsed?.monthlyAvailability || raw,
+        sessionMode: parsed?.sessionMode || 'chat',
+        availableSlots: Array.isArray(parsed?.availableSlots) ? parsed.availableSlots : [],
+        iceBreakerTemplate: parsed?.iceBreakerTemplate || '',
+      };
+    } catch {
+      return { monthlyAvailability: raw, sessionMode: 'chat', availableSlots: [] as Array<{ day: string; startTime: string; endTime: string }>, iceBreakerTemplate: '' };
+    }
+  };
+  const mentorshipAvailability = parseMentorshipAvailability(profile?.mentorshipProfile?.availability);
+  const mentorshipTopics: string[] =
+    Array.isArray(profile?.mentorshipProfile?.expertise) && profile.mentorshipProfile.expertise.length > 0
+      ? profile.mentorshipProfile.expertise
+      : ['General Guidance'];
+
+  const handleSubmitMentorshipRequest = async (data: {
+    mentorId: string;
+    topic: string;
+    message: string;
+    sessionMode?: 'chat' | 'video' | 'meet';
+    selectedSlot?: { day: string; startTime: string; endTime: string } | null;
+  }) => {
+    const response = await apiService.requestMentorship(data.mentorId, data.message, data.topic, {
+      sessionMode: data.sessionMode,
+      selectedSlot: data.selectedSlot,
+    });
+
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to send mentorship request.');
+    }
+
+    toast({
+      title: 'Request Sent',
+      description: 'Your mentorship request has been sent.',
+    });
+    setIsRequestMentorshipModalOpen(false);
+  };
   
   return (
     <div>
@@ -1232,10 +1334,40 @@ export default function ProfilePage() {
               
               {!isOwnProfile && (
                 <div className="flex gap-2 mt-4">
-                  <Button>Connect</Button>
+                  <Button
+                    onClick={handleConnectAction}
+                    disabled={isConnecting}
+                    variant={connectionState === 'connected' ? 'secondary' : 'default'}
+                  >
+                    {isConnecting
+                      ? 'Please wait...'
+                      : connectionState === 'incoming'
+                        ? 'Accept Request'
+                        : connectionState === 'connected'
+                          ? 'Connected'
+                          : connectionState === 'pending'
+                            ? 'Pending'
+                            : 'Connect'}
+                  </Button>
                   <Button variant="outline" onClick={() => navigate(`/messages?user=${profile.id || profile._id}`)}>Message</Button>
                   {profile.isAvailableAsMentor && (
-                    <Button variant="outline">Request Mentorship</Button>
+                    <Button
+                      variant="outline"
+                      disabled={!mentorshipProfileId}
+                      onClick={() => {
+                        if (!mentorshipProfileId) {
+                          toast({
+                            title: 'Mentorship unavailable',
+                            description: 'This mentor profile is not ready yet. Please try from the Mentorship page.',
+                            variant: 'destructive',
+                          });
+                          return;
+                        }
+                        setIsRequestMentorshipModalOpen(true);
+                      }}
+                    >
+                      Request Mentorship
+                    </Button>
                   )}
                 </div>
               )}
@@ -2235,6 +2367,28 @@ export default function ProfilePage() {
             </button>
           </div>
         </div>
+      )}
+
+      {!isOwnProfile && mentorshipProfileId && (
+        <RequestMentorshipModal
+          mentor={{
+            id: mentorshipProfileId,
+            expertise: mentorshipTopics,
+            sessionMode: mentorshipAvailability.sessionMode,
+            availableSlots: mentorshipAvailability.availableSlots,
+            iceBreakerTemplate: mentorshipAvailability.iceBreakerTemplate,
+            user: {
+              name: profile?.name,
+              title: profile?.jobTitle,
+              company: profile?.company,
+              graduationYear: profile?.admissionYear,
+              profileImage: profile?.profileImage,
+            },
+          }}
+          isOpen={isRequestMentorshipModalOpen}
+          onClose={() => setIsRequestMentorshipModalOpen(false)}
+          onSubmit={handleSubmitMentorshipRequest}
+        />
       )}
     </div>
   );

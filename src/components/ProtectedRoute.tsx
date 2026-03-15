@@ -17,7 +17,7 @@ export const ProtectedRoute = ({
   const { isAuthenticated, isLoading, currentUser } = useAuth();
   const location = useLocation();
   const normalizedRole = (currentUser?.role || '').toLowerCase();
-  const hasAdminAccess = normalizedRole === 'moderator' || normalizedRole === 'admin' || normalizedRole === 'super_admin';
+  const hasAdminAccess = normalizedRole === 'admin' || normalizedRole === 'super_admin';
 
   // Don't make any decisions while still loading
   if (isLoading) {

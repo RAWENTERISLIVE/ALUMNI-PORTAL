@@ -3,10 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserSuggestions = exports.getAlumniDirectory = exports.updateUserProfile = exports.demoteAdmin = exports.promoteToModerator = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.getPendingUsers = exports.searchAlumni = exports.getConnectionSuggestions = exports.sendDirectMessage = exports.getDirectMessages = exports.getDirectConversations = exports.unfollowUser = exports.followUser = exports.disconnectUser = exports.acceptConnectionRequest = exports.connectUser = exports.getUserStats = exports.deleteUser = exports.blockUser = exports.rejectUser = exports.approveUser = exports.updateProfile = exports.getUserProfile = exports.getUserById = exports.getPublicAlumni = exports.getAllUsers = void 0;
+exports.getUserSuggestions = exports.getAlumniDirectory = exports.updateUserProfile = exports.setPremiumBadge = exports.demoteAdmin = exports.promoteToModerator = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.getPendingUsers = exports.searchAlumni = exports.getConnectionSuggestions = exports.sendDirectMessage = exports.getDirectMessages = exports.getDirectConversations = exports.unfollowUser = exports.followUser = exports.disconnectUser = exports.acceptConnectionRequest = exports.connectUser = exports.getUserStats = exports.deleteUser = exports.blockUser = exports.rejectUser = exports.approveUser = exports.updateProfile = exports.getUserProfile = exports.getUserById = exports.getPublicAlumni = exports.getAllUsers = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const errorHandler_1 = require("../middleware/errorHandler");
+const systemAccounts_1 = require("../config/systemAccounts");
+const notifications_1 = require("../utils/notifications");
 const normalizeRole = (role) => (role || '').toUpperCase();
 const normalizeStatus = (status) => (status || '').toUpperCase();
 const serializeUser = (user) => ({
@@ -19,6 +21,8 @@ const isAdminRole = (role) => {
     return normalized === 'MODERATOR' || normalized === 'ADMIN' || normalized === 'SUPER_ADMIN';
 };
 const isSuperAdminRole = (role) => normalizeRole(role) === 'SUPER_ADMIN';
+const hiddenSystemEmails = () => [...(0, systemAccounts_1.getHiddenSystemAccountEmails)()];
+const notHiddenSystemAccountsFilter = () => ({ notIn: hiddenSystemEmails() });
 const getTargetUserId = (req) => {
     return req.params.id || req.params.userId;
 };
@@ -41,6 +45,7 @@ exports.getAllUsers = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const skip = (page - 1) * limit;
     const { role, status, search } = req.query;
     const where = {};
+    where.email = notHiddenSystemAccountsFilter();
     if (role)
         where.role = normalizeRole(String(role));
     if (status)
@@ -105,7 +110,10 @@ exports.getPublicAlumni = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             followingUserIds = new Set(currentUser.followingRelationships.map((relation) => relation.followingId));
         }
     }
-    const where = { status: client_1.Status.ACTIVE };
+    const where = {
+        status: client_1.Status.ACTIVE,
+        email: notHiddenSystemAccountsFilter()
+    };
     if (search) {
         where.OR = [
             { name: { contains: search, mode: 'insensitive' } },
@@ -168,13 +176,70 @@ exports.getUserById = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         return;
     }
     const user = await prisma_1.default.user.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+            mentorshipProfile: {
+                select: {
+                    id: true,
+                    isMentor: true,
+                    isActive: true,
+                    expertise: true,
+                    availability: true,
+                    communicationPreferences: true
+                }
+            }
+        }
     });
-    if (!user) {
+    const authReq = req;
+    const currentUserId = getAuthenticatedUserId(authReq);
+    if (!user || ((0, systemAccounts_1.isHiddenSystemAccountEmail)(user.email) && currentUserId !== user.id)) {
         res.status(404).json({ success: false, message: 'User not found' });
         return;
     }
-    res.status(200).json({ success: true, data: serializeUser(user) });
+    let connectionStatus = 'none';
+    if (currentUserId && currentUserId !== user.id) {
+        const [isConnected, sentPending, incomingPending] = await Promise.all([
+            prisma_1.default.user.findFirst({
+                where: {
+                    id: currentUserId,
+                    OR: [
+                        { connections: { some: { id: user.id } } },
+                        { connectedTo: { some: { id: user.id } } }
+                    ]
+                },
+                select: { id: true }
+            }),
+            prisma_1.default.connectionRequest.findFirst({
+                where: {
+                    senderId: currentUserId,
+                    receiverId: user.id,
+                    status: client_1.ConnectionRequestStatus.PENDING
+                },
+                select: { id: true }
+            }),
+            prisma_1.default.connectionRequest.findFirst({
+                where: {
+                    senderId: user.id,
+                    receiverId: currentUserId,
+                    status: client_1.ConnectionRequestStatus.PENDING
+                },
+                select: { id: true }
+            })
+        ]);
+        if (isConnected) {
+            connectionStatus = 'connected';
+        }
+        else if (incomingPending) {
+            connectionStatus = 'incoming';
+        }
+        else if (sentPending) {
+            connectionStatus = 'pending';
+        }
+    }
+    res.status(200).json({
+        success: true,
+        data: serializeUser({ ...user, connectionStatus })
+    });
 });
 exports.getUserProfile = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
@@ -186,6 +251,7 @@ exports.getUserProfile = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         where: { id },
         select: {
             id: true,
+            email: true,
             name: true,
             firstName: true,
             lastName: true,
@@ -204,11 +270,15 @@ exports.getUserProfile = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             notificationSettings: true
         }
     });
-    if (!user) {
+    const authReq = req;
+    const currentUserId = getAuthenticatedUserId(authReq);
+    if (!user || ((0, systemAccounts_1.isHiddenSystemAccountEmail)(user.email) && currentUserId !== user.id)) {
         res.status(404).json({ success: false, message: 'Profile not found' });
         return;
     }
-    res.status(200).json({ success: true, data: user });
+    const profileData = { ...user };
+    delete profileData.email;
+    res.status(200).json({ success: true, data: profileData });
 });
 exports.updateProfile = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     if (!req.user) {
@@ -240,6 +310,11 @@ exports.approveUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
     }
+    const target = await prisma_1.default.user.findUnique({ where: { id }, select: { email: true } });
+    if (!target || (0, systemAccounts_1.isHiddenSystemAccountEmail)(target.email)) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
     const user = await prisma_1.default.user.update({
         where: { id },
         data: { status: client_1.Status.ACTIVE }
@@ -254,6 +329,11 @@ exports.rejectUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     }
     if (!req.user || !isAdminRole(req.user.role)) {
         res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
+    }
+    const target = await prisma_1.default.user.findUnique({ where: { id }, select: { email: true } });
+    if (!target || (0, systemAccounts_1.isHiddenSystemAccountEmail)(target.email)) {
+        res.status(404).json({ success: false, message: 'User not found' });
         return;
     }
     const user = await prisma_1.default.user.update({
@@ -272,6 +352,11 @@ exports.blockUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
     }
+    const target = await prisma_1.default.user.findUnique({ where: { id }, select: { email: true } });
+    if (!target || (0, systemAccounts_1.isHiddenSystemAccountEmail)(target.email)) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
     const user = await prisma_1.default.user.update({
         where: { id },
         data: { status: client_1.Status.SUSPENDED }
@@ -288,6 +373,11 @@ exports.deleteUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
     }
+    const target = await prisma_1.default.user.findUnique({ where: { id }, select: { email: true } });
+    if (!target || (0, systemAccounts_1.isHiddenSystemAccountEmail)(target.email)) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
     await prisma_1.default.user.delete({ where: { id } });
     res.status(200).json({ success: true, data: {} });
 });
@@ -296,15 +386,16 @@ exports.getUserStats = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
     }
+    const hiddenEmailFilter = { email: notHiddenSystemAccountsFilter() };
     const [total, active, pending, suspended, moderatorUsers, adminUsers, superAdminUsers, recentRegistrations] = await Promise.all([
-        prisma_1.default.user.count(),
-        prisma_1.default.user.count({ where: { status: client_1.Status.ACTIVE } }),
-        prisma_1.default.user.count({ where: { status: client_1.Status.PENDING } }),
-        prisma_1.default.user.count({ where: { status: client_1.Status.SUSPENDED } }),
-        prisma_1.default.user.count({ where: { role: 'MODERATOR' } }),
-        prisma_1.default.user.count({ where: { role: client_1.Role.ADMIN } }),
-        prisma_1.default.user.count({ where: { role: client_1.Role.SUPER_ADMIN } }),
-        prisma_1.default.user.count({ where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } })
+        prisma_1.default.user.count({ where: hiddenEmailFilter }),
+        prisma_1.default.user.count({ where: { ...hiddenEmailFilter, status: client_1.Status.ACTIVE } }),
+        prisma_1.default.user.count({ where: { ...hiddenEmailFilter, status: client_1.Status.PENDING } }),
+        prisma_1.default.user.count({ where: { ...hiddenEmailFilter, status: client_1.Status.SUSPENDED } }),
+        prisma_1.default.user.count({ where: { ...hiddenEmailFilter, role: 'MODERATOR' } }),
+        prisma_1.default.user.count({ where: { ...hiddenEmailFilter, role: client_1.Role.ADMIN } }),
+        prisma_1.default.user.count({ where: { ...hiddenEmailFilter, role: client_1.Role.SUPER_ADMIN } }),
+        prisma_1.default.user.count({ where: { ...hiddenEmailFilter, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } })
     ]);
     const stats = {
         totalUsers: total,
@@ -338,9 +429,9 @@ exports.connectUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     }
     const targetUser = await prisma_1.default.user.findUnique({
         where: { id: targetUserId },
-        select: { id: true, status: true }
+        select: { id: true, status: true, email: true }
     });
-    if (!targetUser || targetUser.status !== client_1.Status.ACTIVE) {
+    if (!targetUser || targetUser.status !== client_1.Status.ACTIVE || (0, systemAccounts_1.isHiddenSystemAccountEmail)(targetUser.email)) {
         res.status(404).json({ success: false, message: 'Target user not found or inactive' });
         return;
     }
@@ -366,6 +457,10 @@ exports.connectUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         },
         select: { id: true }
     });
+    const currentUser = await prisma_1.default.user.findUnique({
+        where: { id: currentUserId },
+        select: { id: true, name: true }
+    });
     if (incomingPendingRequest) {
         await prisma_1.default.$transaction([
             prisma_1.default.connectionRequest.update({
@@ -381,6 +476,14 @@ exports.connectUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
                 data: { connections: { connect: { id: currentUserId } } }
             })
         ]);
+        await (0, notifications_1.createNotification)({
+            userId: targetUserId,
+            title: 'Connection accepted',
+            message: `${currentUser?.name || 'A user'} accepted your connection request.`,
+            type: 'connection',
+            actionUrl: `/directory/profile/${currentUserId}`,
+            metadata: { userId: currentUserId, event: 'connection_accepted' }
+        });
         res.status(200).json({
             success: true,
             message: 'Connection request accepted successfully',
@@ -420,6 +523,14 @@ exports.connectUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             receiverId: targetUserId,
             status: client_1.ConnectionRequestStatus.PENDING
         }
+    });
+    await (0, notifications_1.createNotification)({
+        userId: targetUserId,
+        title: 'New connection request',
+        message: `${currentUser?.name || 'A user'} sent you a connection request.`,
+        type: 'connection',
+        actionUrl: `/directory/profile/${currentUserId}`,
+        metadata: { userId: currentUserId, event: 'connection_request' }
     });
     res.status(200).json({
         success: true,
@@ -464,6 +575,18 @@ exports.acceptConnectionRequest = (0, errorHandler_1.asyncHandler)(async (req, r
             data: { connections: { connect: { id: currentUserId } } }
         })
     ]);
+    const currentUser = await prisma_1.default.user.findUnique({
+        where: { id: currentUserId },
+        select: { id: true, name: true }
+    });
+    await (0, notifications_1.createNotification)({
+        userId: targetUserId,
+        title: 'Connection accepted',
+        message: `${currentUser?.name || 'A user'} accepted your connection request.`,
+        type: 'connection',
+        actionUrl: `/directory/profile/${currentUserId}`,
+        metadata: { userId: currentUserId, event: 'connection_accepted' }
+    });
     res.status(200).json({
         success: true,
         message: 'Connection accepted successfully',
@@ -546,9 +669,9 @@ exports.followUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     }
     const targetUser = await prisma_1.default.user.findUnique({
         where: { id: targetUserId },
-        select: { id: true, status: true }
+        select: { id: true, status: true, email: true }
     });
-    if (!targetUser || targetUser.status !== client_1.Status.ACTIVE) {
+    if (!targetUser || targetUser.status !== client_1.Status.ACTIVE || (0, systemAccounts_1.isHiddenSystemAccountEmail)(targetUser.email)) {
         res.status(404).json({ success: false, message: 'Target user not found or inactive' });
         return;
     }
@@ -647,14 +770,14 @@ exports.getDirectConversations = (0, errorHandler_1.asyncHandler)(async (req, re
     const participants = participantIds.length > 0
         ? await prisma_1.default.user.findMany({
             where: { id: { in: participantIds } },
-            select: { id: true, name: true, profileImage: true, status: true }
+            select: { id: true, name: true, profileImage: true, status: true, email: true }
         })
         : [];
     const participantById = new Map(participants.map((user) => [user.id, user]));
     const conversations = [...conversationMap.values()]
         .map((conversation) => {
         const participant = participantById.get(conversation.userId);
-        if (!participant || participant.status !== client_1.Status.ACTIVE) {
+        if (!participant || participant.status !== client_1.Status.ACTIVE || (0, systemAccounts_1.isHiddenSystemAccountEmail)(participant.email)) {
             return null;
         }
         return {
@@ -679,6 +802,14 @@ exports.getDirectMessages = (0, errorHandler_1.asyncHandler)(async (req, res) =>
     }
     if (!targetUserId) {
         res.status(400).json({ success: false, message: 'Target user ID is required' });
+        return;
+    }
+    const targetUser = await prisma_1.default.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, email: true }
+    });
+    if (!targetUser || (0, systemAccounts_1.isHiddenSystemAccountEmail)(targetUser.email)) {
+        res.status(404).json({ success: false, message: 'Target user not found' });
         return;
     }
     const areConnected = await prisma_1.default.user.findFirst({
@@ -750,6 +881,14 @@ exports.sendDirectMessage = (0, errorHandler_1.asyncHandler)(async (req, res) =>
     }
     if (!targetUserId) {
         res.status(400).json({ success: false, message: 'Target user ID is required' });
+        return;
+    }
+    const targetUser = await prisma_1.default.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, email: true }
+    });
+    if (!targetUser || (0, systemAccounts_1.isHiddenSystemAccountEmail)(targetUser.email)) {
+        res.status(404).json({ success: false, message: 'Target user not found' });
         return;
     }
     if (currentUserId === targetUserId) {
@@ -838,7 +977,8 @@ exports.getConnectionSuggestions = (0, errorHandler_1.asyncHandler)(async (req, 
     const candidates = await prisma_1.default.user.findMany({
         where: {
             status: client_1.Status.ACTIVE,
-            id: { notIn: [...excludedIds] }
+            id: { notIn: [...excludedIds] },
+            email: notHiddenSystemAccountsFilter()
         },
         select: {
             id: true,
@@ -893,7 +1033,7 @@ exports.getPendingUsers = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const page = Number.parseInt(req.query.page) || 1;
     const limit = Number.parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const where = { status: client_1.Status.PENDING };
+    const where = { status: client_1.Status.PENDING, email: notHiddenSystemAccountsFilter() };
     const [users, total] = await Promise.all([
         prisma_1.default.user.findMany({
             where,
@@ -922,6 +1062,11 @@ exports.reactivateUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
     }
+    const target = await prisma_1.default.user.findUnique({ where: { id }, select: { email: true } });
+    if (!target || (0, systemAccounts_1.isHiddenSystemAccountEmail)(target.email)) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
     const user = await prisma_1.default.user.update({
         where: { id },
         data: { status: client_1.Status.ACTIVE }
@@ -936,6 +1081,11 @@ exports.promoteToAdmin = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     }
     if (!req.user || !isSuperAdminRole(req.user.role)) {
         res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
+    }
+    const target = await prisma_1.default.user.findUnique({ where: { id }, select: { email: true } });
+    if (!target || (0, systemAccounts_1.isHiddenSystemAccountEmail)(target.email)) {
+        res.status(404).json({ success: false, message: 'User not found' });
         return;
     }
     const user = await prisma_1.default.user.update({
@@ -954,6 +1104,11 @@ exports.promoteToModerator = (0, errorHandler_1.asyncHandler)(async (req, res) =
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
     }
+    const target = await prisma_1.default.user.findUnique({ where: { id }, select: { email: true } });
+    if (!target || (0, systemAccounts_1.isHiddenSystemAccountEmail)(target.email)) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
     const user = await prisma_1.default.user.update({
         where: { id },
         data: { role: 'MODERATOR' }
@@ -970,8 +1125,8 @@ exports.demoteAdmin = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
     }
-    const targetUser = await prisma_1.default.user.findUnique({ where: { id }, select: { role: true } });
-    if (!targetUser) {
+    const targetUser = await prisma_1.default.user.findUnique({ where: { id }, select: { role: true, email: true } });
+    if (!targetUser || (0, systemAccounts_1.isHiddenSystemAccountEmail)(targetUser.email)) {
         res.status(404).json({ success: false, message: 'User not found' });
         return;
     }
@@ -981,6 +1136,28 @@ exports.demoteAdmin = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         data: { role: nextRole }
     });
     res.status(200).json({ success: true, data: user });
+});
+exports.setPremiumBadge = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const id = getTargetUserId(req);
+    if (!id) {
+        res.status(400).json({ success: false, message: 'User ID is required' });
+        return;
+    }
+    if (!req.user || !isSuperAdminRole(req.user.role)) {
+        res.status(403).json({ success: false, message: 'Only super admin can assign premium badge' });
+        return;
+    }
+    const target = await prisma_1.default.user.findUnique({ where: { id }, select: { email: true } });
+    if (!target || (0, systemAccounts_1.isHiddenSystemAccountEmail)(target.email)) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    const enabled = typeof req.body?.enabled === 'boolean' ? req.body.enabled : true;
+    const user = await prisma_1.default.user.update({
+        where: { id },
+        data: { hasPremiumBadge: enabled },
+    });
+    res.status(200).json({ success: true, data: serializeUser(user) });
 });
 exports.updateUserProfile = exports.updateProfile;
 exports.getAlumniDirectory = exports.getPublicAlumni;

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 interface AuthRequest extends Request {
     user?: {
         id: string;
+        _id?: string;
     };
 }
 export declare const getMentors: (_req: Request, res: Response) => Promise<void>;

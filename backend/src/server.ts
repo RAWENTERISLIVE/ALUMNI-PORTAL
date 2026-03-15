@@ -30,6 +30,9 @@ dotenv.config();
 const app = express();
 // Ensure PORT is a number
 const PORT = parseInt(process.env.PORT || '5000', 10);
+const PORT_RETRY_DELAY_MS = 400;
+const MAX_PORT_RETRIES = 15;
+let activeServer: import('http').Server | null = null;
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -75,9 +78,18 @@ app.use(cors({
 }));
 
 // Rate limiting
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const RATE_LIMIT_MAX = Number(
+  process.env.RATE_LIMIT_MAX ||
+    (process.env.NODE_ENV === 'production' ? 300 : 2000)
+);
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV !== 'production' || req.path === '/api/health' || req.path.startsWith('/api/status')
 });
 app.use(limiter);
 
@@ -120,46 +132,61 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// Start server with port retry logic
-const startServer = (port: number) => {
-  try {
-    const server = app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`API base URL: http://localhost:${port}/api`);
-    }).on('error', (err: any) => {
-      if (err.code === 'EADDRINUSE') {
-        console.log(`Port ${port} is already in use, trying port ${port + 1}`);
-        startServer(port + 1);
-      } else {
-        console.error('Server error:', err);
-      }
-    });
+// Start server on the configured port only.
+// In development, frontend proxy points to a fixed backend port, so silently
+// switching ports causes API mismatches (e.g. direct messaging endpoints failing).
+const startServer = (port: number, attempt = 0) => {
+  const server = app.listen(port);
 
-    // Handle uncaught exceptions to prevent server crash
-    process.on('uncaughtException', (error) => {
-      console.error('Uncaught Exception:', error);
-    });
+  server.on('listening', () => {
+    activeServer = server;
+    console.log(`Server running on port ${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`API base URL: http://localhost:${port}/api`);
+  });
 
-    process.on('SIGTERM', () => {
-      console.info('SIGTERM received, shutting down server');
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    });
-
-  } catch (error: any) {
-    if (error.code === 'EADDRINUSE') {
-      console.log(`Port ${port} is already in use, trying port ${port + 1}`);
-      const newPort = port + 1;
-      startServer(newPort);
-    } else {
-      console.error('Server error:', error);
-      process.exit(1);
+  server.on('error', (err: any) => {
+    if (err?.code === 'EADDRINUSE' && port === PORT && attempt < MAX_PORT_RETRIES) {
+      const nextAttempt = attempt + 1;
+      console.warn(`Port ${port} is busy (retry ${nextAttempt}/${MAX_PORT_RETRIES})...`);
+      setTimeout(() => {
+        startServer(port, nextAttempt);
+      }, PORT_RETRY_DELAY_MS);
+      return;
     }
-  }
+
+    if (err?.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use.`);
+      console.error('Stop the existing backend process on this port and restart the app.');
+      process.exit(1);
+      return;
+    }
+
+    console.error('Server error:', err);
+    process.exit(1);
+  });
 };
+
+const shutdown = (signal: string) => {
+  console.info(`${signal} received, shutting down server`);
+
+  if (!activeServer) {
+    process.exit(0);
+    return;
+  }
+
+  activeServer.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+};
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 startServer(PORT);
 

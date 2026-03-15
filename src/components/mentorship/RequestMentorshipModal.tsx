@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Briefcase, GraduationCap } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -20,9 +20,11 @@ export interface RequestMentorshipModalProps {
   onSubmit?: (data: any) => Promise<void>;
 }
 
-export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: RequestMentorshipModalProps) {
+export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: Readonly<RequestMentorshipModalProps>) {
   const [message, setMessage] = useState("");
   const [topic, setTopic] = useState("");
+  const [sessionMode, setSessionMode] = useState<"chat" | "video" | "meet">("chat");
+  const [slotKey, setSlotKey] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const mentorName = mentor?.user?.name || mentor?.name || "Mentor";
@@ -30,6 +32,34 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: Re
   const mentorTitle = mentor?.user?.title || mentor?.role || "Alumni Mentor";
   const mentorCompany = mentor?.user?.company || mentor?.company || "Alumni Network";
   const mentorGraduationYear = mentor?.user?.graduationYear || mentor?.graduationYear;
+  const availableSlots = Array.isArray(mentor?.availableSlots) ? mentor.availableSlots : [];
+  const defaultTemplate =
+    mentor?.iceBreakerTemplate ||
+    "Hi {{mentorName}}, I am {{menteeName}}. I need guidance on {{topic}} and would love a quick {{sessionMode}} session if possible.";
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const defaultMode = mentor?.sessionMode;
+    setSessionMode(defaultMode === 'video' || defaultMode === 'meet' || defaultMode === 'chat' ? defaultMode : 'chat');
+    setSlotKey("");
+  }, [isOpen, mentor?.sessionMode]);
+
+  const selectedSlot = useMemo(() => {
+    if (!slotKey) return null;
+    const [day, startTime, endTime] = slotKey.split('|');
+    if (!day || !startTime || !endTime) return null;
+    return { day, startTime, endTime };
+  }, [slotKey]);
+
+  const fillIceBreakerTemplate = () => {
+    const nextMessage = defaultTemplate
+      .replaceAll('{{mentorName}}', mentorName)
+      .replaceAll('{{menteeName}}', 'I')
+      .replaceAll('{{topic}}', topic || 'career growth')
+      .replaceAll('{{sessionMode}}', sessionMode);
+
+    setMessage(nextMessage);
+  };
 
   const handleSubmit = async () => {
     if (!message.trim() || !topic) {
@@ -48,7 +78,9 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: Re
         await onSubmit({
           mentorId: mentor.id,
           topic,
-          message
+          message,
+          sessionMode,
+          selectedSlot
         });
       } else {
         // Default behavior if no onSubmit provided
@@ -105,22 +137,63 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: Re
         
         <div className="mt-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Choose a Topic</label>
+            <label htmlFor="mentorship-topic" className="block text-sm font-medium mb-1">Choose a Topic</label>
             <Select onValueChange={setTopic}>
-              <SelectTrigger>
+              <SelectTrigger id="mentorship-topic">
                 <SelectValue placeholder="Select a topic" />
               </SelectTrigger>
               <SelectContent>
-                {mentor?.expertise?.map((skill: string, index: number) => (
-                  <SelectItem key={index} value={skill}>{skill}</SelectItem>
+                {mentor?.expertise?.map((skill: string) => (
+                  <SelectItem key={skill} value={skill}>{skill}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          <div>
+            <label htmlFor="mentorship-mode" className="block text-sm font-medium mb-1">Preferred Session Mode</label>
+            <Select value={sessionMode} onValueChange={(value: "chat" | "video" | "meet") => setSessionMode(value)}>
+              <SelectTrigger id="mentorship-mode">
+                <SelectValue placeholder="Select a mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="chat">One-to-one Chat</SelectItem>
+                <SelectItem value="video">Video Meet</SelectItem>
+                <SelectItem value="meet">In-person Meet</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {availableSlots.length > 0 && (
+            <div>
+              <label htmlFor="mentorship-slot" className="block text-sm font-medium mb-1">Preferred Time Slot</label>
+              <Select value={slotKey} onValueChange={setSlotKey}>
+                <SelectTrigger id="mentorship-slot">
+                  <SelectValue placeholder="Select an available slot" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSlots.map((slot: any, index: number) => {
+                    const key = `${slot.day}|${slot.startTime}|${slot.endTime}`;
+                    return (
+                      <SelectItem key={`${key}-${index}`} value={key}>
+                        {slot.day} • {slot.startTime} - {slot.endTime}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           
           <div>
-            <label className="block text-sm font-medium mb-1">Your Message</label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="mentorship-message" className="block text-sm font-medium">Your Message</label>
+              <Button type="button" variant="outline" size="sm" onClick={fillIceBreakerTemplate}>
+                Use Ice-breaker Template
+              </Button>
+            </div>
             <Textarea 
+              id="mentorship-message"
               placeholder="Introduce yourself and explain what you'd like to learn from this mentor..."
               className="min-h-[150px]"
               value={message}

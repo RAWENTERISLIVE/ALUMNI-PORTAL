@@ -38,7 +38,7 @@ export const MainLayout = () => {
   const [unseenCount, setUnseenCount] = useState(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
-  const showAdminButton = currentUser?.role === "moderator" || currentUser?.role === "admin" || currentUser?.role === "super_admin";
+  const showAdminButton = currentUser?.role === "admin" || currentUser?.role === "super_admin";
 
   const hasNotifications = notifications.length > 0;
   const hasUnseen = unseenCount > 0;

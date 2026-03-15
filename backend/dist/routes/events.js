@@ -46,6 +46,7 @@ const createEventValidation = [
 router.get('/', auth_1.authMiddleware, eventController_1.getEvents);
 router.get('/upcoming', auth_1.authMiddleware, eventController_1.getUpcomingEvents);
 router.get('/my-events', auth_1.authMiddleware, eventController_1.getUserEvents);
+router.get('/:eventId/attendees', auth_1.authMiddleware, eventController_1.getEventAttendees);
 router.get('/:eventId', auth_1.authMiddleware, eventController_1.getEvent);
 router.post('/', auth_1.authMiddleware, createEventValidation, validation_1.validate, eventController_1.createEvent);
 router.patch('/:eventId', auth_1.authMiddleware, createEventValidation, validation_1.validate, eventController_1.updateEvent);

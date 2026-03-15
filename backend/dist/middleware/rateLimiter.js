@@ -5,7 +5,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.passwordResetLimiter = exports.registrationLimiter = exports.generalLimiter = exports.authLimiter = void 0;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
-exports.authLimiter = (0, express_rate_limit_1.default)({
+const isNonProduction = process.env.NODE_ENV !== 'production';
+const withEnvironmentBypass = (config) => (0, express_rate_limit_1.default)({
+    ...config,
+    skip: (...args) => {
+        if (isNonProduction)
+            return true;
+        return typeof config.skip === 'function' ? config.skip(...args) : false;
+    }
+});
+exports.authLimiter = withEnvironmentBypass({
     windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000'),
     max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '5'),
     message: {
@@ -24,7 +33,7 @@ exports.authLimiter = (0, express_rate_limit_1.default)({
         });
     }
 });
-exports.generalLimiter = (0, express_rate_limit_1.default)({
+exports.generalLimiter = withEnvironmentBypass({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
     max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
     message: {
@@ -43,7 +52,7 @@ exports.generalLimiter = (0, express_rate_limit_1.default)({
         });
     }
 });
-exports.registrationLimiter = (0, express_rate_limit_1.default)({
+exports.registrationLimiter = withEnvironmentBypass({
     windowMs: 60 * 60 * 1000,
     max: 3,
     message: {
@@ -62,7 +71,7 @@ exports.registrationLimiter = (0, express_rate_limit_1.default)({
         });
     }
 });
-exports.passwordResetLimiter = (0, express_rate_limit_1.default)({
+exports.passwordResetLimiter = withEnvironmentBypass({
     windowMs: 60 * 60 * 1000,
     max: 3,
     message: {

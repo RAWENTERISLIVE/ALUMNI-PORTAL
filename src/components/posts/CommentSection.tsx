@@ -22,15 +22,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Comment {
+  id?: string;
   _id: string;
   content: string;
   author: {
+    id?: string;
     _id: string;
     name: string;
     profileImage?: string;
     role?: string;
   };
-  likes: string[];
+  likes: Array<string | { id?: string; _id?: string }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +54,29 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
   const [repliesMap, setRepliesMap] = useState<Record<string, Comment[]>>({});
   const [loadingReplies, setLoadingReplies] = useState<Record<string, boolean>>({});
 
+  const getCommentId = (comment: Comment) => comment.id || comment._id;
+  const getAuthorId = (comment: Comment) => comment.author.id || comment.author._id;
+  const getLikeIds = (comment: Comment) =>
+    (comment.likes || [])
+      .map((like) => (typeof like === 'string' ? like : like.id || like._id || ''))
+      .filter(Boolean);
+
+  const normalizeComment = (comment: any): Comment => ({
+    ...comment,
+    id: comment.id || comment._id,
+    _id: comment._id || comment.id,
+    likes: (comment.likes || []).map((like: any) =>
+      typeof like === 'string' ? like : like.id || like._id || ''
+    ),
+    author: {
+      ...comment.author,
+      id: comment.author?.id || comment.author?._id,
+      _id: comment.author?._id || comment.author?.id,
+    },
+  });
+
+  const normalizeComments = (items: any[]) => (items || []).map(normalizeComment);
+
   // Fetch comments on component mount
   useEffect(() => {
     fetchComments();
@@ -63,7 +88,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
       const response = await apiService.getPostComments(postId, { page, limit: 10 });
       
       if (response.success) {
-        setComments(response.data || []);
+        setComments(normalizeComments(response.data || []));
         setHasMore(
           response.pagination && 
           response.pagination.page < response.pagination.pages
@@ -93,7 +118,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
       const response = await apiService.getPostComments(postId, { page: nextPage, limit: 10 });
       
       if (response.success) {
-        setComments(prev => [...prev, ...(response.data || [])]);
+        setComments(prev => [...prev, ...normalizeComments(response.data || [])]);
         setPage(nextPage);
         setHasMore(
           response.pagination && 
@@ -126,9 +151,10 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
         response = await apiService.createComment(postId, commentData);
         // If successful, add to the replies map
         if (response.success && response.data) {
+          const newReply = normalizeComment(response.data);
           setRepliesMap(prev => ({
             ...prev,
-            [replyingTo]: [...(prev[replyingTo] || []), response.data]
+            [replyingTo]: [...(prev[replyingTo] || []), newReply]
           }));
           setReplyingTo(null);
         }
@@ -137,7 +163,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
         response = await apiService.createComment(postId, commentData);
         // If successful, add to the comments list
         if (response.success && response.data) {
-          setComments(prev => [response.data, ...prev]);
+          setComments(prev => [normalizeComment(response.data), ...prev]);
         }
       }
 
@@ -175,8 +201,8 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
         // Update comment likes in state
         const updateCommentLikes = (commentsArray: Comment[]) => {
           return commentsArray.map(comment => {
-            if (comment._id === commentId) {
-              const likes = [...comment.likes];
+            if (getCommentId(comment) === commentId) {
+              const likes = [...getLikeIds(comment)];
               if (isLiked) {
                 const index = likes.findIndex(id => id === currentUser?.id);
                 if (index !== -1) likes.splice(index, 1);
@@ -224,11 +250,11 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
           // Remove reply from repliesMap
           setRepliesMap(prev => ({
             ...prev,
-            [parentId]: prev[parentId].filter(reply => reply._id !== commentId)
+            [parentId]: prev[parentId].filter(reply => getCommentId(reply) !== commentId)
           }));
         } else {
           // Remove top-level comment
-          setComments(prev => prev.filter(comment => comment._id !== commentId));
+          setComments(prev => prev.filter(comment => getCommentId(comment) !== commentId));
           // Also remove any replies
           const updatedRepliesMap = { ...repliesMap };
           delete updatedRepliesMap[commentId];
@@ -266,7 +292,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
       if (response.success) {
         setRepliesMap(prev => ({
           ...prev,
-          [commentId]: response.data || []
+          [commentId]: normalizeComments(response.data || [])
         }));
       } else {
         toast({
@@ -288,25 +314,27 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
   };
 
   const renderCommentActions = (comment: Comment, isReply = false, parentId?: string) => {
-    const isLiked = comment.likes.includes(currentUser?.id || '');
-    const isAuthor = comment.author._id === currentUser?.id;
+    const commentId = getCommentId(comment);
+    const likeIds = getLikeIds(comment);
+    const isLiked = likeIds.includes(currentUser?.id || '');
+    const isAuthor = getAuthorId(comment) === currentUser?.id;
     const canDelete = isAuthor || currentUser?.role === 'admin';
 
     return (
       <div className="flex items-center gap-2 text-xs text-muted/300 mt-1">
         <button 
-          onClick={() => handleLikeComment(comment._id, isLiked)}
+          onClick={() => handleLikeComment(commentId, isLiked)}
           className={`flex items-center gap-1 hover:text-pink-500 ${isLiked ? 'text-pink-500' : ''}`}
         >
           <Heart className="h-3 w-3" fill={isLiked ? "currentColor" : "none"} />
-          <span>{comment.likes.length > 0 ? comment.likes.length : ''}</span>
+          <span>{likeIds.length > 0 ? likeIds.length : ''}</span>
         </button>
 
         {!isReply && (
           <button 
             onClick={() => {
-              setReplyingTo(comment._id);
-              handleLoadReplies(comment._id);
+              setReplyingTo(commentId);
+              handleLoadReplies(commentId);
             }}
             className="flex items-center gap-1 hover:text-foreground"
           >
@@ -325,7 +353,7 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
             <DropdownMenuContent align="end">
               <DropdownMenuItem 
                 className="text-red-500 cursor-pointer flex items-center gap-2"
-                onClick={() => handleDeleteComment(comment._id, isReply, parentId)}
+                onClick={() => handleDeleteComment(commentId, isReply, parentId)}
               >
                 <Trash2 className="h-4 w-4" />
                 Delete
@@ -338,8 +366,9 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
   };
 
   const renderComment = (comment: Comment, isReply = false, parentId?: string) => {
+    const commentId = getCommentId(comment);
     return (
-      <div key={comment._id} className={`flex gap-2 ${isReply ? 'ml-8 mt-2' : 'mt-4'}`}>
+      <div key={commentId} className={`flex gap-2 ${isReply ? 'ml-8 mt-2' : 'mt-4'}`}>
         <Avatar className="h-8 w-8">
           <AvatarImage src={comment.author.profileImage || '/placeholder.svg'} alt={comment.author.name} />
           <AvatarFallback>{comment.author.name.charAt(0)}</AvatarFallback>
@@ -427,37 +456,37 @@ export const CommentSection = ({ postId }: CommentSectionProps) => {
         ) : (
           <>
             {comments.map(comment => (
-              <div key={comment._id}>
+              <div key={getCommentId(comment)}>
                 {renderComment(comment)}
                 
                 {/* Replies section */}
-                {repliesMap[comment._id]?.length > 0 && (
+                {repliesMap[getCommentId(comment)]?.length > 0 && (
                   <div className="mt-2">
-                    {repliesMap[comment._id].map(reply => renderComment(reply, true, comment._id))}
+                    {repliesMap[getCommentId(comment)].map(reply => renderComment(reply, true, getCommentId(comment)))}
                   </div>
                 )}
                 
                 {/* Show replies button */}
-                {!repliesMap[comment._id] && !loadingReplies[comment._id] && (
+                {!repliesMap[getCommentId(comment)] && !loadingReplies[getCommentId(comment)] && (
                   <Button 
                     variant="link" 
                     size="sm" 
                     className="ml-10 text-xs"
-                    onClick={() => handleLoadReplies(comment._id)}
+                    onClick={() => handleLoadReplies(getCommentId(comment))}
                   >
                     View replies
                   </Button>
                 )}
                 
                 {/* Loading replies indicator */}
-                {loadingReplies[comment._id] && (
+                {loadingReplies[getCommentId(comment)] && (
                   <div className="ml-10 mt-2">
                     <Skeleton className="h-10 w-32" />
                   </div>
                 )}
                 
                 {/* Reply input */}
-                {replyingTo === comment._id && (
+                {replyingTo === getCommentId(comment) && (
                   <div className="flex gap-2 ml-10 mt-2">
                     <Avatar className="h-6 w-6">
                       <AvatarImage src={currentUser?.profileImage || '/placeholder.svg'} alt={currentUser?.name} />

@@ -9,6 +9,7 @@ import {
   deleteEvent,
   rsvpEvent,
   cancelRsvp,
+  getEventAttendees,
   getUserEvents
 } from '../controllers/eventController';
 import { authMiddleware } from '../middleware/auth';
@@ -56,6 +57,7 @@ const createEventValidation = [
 router.get('/', authMiddleware, getEvents);
 router.get('/upcoming', authMiddleware, getUpcomingEvents);
 router.get('/my-events', authMiddleware, getUserEvents);
+router.get('/:eventId/attendees', authMiddleware, getEventAttendees);
 router.get('/:eventId', authMiddleware, getEvent);
 
 router.post('/', authMiddleware, createEventValidation, validate, createEvent);

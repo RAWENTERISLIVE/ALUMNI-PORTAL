@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         // Navigate based on role and status
-        if (user.role === 'super_admin' || user.role === 'admin' || user.role === 'moderator') {
+        if (user.role === 'super_admin' || user.role === 'admin') {
           navigate('/admin');
         } else {
           navigate('/dashboard');

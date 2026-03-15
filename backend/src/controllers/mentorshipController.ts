@@ -5,15 +5,151 @@ import { createNotification } from '../utils/notifications';
 interface AuthRequest extends Request {
   user?: {
     id: string;
+    _id?: string;
   };
 }
+
+const getAuthUserId = (req: AuthRequest): string | undefined => req.user?.id || req.user?._id;
+
+type SessionMode = 'chat' | 'video' | 'meet';
+
+type MentorSlot = {
+  day: string;
+  startTime: string;
+  endTime: string;
+};
+
+type MentorshipAvailabilityPayload = {
+  monthlyAvailability: string;
+  sessionMode: SessionMode;
+  availableSlots: MentorSlot[];
+  iceBreakerTemplate: string;
+};
+
+type ParsedRequestDetails = {
+  topic: string;
+  sessionMode: SessionMode;
+  preferredSlot: MentorSlot | null;
+  message: string;
+};
+
+const DEFAULT_AVAILABILITY: MentorshipAvailabilityPayload = {
+  monthlyAvailability: '2-3 hours/month',
+  sessionMode: 'chat',
+  availableSlots: [],
+  iceBreakerTemplate:
+    'Hi {{mentorName}}, I am {{menteeName}}. I need guidance on {{topic}} and would love a quick {{sessionMode}} session if possible.'
+};
+
+const normalizeSessionMode = (value: unknown): SessionMode => {
+  if (value === 'video' || value === 'meet' || value === 'chat') return value;
+  return 'chat';
+};
+
+const normalizeSlot = (raw: unknown): MentorSlot | null => {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const slot = raw as Record<string, unknown>;
+  const day = typeof slot.day === 'string' ? slot.day.trim() : '';
+  const startTime = typeof slot.startTime === 'string' ? slot.startTime.trim() : '';
+  const endTime = typeof slot.endTime === 'string' ? slot.endTime.trim() : '';
+
+  if (!day || !startTime || !endTime) return null;
+  return { day, startTime, endTime };
+};
+
+const parseAvailabilitySettings = (availability?: string | null): MentorshipAvailabilityPayload => {
+  if (!availability) return { ...DEFAULT_AVAILABILITY };
+
+  try {
+    const parsed = JSON.parse(availability) as Partial<MentorshipAvailabilityPayload>;
+
+    return {
+      monthlyAvailability:
+        typeof parsed.monthlyAvailability === 'string' && parsed.monthlyAvailability.trim()
+          ? parsed.monthlyAvailability.trim()
+          : DEFAULT_AVAILABILITY.monthlyAvailability,
+      sessionMode: normalizeSessionMode(parsed.sessionMode),
+      availableSlots: Array.isArray(parsed.availableSlots)
+        ? parsed.availableSlots.map((slot) => normalizeSlot(slot)).filter((slot): slot is MentorSlot => Boolean(slot))
+        : [],
+      iceBreakerTemplate:
+        typeof parsed.iceBreakerTemplate === 'string' && parsed.iceBreakerTemplate.trim()
+          ? parsed.iceBreakerTemplate.trim()
+          : DEFAULT_AVAILABILITY.iceBreakerTemplate
+    };
+  } catch {
+    return {
+      ...DEFAULT_AVAILABILITY,
+      monthlyAvailability: availability
+    };
+  }
+};
+
+const parseRequestDetails = (rawMessage?: string | null): ParsedRequestDetails => {
+  const source = typeof rawMessage === 'string' ? rawMessage : '';
+
+  let topic = '';
+  let sessionMode: SessionMode = 'chat';
+  let preferredSlot: MentorSlot | null = null;
+  const freeTextLines: string[] = [];
+
+  const topicRegex = /^\[Topic:\s*(.+)\]$/i;
+  const modeRegex = /^\[Preferred mode:\s*(.+)\]$/i;
+  const slotRegex = /^\[Preferred slot:\s*(.+?)\s+(\d{2}:\d{2})-(\d{2}:\d{2})\]$/i;
+
+  source
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      const topicMatch = topicRegex.exec(line);
+      if (topicMatch) {
+        topic = topicMatch[1]?.trim() || '';
+        return;
+      }
+
+      const modeMatch = modeRegex.exec(line);
+      if (modeMatch) {
+        sessionMode = normalizeSessionMode(modeMatch[1]?.trim());
+        return;
+      }
+
+      const slotMatch = slotRegex.exec(line);
+      if (slotMatch) {
+        const startTime = slotMatch[2];
+        const endTime = slotMatch[3];
+        if (!startTime || !endTime) {
+          return;
+        }
+        preferredSlot = {
+          day: slotMatch[1]?.trim() || '',
+          startTime,
+          endTime,
+        };
+        return;
+      }
+
+      freeTextLines.push(line);
+    });
+
+  return {
+    topic,
+    sessionMode,
+    preferredSlot,
+    message: freeTextLines.join('\n').trim(),
+  };
+};
 
 export const getMentors = async (_req: Request, res: Response): Promise<void> => {
   try {
     const search = typeof _req.query.search === 'string' ? _req.query.search.trim() : '';
     const expertise = typeof _req.query.expertise === 'string' ? _req.query.expertise.trim() : '';
 
-    const where: any = { isMentor: true, isActive: true };
+    const where: { isMentor: boolean; isActive: boolean; expertise?: { has: string } } = {
+      isMentor: true,
+      isActive: true
+    };
     if (expertise) {
       where.expertise = { has: expertise };
     }
@@ -38,12 +174,18 @@ export const getMentors = async (_req: Request, res: Response): Promise<void> =>
     });
 
     const formattedMentors = mentors
-      .map((mentor) => ({
+      .map((mentor) => {
+        const settings = parseAvailabilitySettings(mentor.availability);
+
+        return {
         id: mentor.id,
         bio: mentor.bio || '',
         expertise: mentor.expertise || [],
         experience: mentor.experience || '',
-        availability: mentor.availability || 'medium',
+        availability: settings.monthlyAvailability,
+        sessionMode: settings.sessionMode,
+        availableSlots: settings.availableSlots,
+        iceBreakerTemplate: settings.iceBreakerTemplate,
         rating: mentor.rating || 0,
         reviewCount: mentor.totalRatings || 0,
         user: {
@@ -54,7 +196,8 @@ export const getMentors = async (_req: Request, res: Response): Promise<void> =>
           profileImage: mentor.user.profileImage,
           company: mentor.user.company
         }
-      }))
+      };
+      })
       .filter((mentor) => {
         if (!search) return true;
 
@@ -79,13 +222,50 @@ export const getMentors = async (_req: Request, res: Response): Promise<void> =>
 
 export const becomeMentor = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user?.id;
+    const userId = getAuthUserId(req);
     if (!userId) {
       res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
     const profileData = req.body;
+
+    const sessionMode = normalizeSessionMode(profileData.sessionMode);
+    const availableSlots = Array.isArray(profileData.availableSlots)
+      ? profileData.availableSlots
+          .map((slot: unknown) => normalizeSlot(slot))
+          .filter((slot: MentorSlot | null): slot is MentorSlot => Boolean(slot))
+          .slice(0, 20)
+      : [];
+
+    const monthlyAvailability =
+      typeof profileData.availability === 'string' && profileData.availability.trim()
+        ? profileData.availability.trim()
+        : DEFAULT_AVAILABILITY.monthlyAvailability;
+
+    const iceBreakerTemplate =
+      typeof profileData.iceBreakerTemplate === 'string' && profileData.iceBreakerTemplate.trim()
+        ? profileData.iceBreakerTemplate.trim()
+        : DEFAULT_AVAILABILITY.iceBreakerTemplate;
+
+    const availabilityPayload = JSON.stringify({
+      monthlyAvailability,
+      sessionMode,
+      availableSlots,
+      iceBreakerTemplate
+    } as MentorshipAvailabilityPayload);
+
+    const communicationPreferences = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(profileData.communicationPreferences) ? profileData.communicationPreferences : []),
+          sessionMode
+        ]
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      )
+    );
 
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!existingUser) {
@@ -104,14 +284,16 @@ export const becomeMentor = async (req: AuthRequest, res: Response): Promise<voi
         industry: profileData.industry || '',
         yearsOfExperience: profileData.yearsOfExperience || 0,
         bio: profileData.bio || '',
-        availability: profileData.availability || 'medium',
+        availability: availabilityPayload,
         preferredMenteeLevel: profileData.preferredMenteeLevel || ['new_graduate'],
         maxMentees: profileData.maxMentees || 3,
         currentMentees: profileData.currentMentees || 0,
-        communicationPreferences: profileData.communicationPreferences || ['email']
+        communicationPreferences: communicationPreferences.length > 0 ? communicationPreferences : ['email', sessionMode]
       },
       update: {
         ...profileData,
+        availability: availabilityPayload,
+        communicationPreferences: communicationPreferences.length > 0 ? communicationPreferences : ['email', sessionMode],
         isMentor: true,
         isActive: true
       }
@@ -142,7 +324,7 @@ export const becomeMentor = async (req: AuthRequest, res: Response): Promise<voi
 
 export const getMentorshipProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user?.id;
+    const userId = getAuthUserId(req);
     if (!userId) {
       res.status(401).json({ success: false, message: 'Authentication required' });
       return;
@@ -186,6 +368,28 @@ export const getMentorshipProfile = async (req: AuthRequest, res: Response): Pro
       orderBy: { updatedAt: 'desc' }
     });
 
+    const incomingRequestsRaw = await prisma.mentorshipRequest.findMany({
+      where: {
+        status: 'pending',
+        mentor: {
+          userId,
+        },
+      },
+      include: {
+        mentee: {
+          select: {
+            id: true,
+            name: true,
+            jobTitle: true,
+            profileImage: true,
+            admissionYear: true,
+            company: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
     const formattedRequests = requests.map((request) => ({
       id: request.id,
       nextSession: request.updatedAt,
@@ -200,6 +404,29 @@ export const getMentorshipProfile = async (req: AuthRequest, res: Response): Pro
       }
     }));
 
+    const incomingRequests = incomingRequestsRaw.map((request) => {
+      const details = parseRequestDetails(request.message);
+      return {
+        id: request.id,
+        status: request.status,
+        createdAt: request.createdAt,
+        topic: details.topic,
+        sessionMode: details.sessionMode,
+        preferredSlot: details.preferredSlot,
+        message: details.message,
+        mentee: {
+          user: {
+            id: request.mentee.id,
+            name: request.mentee.name,
+            title: request.mentee.jobTitle || 'Alumni',
+            profileImage: request.mentee.profileImage,
+            graduationYear: request.mentee.admissionYear,
+            company: request.mentee.company,
+          },
+        },
+      };
+    });
+
     if (!profile) {
       res.json({
         success: true,
@@ -211,15 +438,25 @@ export const getMentorshipProfile = async (req: AuthRequest, res: Response): Pro
           experience: '',
           industry: '',
           yearsOfExperience: 0,
-          availability: '',
-          requests: formattedRequests
+          availability: DEFAULT_AVAILABILITY.monthlyAvailability,
+          sessionMode: DEFAULT_AVAILABILITY.sessionMode,
+          availableSlots: [],
+          iceBreakerTemplate: DEFAULT_AVAILABILITY.iceBreakerTemplate,
+          requests: formattedRequests,
+          incomingRequests
         }
       });
       return;
     }
 
+    const settings = parseAvailabilitySettings(profile.availability);
+
     const formattedProfile = {
       ...profile,
+      availability: settings.monthlyAvailability,
+      sessionMode: settings.sessionMode,
+      availableSlots: settings.availableSlots,
+      iceBreakerTemplate: settings.iceBreakerTemplate,
       id: profile.id,
       userId: {
         id: profile.user.id,
@@ -229,7 +466,8 @@ export const getMentorshipProfile = async (req: AuthRequest, res: Response): Pro
         firstName: profile.user.firstName,
         lastName: profile.user.lastName
       },
-      requests: formattedRequests
+      requests: formattedRequests,
+      incomingRequests
     };
 
     res.json({ success: true, data: formattedProfile });
@@ -240,136 +478,170 @@ export const getMentorshipProfile = async (req: AuthRequest, res: Response): Pro
 };
 
 export const requestMentorship = async (req: AuthRequest, res: Response) => {
-  const { mentorId } = req.params;
-  const menteeId = req.user?.id;
-  const { message } = req.body;
+  try {
+    const { mentorId } = req.params;
+    const menteeId = getAuthUserId(req);
+    const { message, topic, sessionMode, selectedSlot } = req.body;
 
-  if (!menteeId) {
-    res.status(401).json({ success: false, message: 'Authentication required' });
-    return;
-  }
+    if (!menteeId) {
+      res.status(401).json({ success: false, message: 'Authentication required' });
+      return;
+    }
 
-  if (!mentorId) {
-    res.status(400).json({ success: false, message: 'Mentor ID is required' });
-    return;
-  }
+    if (!mentorId) {
+      res.status(400).json({ success: false, message: 'Mentor ID is required' });
+      return;
+    }
 
-  const mentorProfile = await prisma.mentorshipProfile.findUnique({
-    where: { id: mentorId },
-    select: { id: true, userId: true, isMentor: true, isActive: true }
-  });
+    const normalizedTopic = typeof topic === 'string' ? topic.trim() : '';
+    const normalizedMessage = typeof message === 'string' ? message.trim() : '';
+    const normalizedMode = normalizeSessionMode(sessionMode);
+    const normalizedSlot = normalizeSlot(selectedSlot);
 
-  if (!mentorProfile || !mentorProfile.isMentor || !mentorProfile.isActive) {
-    res.status(404).json({ success: false, message: 'Mentor not found' });
-    return;
-  }
+    if (!normalizedTopic) {
+      res.status(400).json({ success: false, message: 'Mentorship topic is required' });
+      return;
+    }
 
-  if (mentorProfile.userId === menteeId) {
-    res.status(400).json({ success: false, message: 'You cannot request mentorship from yourself' });
-    return;
-  }
+    const mentorProfile = await prisma.mentorshipProfile.findUnique({
+      where: { id: mentorId },
+      select: { id: true, userId: true, isMentor: true, isActive: true }
+    });
 
-  const existing = await prisma.mentorshipRequest.findFirst({
-    where: {
-      menteeId,
-      mentorProfileId: mentorId,
-      status: {
-        in: ['pending', 'accepted']
+    if (!mentorProfile || !mentorProfile.isMentor || !mentorProfile.isActive) {
+      res.status(404).json({ success: false, message: 'Mentor not found' });
+      return;
+    }
+
+    if (mentorProfile.userId === menteeId) {
+      res.status(400).json({ success: false, message: 'You cannot request mentorship from yourself' });
+      return;
+    }
+
+    const existing = await prisma.mentorshipRequest.findFirst({
+      where: {
+        menteeId,
+        mentorProfileId: mentorId,
+        status: {
+          in: ['pending', 'accepted']
+        }
+      },
+      select: { id: true, status: true }
+    });
+
+    if (existing) {
+      res.status(400).json({ success: false, message: `Mentorship request already ${existing.status}` });
+      return;
+    }
+
+    const messageLines: string[] = [`[Topic: ${normalizedTopic}]`, `[Preferred mode: ${normalizedMode}]`];
+
+    if (normalizedSlot) {
+      messageLines.push(`[Preferred slot: ${normalizedSlot.day} ${normalizedSlot.startTime}-${normalizedSlot.endTime}]`);
+    }
+
+    if (normalizedMessage) {
+      messageLines.push(normalizedMessage);
+    }
+
+    await prisma.mentorshipRequest.create({
+      data: {
+        menteeId,
+        mentorProfileId: mentorId,
+        message: messageLines.join('\n'),
+        status: 'pending'
       }
-    },
-    select: { id: true, status: true }
-  });
+    });
 
-  if (existing) {
-    res.status(400).json({ success: false, message: `Mentorship request already ${existing.status}` });
-    return;
+    const mentee = await prisma.user.findUnique({
+      where: { id: menteeId },
+      select: { name: true }
+    });
+
+    await createNotification({
+      userId: mentorProfile.userId,
+      title: 'New mentorship request',
+      message: `${mentee?.name || 'A user'} sent a mentorship request on "${normalizedTopic}" (${normalizedMode}).`,
+      type: 'mentorship',
+      actionUrl: '/mentorship',
+      metadata: {
+        mentorProfileId: mentorId,
+        menteeId,
+        topic: normalizedTopic,
+        sessionMode: normalizedMode,
+        selectedSlot: normalizedSlot
+      }
+    });
+
+    res.json({ success: true, message: 'Mentorship request sent' });
+  } catch (error) {
+    console.error('Error requesting mentorship:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
-
-  await prisma.mentorshipRequest.create({
-    data: {
-      menteeId,
-      mentorProfileId: mentorId,
-      message: message || null,
-      status: 'pending'
-    }
-  });
-
-  const mentee = await prisma.user.findUnique({
-    where: { id: menteeId },
-    select: { name: true }
-  });
-
-  await createNotification({
-    userId: mentorProfile.userId,
-    title: 'New mentorship request',
-    message: `${mentee?.name || 'A user'} sent you a mentorship request.`,
-    type: 'mentorship',
-    actionUrl: '/mentorship',
-    metadata: {
-      mentorProfileId: mentorId,
-      menteeId
-    }
-  });
-
-  res.json({ success: true, message: 'Mentorship request sent' });
 };
 
 export const respondToRequest = async (req: AuthRequest, res: Response) => {
-  const { requestId, action } = req.params;
+  try {
+    const { requestId, action } = req.params;
+    const currentUserId = getAuthUserId(req);
 
-  if (!req.user?.id) {
-    res.status(401).json({ success: false, message: 'Authentication required' });
-    return;
-  }
-
-  if (!requestId || !action) {
-    res.status(400).json({ success: false, message: 'Request ID and action are required' });
-    return;
-  }
-
-  if (!['accept', 'reject'].includes(action)) {
-    res.status(400).json({ success: false, message: 'Invalid action' });
-    return;
-  }
-
-  const request = await prisma.mentorshipRequest.findUnique({
-    where: { id: requestId },
-    include: { mentor: { select: { userId: true } } }
-  });
-
-  if (!request) {
-    res.status(404).json({ success: false, message: 'Mentorship request not found' });
-    return;
-  }
-
-  if (request.mentor.userId !== req.user.id) {
-    res.status(403).json({ success: false, message: 'Not authorized to respond to this request' });
-    return;
-  }
-
-  await prisma.mentorshipRequest.update({
-    where: { id: requestId },
-    data: {
-      status: action === 'accept' ? 'accepted' : 'rejected'
+    if (!currentUserId) {
+      res.status(401).json({ success: false, message: 'Authentication required' });
+      return;
     }
-  });
 
-  const mentor = await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: { name: true }
-  });
-
-  await createNotification({
-    userId: request.menteeId,
-    title: action === 'accept' ? 'Mentorship request accepted' : 'Mentorship request rejected',
-    message: `${mentor?.name || 'Your mentor'} ${action === 'accept' ? 'accepted' : 'rejected'} your mentorship request.`,
-    type: 'mentorship',
-    actionUrl: '/mentorship',
-    metadata: {
-      requestId,
-      action
+    if (!requestId || !action) {
+      res.status(400).json({ success: false, message: 'Request ID and action are required' });
+      return;
     }
-  });
 
-  res.json({ success: true, message: 'Responded to request' });
+    if (!['accept', 'reject'].includes(action)) {
+      res.status(400).json({ success: false, message: 'Invalid action' });
+      return;
+    }
+
+    const request = await prisma.mentorshipRequest.findUnique({
+      where: { id: requestId },
+      include: { mentor: { select: { userId: true } } }
+    });
+
+    if (!request) {
+      res.status(404).json({ success: false, message: 'Mentorship request not found' });
+      return;
+    }
+
+    if (request.mentor.userId !== currentUserId) {
+      res.status(403).json({ success: false, message: 'Not authorized to respond to this request' });
+      return;
+    }
+
+    await prisma.mentorshipRequest.update({
+      where: { id: requestId },
+      data: {
+        status: action === 'accept' ? 'accepted' : 'rejected'
+      }
+    });
+
+    const mentor = await prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: { name: true }
+    });
+
+    await createNotification({
+      userId: request.menteeId,
+      title: action === 'accept' ? 'Mentorship request accepted' : 'Mentorship request rejected',
+      message: `${mentor?.name || 'Your mentor'} ${action === 'accept' ? 'accepted' : 'rejected'} your mentorship request.`,
+      type: 'mentorship',
+      actionUrl: '/mentorship',
+      metadata: {
+        requestId,
+        action
+      }
+    });
+
+    res.json({ success: true, message: 'Responded to request' });
+  } catch (error) {
+    console.error('Error responding to mentorship request:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
 };

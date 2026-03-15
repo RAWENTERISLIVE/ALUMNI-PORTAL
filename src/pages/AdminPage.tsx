@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import apiService from "@/services/apiService";
+import AdminSettingsPanel from "@/components/admin/AdminSettingsPanel";
 
 interface User {
   id: string;
@@ -34,6 +35,7 @@ interface User {
   status: 'pending' | 'active' | 'suspended' | 'deleted';
   admissionNumber: string;
   admissionYear: string; // changed from graduationYear
+  graduationYear?: string;
   needsManualVerification?: boolean;
   verificationDetails?: string;
   isVerified: boolean;
@@ -103,7 +105,7 @@ export default function AdminPage() {
   const [roleFilter, setRoleFilter] = useState<string>('');
 
   // Check if user has admin permissions
-  const isAdmin = currentUser?.role === 'moderator' || currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const isSuperAdmin = currentUser?.role === 'super_admin';
 
   // Redirect if not admin
@@ -387,7 +389,7 @@ export default function AdminPage() {
     <div className="space-y-6">
       <PageHeader 
         title="Admin Dashboard"
-        description="Manage users, reports, and platform activity"
+        description="Manage users, reports, platform activity, and policy settings"
       />
       
       {/* Stats Cards */}
@@ -453,6 +455,7 @@ export default function AdminPage() {
           </TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         
         <TabsContent value="users">
@@ -528,11 +531,22 @@ export default function AdminPage() {
                         <Badge variant="outline">{(user.accountType || 'alumni').toUpperCase()}</Badge>
                       </TableCell>
                       <TableCell>
-                        {user.hasPremiumBadge ? (
-                          <Badge className="bg-amber-100 text-amber-800">PREMIUM</Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
+                        {(() => {
+                          const classYear = user.graduationYear || user.admissionYear;
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {classYear ? (
+                                <Badge variant="outline">{classYear}</Badge>
+                              ) : null}
+                              {user.hasPremiumBadge ? (
+                                <Badge className="bg-amber-100 text-amber-800">PREMIUM</Badge>
+                              ) : null}
+                              {!classYear && !user.hasPremiumBadge ? (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>{user.admissionNumber}</TableCell>
                       <TableCell>{user.admissionYear}</TableCell>
@@ -931,6 +945,10 @@ export default function AdminPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="settings">
+          <AdminSettingsPanel />
         </TabsContent>
       </Tabs>
     </div>

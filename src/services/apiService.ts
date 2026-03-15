@@ -51,6 +51,7 @@ class ApiService {
       ...((payload.linkedInProfile ?? payload.linkedin) !== undefined
         ? { linkedInProfile: payload.linkedInProfile ?? payload.linkedin }
         : {}),
+      ...(payload.profileImage !== undefined ? { profileImage: payload.profileImage } : {}),
       ...(payload.location !== undefined ? { location: payload.location } : {}),
       ...((payload.isAvailableAsMentor ?? payload.availableAsMentor) !== undefined
         ? { isAvailableAsMentor: payload.isAvailableAsMentor ?? payload.availableAsMentor }
@@ -157,7 +158,10 @@ class ApiService {
 
       const response = await fetch(`${this.baseURL}/auth/refresh-token`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-refresh-token': refreshToken,
+        },
         body: JSON.stringify({ refreshToken }),
       });
 
@@ -165,6 +169,10 @@ class ApiService {
         const data = await response.json();
         if (data.success && data.accessToken) {
           this.setAccessToken(data.accessToken);
+          const nextRefreshToken = data.refreshToken || data.data?.refreshToken;
+          if (nextRefreshToken) {
+            localStorage.setItem('refreshToken', nextRefreshToken);
+          }
           return true;
         }
       }
@@ -949,24 +957,56 @@ class ApiService {
     }
   }
 
-  async createComment(commentData: {
-    postId: string;
-    content: string;
-    parentId?: string;
-  }): Promise<ApiResponse> {
+  async createComment(
+    commentDataOrPostId: {
+      postId: string;
+      content: string;
+      parentId?: string;
+      parentCommentId?: string;
+    } | string,
+    payload?: {
+      content: string;
+      parentId?: string;
+      parentCommentId?: string;
+    }
+  ): Promise<ApiResponse> {
     try {
+      const commentData = typeof commentDataOrPostId === 'string'
+        ? { postId: commentDataOrPostId, ...(payload || {}) }
+        : commentDataOrPostId;
+
       const { postId, ...data } = commentData;
       return await this.request(`/posts/${postId}/comments`, {
         method: 'POST',
         body: JSON.stringify({
           content: data.content,
-          parentCommentId: data.parentId
+          parentCommentId: data.parentCommentId ?? data.parentId
         }),
       });
     } catch (error: any) {
       return {
         success: false,
         message: error.message || 'Failed to create comment.',
+      };
+    }
+  }
+
+  async getCommentReplies(commentId: string, params: { page?: number; limit?: number } = {}): Promise<ApiResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, String(value));
+        }
+      });
+
+      const endpoint = `/comments/${commentId}/replies${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      return await this.request(endpoint);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch comment replies.',
+        data: []
       };
     }
   }
@@ -1105,27 +1145,55 @@ class ApiService {
 
   // File upload method
   async uploadFile(file: File): Promise<ApiResponse> {
-    try {
+    const sendUploadRequest = async () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${this.baseURL}/uploads/single`, {
+      return fetch(`${this.baseURL}/uploads/single`, {
         method: 'POST',
         headers: {
           ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
         },
         body: formData
       });
+    };
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        throw new Error('Invalid response from server');
+    try {
+      let response = await sendUploadRequest();
+
+      if (response.status === 401 && this.accessToken) {
+        const refreshed = await this.refreshToken();
+        if (refreshed) {
+          response = await sendUploadRequest();
+        }
+      }
+
+      let data: any = null;
+      const contentType = response.headers.get('content-type') || '';
+
+      if (contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
+        }
+      } else {
+        const text = await response.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { message: text };
+        }
       }
 
       if (!response.ok) {
-        throw new Error(data?.message || `HTTP error! status: ${response.status}`);
+        const errorMessage =
+          data?.message ||
+          data?.error ||
+          (response.status === 401
+            ? 'Session expired. Please login again.'
+            : `Upload failed (HTTP ${response.status})`);
+        throw new Error(errorMessage);
       }
 
       return data;
@@ -1417,11 +1485,24 @@ class ApiService {
     }
   }
 
-  async requestMentorship(mentorId: string, message: string): Promise<ApiResponse> {
+  async requestMentorship(
+    mentorId: string,
+    message: string,
+    topic?: string,
+    options?: {
+      sessionMode?: 'chat' | 'video' | 'meet';
+      selectedSlot?: { day: string; startTime: string; endTime: string } | null;
+    }
+  ): Promise<ApiResponse> {
     try {
       return await this.request(`/mentorship/request/${mentorId}`, {
         method: 'POST',
-        body: JSON.stringify({ message })
+        body: JSON.stringify({
+          message,
+          topic,
+          sessionMode: options?.sessionMode,
+          selectedSlot: options?.selectedSlot || null,
+        })
       });
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to request mentorship.' };
@@ -1445,6 +1526,46 @@ class ApiService {
       });
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to change password.' };
+    }
+  }
+
+  async getActiveSessions(): Promise<ApiResponse> {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      return await this.request('/auth/sessions', {
+        method: 'GET',
+        headers: {
+          ...(refreshToken ? { 'x-refresh-token': refreshToken } : {}),
+        },
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch active sessions.',
+        data: { sessions: [], totalSessions: 0, otherSessionsCount: 0 },
+      };
+    }
+  }
+
+  async logoutOtherSessions(): Promise<ApiResponse> {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      return await this.request('/auth/logout-other-sessions', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to sign out other devices.' };
+    }
+  }
+
+  async deactivateAccount(): Promise<ApiResponse> {
+    try {
+      return await this.request('/auth/deactivate-account', {
+        method: 'PATCH',
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to deactivate account.' };
     }
   }
 
@@ -1636,6 +1757,14 @@ class ApiService {
       return await this.request(`/events/${eventId}/rsvp`, { method: 'DELETE' });
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to cancel RSVP.' };
+    }
+  }
+
+  async getEventAttendees(eventId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/events/${eventId}/attendees`);
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch event attendees.', data: [] };
     }
   }
 }

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const express_validator_1 = require("express-validator");
 const authController_1 = require("../controllers/authController");
+const uploadController_1 = require("../controllers/uploadController");
 const auth_1 = require("../middleware/auth");
 const rateLimiter_1 = require("../middleware/rateLimiter");
 const validation_1 = require("../middleware/validation");
@@ -25,14 +26,23 @@ const registerValidation = [
     (0, express_validator_1.body)('needsManualVerification')
         .optional()
         .isBoolean(),
+    (0, express_validator_1.body)('forgotAdmissionNumber')
+        .optional()
+        .isBoolean(),
     (0, express_validator_1.body)('verificationDetails')
+        .optional()
+        .isString(),
+    (0, express_validator_1.body)('accountType')
+        .optional()
+        .isIn(['ALUMNI', 'FACULTY', 'alumni', 'faculty']),
+    (0, express_validator_1.body)('facultyIdCardUrl')
         .optional()
         .isString(),
     (0, express_validator_1.body)('graduationYear')
         .optional()
         .isString(),
     (0, express_validator_1.body)('admissionNumber')
-        .notEmpty()
+        .optional()
         .isString()
 ];
 const loginValidation = [
@@ -84,6 +94,7 @@ const privacySettingsValidation = [
     (0, express_validator_1.body)('allowConnection').optional().isBoolean(),
     (0, express_validator_1.body)('allowProfileSearch').optional().isBoolean()
 ];
+router.post('/upload-verification-id', uploadController_1.upload.single('file'), authController_1.uploadVerificationId);
 router.post('/register', rateLimiter_1.registrationLimiter, registerValidation, validation_1.validate, authController_1.register);
 router.post('/login', rateLimiter_1.authLimiter, loginValidation, validation_1.validate, authController_1.login);
 router.post('/refresh-token', authController_1.refreshToken);
@@ -94,5 +105,8 @@ router.post('/reset-password', rateLimiter_1.passwordResetLimiter, resetPassword
 router.patch('/change-password', auth_1.authMiddleware, changePasswordValidation, validation_1.validate, authController_1.changePassword);
 router.patch('/notification-settings', auth_1.authMiddleware, notificationSettingsValidation, validation_1.validate, authController_1.updateNotificationSettings);
 router.patch('/privacy-settings', auth_1.authMiddleware, privacySettingsValidation, validation_1.validate, authController_1.updatePrivacySettings);
+router.get('/sessions', auth_1.authMiddleware, authController_1.getActiveSessions);
+router.post('/logout-other-sessions', auth_1.authMiddleware, authController_1.logoutOtherSessions);
+router.patch('/deactivate-account', auth_1.authMiddleware, authController_1.deactivateAccount);
 exports.default = router;
 //# sourceMappingURL=auth.js.map

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
+import { createNotification } from '../utils/notifications';
 
 interface AuthRequest extends Request {
   user?: {
@@ -35,6 +36,25 @@ export const createComment = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ success: false, message: 'Post not found' });
     }
 
+    let parentCommentAuthorId: string | null = null;
+    if (parentCommentId) {
+      const parentComment = await prisma.comment.findUnique({
+        where: { id: parentCommentId },
+        select: { id: true, authorId: true, postId: true }
+      });
+
+      if (!parentComment || parentComment.postId !== postId) {
+        return res.status(404).json({ success: false, message: 'Parent comment not found' });
+      }
+
+      parentCommentAuthorId = parentComment.authorId;
+    }
+
+    const actor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true }
+    });
+
     const created = await prisma.comment.create({
       data: {
         content,
@@ -49,6 +69,39 @@ export const createComment = async (req: AuthRequest, res: Response) => {
       where: { id: postId },
       data: { commentCount: { increment: 1 } }
     });
+
+    const actorName = actor?.name || 'Someone';
+    const recipients = new Set<string>();
+
+    if (post.authorId && post.authorId !== userId) {
+      recipients.add(post.authorId);
+    }
+
+    if (parentCommentAuthorId && parentCommentAuthorId !== userId) {
+      recipients.add(parentCommentAuthorId);
+    }
+
+    await Promise.all(
+      [...recipients].map((recipientId) => {
+        const isReplyTarget = parentCommentAuthorId === recipientId;
+        return createNotification({
+          userId: recipientId,
+          title: isReplyTarget ? 'New reply to your comment' : 'New comment on your post',
+          message: isReplyTarget
+            ? `${actorName} replied to your comment.`
+            : `${actorName} commented on your post.`,
+          type: 'post',
+          actionUrl: `/posts/${postId}`,
+          metadata: {
+            postId,
+            commentId: created.id,
+            parentCommentId: parentCommentId || null,
+            actorId: userId,
+            event: isReplyTarget ? 'comment_reply' : 'post_comment'
+          }
+        });
+      })
+    );
 
     return res.status(201).json({
       success: true,
@@ -164,6 +217,27 @@ export const likeComment = async (req: AuthRequest, res: Response) => {
       data: { likes: { connect: { id: userId } } },
       include: { likes: { select: { id: true } } }
     });
+
+    if (comment.authorId !== userId) {
+      const actor = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true }
+      });
+
+      await createNotification({
+        userId: comment.authorId,
+        title: 'Your comment got a like',
+        message: `${actor?.name || 'Someone'} liked your comment.`,
+        type: 'post',
+        actionUrl: `/posts/${comment.postId}`,
+        metadata: {
+          postId: comment.postId,
+          commentId,
+          actorId: userId,
+          event: 'comment_like'
+        }
+      });
+    }
 
     return res.status(200).json({
       success: true,

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserEvents = exports.cancelRsvp = exports.rsvpEvent = exports.deleteEvent = exports.updateEvent = exports.createEvent = exports.getEvent = exports.getUpcomingEvents = exports.getEvents = void 0;
+exports.getUserEvents = exports.getEventAttendees = exports.cancelRsvp = exports.rsvpEvent = exports.deleteEvent = exports.updateEvent = exports.createEvent = exports.getEvent = exports.getUpcomingEvents = exports.getEvents = void 0;
 const prisma_1 = __importDefault(require("../config/prisma"));
 const includeEventRelations = {
     organizer: { select: { id: true, name: true, email: true, profileImage: true, role: true } },
@@ -252,6 +252,56 @@ const cancelRsvp = async (req, res) => {
     }
 };
 exports.cancelRsvp = cancelRsvp;
+const getEventAttendees = async (req, res) => {
+    try {
+        const { eventId } = req.params;
+        const userId = req.user?.id;
+        if (!eventId) {
+            res.status(400).json({ success: false, message: 'Event ID is required' });
+            return;
+        }
+        if (!userId) {
+            res.status(401).json({ success: false, message: 'User not authenticated' });
+            return;
+        }
+        const event = await prisma_1.default.event.findUnique({
+            where: { id: eventId },
+            include: {
+                attendees: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        contactPhone: true,
+                        contactEmail: true,
+                        admissionNumber: true
+                    }
+                }
+            }
+        });
+        if (!event) {
+            res.status(404).json({ success: false, message: 'Event not found' });
+            return;
+        }
+        if (event.organizerId !== userId && !isAdminRole(req.user?.role)) {
+            res.status(403).json({ success: false, message: 'Not authorized to view attendees for this event' });
+            return;
+        }
+        const attendees = event.attendees.map((attendee) => ({
+            id: attendee.id,
+            name: attendee.name,
+            email: attendee.contactEmail || attendee.email,
+            phone: attendee.contactPhone,
+            admissionNumber: attendee.admissionNumber
+        }));
+        res.json({ success: true, data: attendees });
+    }
+    catch (error) {
+        console.error('Error fetching event attendees:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch event attendees' });
+    }
+};
+exports.getEventAttendees = getEventAttendees;
 const getUserEvents = async (req, res) => {
     try {
         const userId = req.user?.id;

@@ -28,6 +28,9 @@ const linkedin_1 = __importDefault(require("./routes/linkedin"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = parseInt(process.env.PORT || '5000', 10);
+const PORT_RETRY_DELAY_MS = 400;
+const MAX_PORT_RETRIES = 15;
+let activeServer = null;
 const uploadsDir = path_1.default.join(__dirname, '../uploads');
 if (!fs_1.default.existsSync(uploadsDir)) {
     fs_1.default.mkdirSync(uploadsDir, { recursive: true });
@@ -62,9 +65,15 @@ app.use((0, cors_1.default)({
     },
     credentials: true
 }));
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ||
+    (process.env.NODE_ENV === 'production' ? 300 : 2000));
 const limiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000,
-    max: 100
+    windowMs: RATE_LIMIT_WINDOW_MS,
+    max: RATE_LIMIT_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => process.env.NODE_ENV !== 'production' || req.path === '/api/health' || req.path.startsWith('/api/status')
 });
 app.use(limiter);
 app.use(express_1.default.json());
@@ -94,44 +103,49 @@ app.get('/api/health', (_req, res) => {
         environment: process.env.NODE_ENV,
     });
 });
-const startServer = (port) => {
-    try {
-        const server = app.listen(port, () => {
-            console.log(`Server running on port ${port}`);
-            console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-            console.log(`API base URL: http://localhost:${port}/api`);
-        }).on('error', (err) => {
-            if (err.code === 'EADDRINUSE') {
-                console.log(`Port ${port} is already in use, trying port ${port + 1}`);
-                startServer(port + 1);
-            }
-            else {
-                console.error('Server error:', err);
-            }
-        });
-        process.on('uncaughtException', (error) => {
-            console.error('Uncaught Exception:', error);
-        });
-        process.on('SIGTERM', () => {
-            console.info('SIGTERM received, shutting down server');
-            server.close(() => {
-                console.log('Server closed');
-                process.exit(0);
-            });
-        });
-    }
-    catch (error) {
-        if (error.code === 'EADDRINUSE') {
-            console.log(`Port ${port} is already in use, trying port ${port + 1}`);
-            const newPort = port + 1;
-            startServer(newPort);
+const startServer = (port, attempt = 0) => {
+    const server = app.listen(port);
+    server.on('listening', () => {
+        activeServer = server;
+        console.log(`Server running on port ${port}`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`API base URL: http://localhost:${port}/api`);
+    });
+    server.on('error', (err) => {
+        if (err?.code === 'EADDRINUSE' && port === PORT && attempt < MAX_PORT_RETRIES) {
+            const nextAttempt = attempt + 1;
+            console.warn(`Port ${port} is busy (retry ${nextAttempt}/${MAX_PORT_RETRIES})...`);
+            setTimeout(() => {
+                startServer(port, nextAttempt);
+            }, PORT_RETRY_DELAY_MS);
+            return;
         }
-        else {
-            console.error('Server error:', error);
+        if (err?.code === 'EADDRINUSE') {
+            console.error(`Port ${port} is already in use.`);
+            console.error('Stop the existing backend process on this port and restart the app.');
             process.exit(1);
+            return;
         }
-    }
+        console.error('Server error:', err);
+        process.exit(1);
+    });
 };
+const shutdown = (signal) => {
+    console.info(`${signal} received, shutting down server`);
+    if (!activeServer) {
+        process.exit(0);
+        return;
+    }
+    activeServer.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+    });
+};
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 startServer(PORT);
 exports.default = app;
 //# sourceMappingURL=server.js.map
