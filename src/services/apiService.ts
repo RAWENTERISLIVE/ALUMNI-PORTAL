@@ -59,6 +59,8 @@ class ApiService {
       ...(payload.educations !== undefined ? { educations: payload.educations } : {}),
       ...(payload.skills !== undefined ? { skills: payload.skills } : {}),
       ...(payload.interests !== undefined ? { interests: payload.interests } : {}),
+      ...(payload.privacySettings !== undefined ? { privacySettings: payload.privacySettings } : {}),
+      ...(payload.notificationSettings !== undefined ? { notificationSettings: payload.notificationSettings } : {}),
     };
   }
 

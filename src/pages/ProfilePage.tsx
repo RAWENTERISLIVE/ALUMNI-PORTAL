@@ -31,7 +31,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { User, Briefcase, MapPin, GraduationCap, Mail, Phone, Globe, LinkedinIcon } from "lucide-react";
+import { User, Briefcase, MapPin, GraduationCap, Mail, Phone, Globe, PlusCircle, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +61,340 @@ interface EducationItem {
   location: string;
   description: string;
 }
+
+type DetailedSectionKey =
+  | 'featured'
+  | 'services'
+  | 'careerBreak'
+  | 'certifications'
+  | 'projects'
+  | 'courses'
+  | 'recommendations'
+  | 'volunteerExperience'
+  | 'publications'
+  | 'patents'
+  | 'honorsAwards'
+  | 'testScores'
+  | 'languages'
+  | 'organizations'
+  | 'causes';
+
+type DetailedSectionGroup = 'Core' | 'Recommended' | 'Additional';
+
+interface DetailedProfileItem {
+  id: string;
+  title: string;
+  organization: string;
+  startDate: string;
+  endDate: string;
+  description: string;
+  url: string;
+  extraData?: Record<string, string | boolean | string[]>;
+}
+
+interface DetailedSectionConfig {
+  key: DetailedSectionKey;
+  label: string;
+  group: DetailedSectionGroup;
+  hint: string;
+}
+
+type DetailedFieldType = 'text' | 'textarea' | 'select' | 'checkbox' | 'multiselect';
+
+interface DetailedSectionField {
+  key: string;
+  label: string;
+  type: DetailedFieldType;
+  required?: boolean;
+  placeholder?: string;
+  options?: string[];
+  helperText?: string;
+  rows?: number;
+}
+
+interface DetailedSectionFormConfig {
+  helperText: string;
+  fields: DetailedSectionField[];
+  summaryMap: {
+    title?: string;
+    organization?: string;
+    startDate?: string;
+    endDate?: string;
+    url?: string;
+    description?: string;
+  };
+}
+
+const DETAILED_SECTION_CONFIG: DetailedSectionConfig[] = [
+  { key: 'featured', label: 'Featured', group: 'Recommended', hint: 'Showcase top posts, portfolios, and achievements' },
+  { key: 'services', label: 'Services', group: 'Core', hint: 'List mentorship or consulting services you offer' },
+  { key: 'careerBreak', label: 'Career Break', group: 'Core', hint: 'Add context for transition periods in your journey' },
+  { key: 'certifications', label: 'Licenses & Certifications', group: 'Recommended', hint: 'Professional certifications and credential IDs' },
+  { key: 'projects', label: 'Projects', group: 'Recommended', hint: 'Portfolio projects with outcomes and links' },
+  { key: 'courses', label: 'Courses', group: 'Recommended', hint: 'Relevant upskilling and continuing education' },
+  { key: 'recommendations', label: 'Recommendations', group: 'Recommended', hint: 'Peer and manager testimonials' },
+  { key: 'volunteerExperience', label: 'Volunteer Experience', group: 'Additional', hint: 'Community leadership and social contribution' },
+  { key: 'publications', label: 'Publications', group: 'Additional', hint: 'Articles, papers, journals, and blogs' },
+  { key: 'patents', label: 'Patents', group: 'Additional', hint: 'Filed or granted patents' },
+  { key: 'honorsAwards', label: 'Honors & Awards', group: 'Additional', hint: 'Recognitions and competition outcomes' },
+  { key: 'testScores', label: 'Test Scores', group: 'Additional', hint: 'Standardized or professional exam scores' },
+  { key: 'languages', label: 'Languages', group: 'Additional', hint: 'Languages and proficiency levels' },
+  { key: 'organizations', label: 'Organizations', group: 'Additional', hint: 'Professional bodies and memberships' },
+  { key: 'causes', label: 'Causes', group: 'Additional', hint: 'Social causes and initiatives you support' },
+];
+
+const DETAILED_SECTION_FORM_CONFIG: Record<DetailedSectionKey, DetailedSectionFormConfig> = {
+  featured: {
+    helperText: 'Add a featured post/article/link/media item.',
+    fields: [
+      { key: 'featureType', label: 'Type', type: 'select', required: true, options: ['Post', 'Article', 'Link', 'Media'] },
+      { key: 'featureTitle', label: 'Title', type: 'text', required: true, placeholder: 'Featured item title' },
+      { key: 'featureUrl', label: 'Link', type: 'text', placeholder: 'https://...' },
+      { key: 'featureDescription', label: 'Description', type: 'textarea', rows: 4, placeholder: 'Brief context about this featured item' },
+    ],
+    summaryMap: { title: 'featureTitle', organization: 'featureType', url: 'featureUrl', description: 'featureDescription' },
+  },
+  services: {
+    helperText: 'Set up services with offerings, location, and pricing.',
+    fields: [
+      { key: 'servicesOffered', label: 'Services provided', type: 'multiselect', required: true, options: ['Ad Design', 'Brand Design', 'Graphic Design', 'Logo Design', 'Video Editing', 'Video Production', 'Web Design', 'Software Testing', 'Web Development'] },
+      { key: 'serviceDescription', label: 'About', type: 'textarea', rows: 4, placeholder: 'Describe your services and value.' },
+      { key: 'workLocation', label: 'Work location', type: 'text', placeholder: 'e.g. Pushkar, Rajasthan' },
+      { key: 'workRemote', label: 'Available to work remotely', type: 'checkbox' },
+      { key: 'pricingMode', label: 'Pricing', type: 'select', options: ['Contact for pricing', 'Starting at'] },
+      { key: 'hourlyRate', label: 'Hourly rate', type: 'text', placeholder: 'e.g. 40 USD' },
+    ],
+    summaryMap: { title: 'servicesOffered', organization: 'pricingMode', description: 'serviceDescription' },
+  },
+  careerBreak: {
+    helperText: 'Add type, location, timeline, and context for your career break.',
+    fields: [
+      { key: 'breakType', label: 'Type', type: 'select', required: true, options: ['Family caregiving', 'Full-time parenting', 'Health and wellbeing', 'Layoff', 'Career transition', 'Travel', 'Education', 'Other'] },
+      { key: 'breakLocation', label: 'Location', type: 'text', placeholder: 'e.g. London, United Kingdom' },
+      { key: 'currentlyOnBreak', label: 'I am currently on this career break', type: 'checkbox' },
+      { key: 'breakStartDate', label: 'Start date', type: 'text', required: true, placeholder: 'Month / Year' },
+      { key: 'breakEndDate', label: 'End date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'breakDescription', label: 'Description', type: 'textarea', rows: 4, placeholder: 'What you did and learned during this break' },
+    ],
+    summaryMap: { title: 'breakType', organization: 'breakLocation', startDate: 'breakStartDate', endDate: 'breakEndDate', description: 'breakDescription' },
+  },
+  certifications: {
+    helperText: 'Include credential details like ID and URL.',
+    fields: [
+      { key: 'certName', label: 'Name', type: 'text', required: true, placeholder: 'Certification name' },
+      { key: 'certIssuer', label: 'Issuing organization', type: 'text', required: true, placeholder: 'e.g. Microsoft' },
+      { key: 'certIssueDate', label: 'Issue date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'certExpiryDate', label: 'Expiration date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'certCredentialId', label: 'Credential ID', type: 'text', placeholder: 'Credential ID' },
+      { key: 'certCredentialUrl', label: 'Credential URL', type: 'text', placeholder: 'https://...' },
+    ],
+    summaryMap: { title: 'certName', organization: 'certIssuer', startDate: 'certIssueDate', endDate: 'certExpiryDate', url: 'certCredentialUrl', description: 'certCredentialId' },
+  },
+  projects: {
+    helperText: 'Add project basics plus additional details.',
+    fields: [
+      { key: 'projectName', label: 'Project name', type: 'text', required: true, placeholder: 'Project name' },
+      { key: 'projectDescription', label: 'Description', type: 'textarea', rows: 4, placeholder: 'Project summary and impact' },
+      { key: 'projectCurrent', label: 'I am currently working on this project', type: 'checkbox' },
+      { key: 'projectStartDate', label: 'Start date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'projectEndDate', label: 'End date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'projectContributors', label: 'Contributors', type: 'text', placeholder: 'Names (comma separated)' },
+      { key: 'projectAssociatedWith', label: 'Associated with', type: 'text', placeholder: 'Organization or role' },
+      { key: 'projectUrl', label: 'Project URL', type: 'text', placeholder: 'https://...' },
+    ],
+    summaryMap: { title: 'projectName', organization: 'projectAssociatedWith', startDate: 'projectStartDate', endDate: 'projectEndDate', url: 'projectUrl', description: 'projectDescription' },
+  },
+  courses: {
+    helperText: 'Add course name, number, and association.',
+    fields: [
+      { key: 'courseName', label: 'Course name', type: 'text', required: true, placeholder: 'e.g. World History' },
+      { key: 'courseNumber', label: 'Number', type: 'text', placeholder: 'e.g. HIS101' },
+      { key: 'courseAssociatedWith', label: 'Associated with', type: 'text', placeholder: 'School / degree / role' },
+    ],
+    summaryMap: { title: 'courseName', organization: 'courseAssociatedWith', description: 'courseNumber' },
+  },
+  recommendations: {
+    helperText: 'Request-focused recommendation details.',
+    fields: [
+      { key: 'recommendationPerson', label: 'Who do you want to ask?', type: 'text', required: true, placeholder: 'Person name' },
+      { key: 'recommendationRelationship', label: 'Relationship', type: 'text', required: true, placeholder: 'e.g. Manager' },
+      { key: 'recommendationPositionAtTime', label: 'Position at the time', type: 'text', placeholder: 'Your role then' },
+      { key: 'recommendationMessage', label: 'Personalized message', type: 'textarea', rows: 5, placeholder: 'Request message' },
+    ],
+    summaryMap: { title: 'recommendationPerson', organization: 'recommendationRelationship', description: 'recommendationMessage' },
+  },
+  volunteerExperience: {
+    helperText: 'Include role, cause, timeline, and contribution.',
+    fields: [
+      { key: 'volunteerOrganization', label: 'Organization', type: 'text', required: true, placeholder: 'e.g. Red Cross' },
+      { key: 'volunteerRole', label: 'Role', type: 'text', required: true, placeholder: 'e.g. Fundraising Volunteer' },
+      { key: 'volunteerCause', label: 'Cause', type: 'text', placeholder: 'Cause area' },
+      { key: 'volunteerCurrent', label: 'I am currently volunteering in this role', type: 'checkbox' },
+      { key: 'volunteerStartDate', label: 'Start date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'volunteerEndDate', label: 'End date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'volunteerDescription', label: 'Description', type: 'textarea', rows: 4, placeholder: 'Your contribution and outcomes' },
+    ],
+    summaryMap: { title: 'volunteerRole', organization: 'volunteerOrganization', startDate: 'volunteerStartDate', endDate: 'volunteerEndDate', description: 'volunteerDescription' },
+  },
+  publications: {
+    helperText: 'Add publication details and contributors.',
+    fields: [
+      { key: 'publicationTitle', label: 'Title', type: 'text', required: true, placeholder: 'Publication title' },
+      { key: 'publicationPublisher', label: 'Publication/Publisher', type: 'text', placeholder: 'Publisher name' },
+      { key: 'publicationDate', label: 'Publication date', type: 'text', placeholder: 'mm/dd/yyyy' },
+      { key: 'publicationAuthors', label: 'Author(s)', type: 'text', placeholder: 'Names (comma separated)' },
+      { key: 'publicationUrl', label: 'Publication URL', type: 'text', placeholder: 'https://...' },
+      { key: 'publicationDescription', label: 'Description', type: 'textarea', rows: 4, placeholder: 'Publication summary' },
+    ],
+    summaryMap: { title: 'publicationTitle', organization: 'publicationPublisher', startDate: 'publicationDate', url: 'publicationUrl', description: 'publicationDescription' },
+  },
+  patents: {
+    helperText: 'Track patent number, status, and issue date.',
+    fields: [
+      { key: 'patentTitle', label: 'Patent title', type: 'text', required: true, placeholder: 'Patent title' },
+      { key: 'patentNumber', label: 'Patent or application number', type: 'text', required: true, placeholder: 'e.g. US 9229900' },
+      { key: 'patentInventors', label: 'Inventor(s)', type: 'text', placeholder: 'Names (comma separated)' },
+      { key: 'patentStatus', label: 'Status', type: 'select', options: ['Patent issued', 'Patent pending'] },
+      { key: 'patentIssueDate', label: 'Issue date', type: 'text', placeholder: 'mm/dd/yyyy' },
+      { key: 'patentUrl', label: 'Patent URL', type: 'text', placeholder: 'https://...' },
+      { key: 'patentDescription', label: 'Description', type: 'textarea', rows: 4, placeholder: 'Patent summary' },
+    ],
+    summaryMap: { title: 'patentTitle', organization: 'patentNumber', startDate: 'patentIssueDate', url: 'patentUrl', description: 'patentDescription' },
+  },
+  honorsAwards: {
+    helperText: 'Capture award title, issuer, and date.',
+    fields: [
+      { key: 'awardTitle', label: 'Title', type: 'text', required: true, placeholder: 'Award title' },
+      { key: 'awardAssociatedWith', label: 'Associated with', type: 'text', placeholder: 'Organization / role' },
+      { key: 'awardIssuer', label: 'Issuer', type: 'text', placeholder: 'Issuer name' },
+      { key: 'awardIssueDate', label: 'Issue date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'awardDescription', label: 'Description', type: 'textarea', rows: 4, placeholder: 'Award context' },
+    ],
+    summaryMap: { title: 'awardTitle', organization: 'awardIssuer', startDate: 'awardIssueDate', description: 'awardDescription' },
+  },
+  testScores: {
+    helperText: 'Add the test, score, date, and context.',
+    fields: [
+      { key: 'testTitle', label: 'Title', type: 'text', required: true, placeholder: 'Test name' },
+      { key: 'testAssociatedWith', label: 'Associated with', type: 'text', placeholder: 'Organization / purpose' },
+      { key: 'testScore', label: 'Score', type: 'text', required: true, placeholder: 'e.g. 168/170' },
+      { key: 'testDate', label: 'Test date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'testDescription', label: 'Description', type: 'textarea', rows: 4, placeholder: 'Additional context' },
+    ],
+    summaryMap: { title: 'testTitle', organization: 'testAssociatedWith', startDate: 'testDate', description: 'testDescription' },
+  },
+  languages: {
+    helperText: 'Add language, proficiency, and optional score.',
+    fields: [
+      { key: 'languageName', label: 'Language', type: 'text', required: true, placeholder: 'Language name' },
+      { key: 'languageProficiency', label: 'Proficiency', type: 'select', required: true, options: ['Native or bilingual', 'Full professional', 'Professional working', 'Limited working', 'Elementary'] },
+      { key: 'languageDuolingoScore', label: 'Duolingo score (optional)', type: 'text', placeholder: 'e.g. 130' },
+    ],
+    summaryMap: { title: 'languageName', organization: 'languageProficiency', description: 'languageDuolingoScore' },
+  },
+  organizations: {
+    helperText: 'Capture membership details and timeline.',
+    fields: [
+      { key: 'organizationName', label: 'Organization name', type: 'text', required: true, placeholder: 'Organization name' },
+      { key: 'organizationPosition', label: 'Position held', type: 'text', placeholder: 'Position held' },
+      { key: 'organizationAssociatedWith', label: 'Associated with', type: 'text', placeholder: 'Role / profile context' },
+      { key: 'organizationOngoing', label: 'Membership ongoing', type: 'checkbox' },
+      { key: 'organizationStartDate', label: 'Start date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'organizationEndDate', label: 'End date', type: 'text', placeholder: 'Month / Year' },
+      { key: 'organizationDescription', label: 'Description', type: 'textarea', rows: 4, placeholder: 'Membership details' },
+    ],
+    summaryMap: { title: 'organizationName', organization: 'organizationPosition', startDate: 'organizationStartDate', endDate: 'organizationEndDate', description: 'organizationDescription' },
+  },
+  causes: {
+    helperText: 'Choose causes you care about.',
+    fields: [
+      { key: 'causeList', label: 'Causes', type: 'multiselect', required: true, options: ['Animal Welfare', 'Arts and Culture', 'Children', 'Civil Rights and Social Action', 'Disaster and Humanitarian Relief', 'Economic Empowerment', 'Education', 'Environment', 'Health', 'Human Rights', 'Politics', 'Poverty Alleviation', 'Science and Technology', 'Social Services', 'Veteran Support'] },
+    ],
+    summaryMap: { title: 'causeList' },
+  },
+};
+
+interface DetailedFormData {
+  title: string;
+  organization: string;
+  startDate: string;
+  endDate: string;
+  description: string;
+  url: string;
+  extraData: Record<string, string | boolean | string[]>;
+}
+
+const getDefaultFieldValue = (field: DetailedSectionField): string | boolean | string[] => {
+  if (field.type === 'checkbox') return false;
+  if (field.type === 'multiselect') return [];
+  return '';
+};
+
+const createDetailedFormData = (section: DetailedSectionKey, item?: DetailedProfileItem): DetailedFormData => {
+  const sectionConfig = DETAILED_SECTION_FORM_CONFIG[section];
+  const defaults: Record<string, string | boolean | string[]> = {};
+
+  sectionConfig.fields.forEach((field) => {
+    defaults[field.key] = getDefaultFieldValue(field);
+  });
+
+  const itemExtraData = item?.extraData && typeof item.extraData === 'object' ? item.extraData : {};
+  const summaryFallbacks: Record<string, string | boolean | string[]> = {};
+  const summaryPairs: Array<[string | undefined, string]> = [
+    [sectionConfig.summaryMap.title, item?.title || ''],
+    [sectionConfig.summaryMap.organization, item?.organization || ''],
+    [sectionConfig.summaryMap.startDate, item?.startDate || ''],
+    [sectionConfig.summaryMap.endDate, item?.endDate || ''],
+    [sectionConfig.summaryMap.url, item?.url || ''],
+    [sectionConfig.summaryMap.description, item?.description || ''],
+  ];
+
+  summaryPairs.forEach(([key, rawValue]) => {
+    if (!key || !rawValue) return;
+    const defaultValue = defaults[key];
+    if (Array.isArray(defaultValue)) {
+      summaryFallbacks[key] = rawValue.split(',').map((value) => value.trim()).filter(Boolean);
+      return;
+    }
+    if (typeof defaultValue === 'boolean') {
+      summaryFallbacks[key] = rawValue.toLowerCase() === 'yes' || rawValue.toLowerCase() === 'true';
+      return;
+    }
+    summaryFallbacks[key] = rawValue;
+  });
+
+  return {
+    title: item?.title || '',
+    organization: item?.organization || '',
+    startDate: item?.startDate || '',
+    endDate: item?.endDate || '',
+    description: item?.description || '',
+    url: item?.url || '',
+    extraData: {
+      ...defaults,
+      ...summaryFallbacks,
+      ...itemExtraData,
+    },
+  };
+};
+
+const createEmptyDetailedSections = (): Record<DetailedSectionKey, DetailedProfileItem[]> => ({
+  featured: [],
+  services: [],
+  careerBreak: [],
+  certifications: [],
+  projects: [],
+  courses: [],
+  recommendations: [],
+  volunteerExperience: [],
+  publications: [],
+  patents: [],
+  honorsAwards: [],
+  testScores: [],
+  languages: [],
+  organizations: [],
+  causes: [],
+});
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: "Name is required" }),
@@ -103,6 +437,12 @@ export default function ProfilePage() {
   const [educations, setEducations] = useState<EducationItem[]>([]);
   const [skills, setSkills] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
+  const [detailedSections, setDetailedSections] = useState<Record<DetailedSectionKey, DetailedProfileItem[]>>(createEmptyDetailedSections());
+  const [isAddToProfileModalOpen, setIsAddToProfileModalOpen] = useState(false);
+  const [isDetailedItemModalOpen, setIsDetailedItemModalOpen] = useState(false);
+  const [activeDetailedSection, setActiveDetailedSection] = useState<DetailedSectionKey>('projects');
+  const [currentDetailedItem, setCurrentDetailedItem] = useState<DetailedProfileItem | null>(null);
+  const [detailedFormData, setDetailedFormData] = useState<DetailedFormData>(createDetailedFormData('projects'));
   const [experienceFormData, setExperienceFormData] = useState<Omit<ExperienceItem, 'id'>>({
     title: '',
     company: '',
@@ -269,6 +609,30 @@ export default function ProfilePage() {
       setEducations(normalizedEducations);
       setSkills(Array.isArray(profile.skills) ? profile.skills.filter((value: unknown) => typeof value === 'string') : []);
       setInterests(Array.isArray(profile.interests) ? profile.interests.filter((value: unknown) => typeof value === 'string') : []);
+
+      const rawSections = profile?.privacySettings?.profileSections;
+      const normalizedSections = createEmptyDetailedSections();
+
+      if (rawSections && typeof rawSections === 'object') {
+        (Object.keys(normalizedSections) as DetailedSectionKey[]).forEach((key) => {
+          const current = (rawSections as Record<string, unknown>)[key];
+          if (!Array.isArray(current)) return;
+          normalizedSections[key] = current
+            .map((item: any) => ({
+              id: String(item?.id || crypto.randomUUID()),
+              title: item?.title || '',
+              organization: item?.organization || '',
+              startDate: item?.startDate || '',
+              endDate: item?.endDate || '',
+              description: item?.description || '',
+              url: item?.url || '',
+              extraData: item?.extraData && typeof item.extraData === 'object' ? item.extraData : {},
+            }))
+            .filter((item: DetailedProfileItem) => item.title || item.organization || item.description);
+        });
+      }
+
+      setDetailedSections(normalizedSections);
     }
   }, [profile, form]);
   
@@ -305,6 +669,147 @@ export default function ProfilePage() {
     }
 
     return true;
+  };
+
+  const saveDetailedSections = async (nextDetailedSections: Record<DetailedSectionKey, DetailedProfileItem[]>) => {
+    if (!isOwnProfile || !profile) return false;
+
+    const basePrivacySettings =
+      profile.privacySettings && typeof profile.privacySettings === 'object'
+        ? profile.privacySettings
+        : {};
+
+    const nextPrivacySettings = {
+      ...basePrivacySettings,
+      profileSections: nextDetailedSections,
+    };
+
+    const response = await apiService.updateUserProfile(profile.id || profile._id, {
+      privacySettings: nextPrivacySettings,
+    });
+
+    if (!response.success) {
+      toast({
+        title: 'Update failed',
+        description: response.message || 'Could not save detailed profile sections.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    const updatedProfile = response.data || response.user;
+    if (updatedProfile) {
+      setProfile((previous: any) => ({
+        ...previous,
+        ...updatedProfile,
+      }));
+    }
+
+    return true;
+  };
+
+  const openDetailedItemModal = (section: DetailedSectionKey, item?: DetailedProfileItem) => {
+    setActiveDetailedSection(section);
+    if (item) {
+      setCurrentDetailedItem(item);
+      setDetailedFormData(createDetailedFormData(section, item));
+    } else {
+      setCurrentDetailedItem(null);
+      setDetailedFormData(createDetailedFormData(section));
+    }
+    setIsDetailedItemModalOpen(true);
+    setIsAddToProfileModalOpen(false);
+  };
+
+  const handleSaveDetailedItem = async () => {
+    const sectionConfig = DETAILED_SECTION_FORM_CONFIG[activeDetailedSection];
+
+    const missingRequiredField = sectionConfig.fields.find((field) => {
+      if (!field.required) return false;
+      const value = detailedFormData.extraData[field.key];
+      if (field.type === 'checkbox') return value !== true;
+      if (field.type === 'multiselect') return !Array.isArray(value) || value.length === 0;
+      return !String(value || '').trim();
+    });
+
+    if (missingRequiredField) {
+      toast({
+        title: `${missingRequiredField.label} is required`,
+        description: 'Please complete the required fields before saving.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const valueFor = (key?: string): string => {
+      if (!key) return '';
+      const value = detailedFormData.extraData[key];
+      if (Array.isArray(value)) return value.join(', ');
+      if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+      return String(value || '').trim();
+    };
+
+    const payload: Omit<DetailedProfileItem, 'id'> = {
+      title: valueFor(sectionConfig.summaryMap.title),
+      organization: valueFor(sectionConfig.summaryMap.organization),
+      startDate: valueFor(sectionConfig.summaryMap.startDate),
+      endDate: valueFor(sectionConfig.summaryMap.endDate),
+      description: valueFor(sectionConfig.summaryMap.description),
+      url: valueFor(sectionConfig.summaryMap.url),
+      extraData: detailedFormData.extraData,
+    };
+
+    if (!payload.title) {
+      payload.title = activeDetailedSectionMeta?.label || 'Profile entry';
+    }
+
+    const previousSections = detailedSections;
+    const nextSections = { ...detailedSections };
+    const currentItems = [...nextSections[activeDetailedSection]];
+
+    if (currentDetailedItem) {
+      nextSections[activeDetailedSection] = currentItems.map((item) =>
+        item.id === currentDetailedItem.id ? { ...payload, id: item.id } : item
+      );
+    } else {
+      nextSections[activeDetailedSection] = [
+        { ...payload, id: crypto.randomUUID() },
+        ...currentItems,
+      ];
+    }
+
+    setDetailedSections(nextSections);
+    const saved = await saveDetailedSections(nextSections);
+    if (!saved) {
+      setDetailedSections(previousSections);
+      return;
+    }
+
+    setIsDetailedItemModalOpen(false);
+    toast({
+      title: currentDetailedItem ? 'Entry updated' : 'Entry added',
+      description: 'Detailed section has been saved successfully.',
+    });
+  };
+
+  const handleDeleteDetailedItem = async (section: DetailedSectionKey, id: string) => {
+    const previousSections = detailedSections;
+    const nextSections = {
+      ...detailedSections,
+      [section]: detailedSections[section].filter((item) => item.id !== id),
+    };
+
+    setDetailedSections(nextSections);
+    const saved = await saveDetailedSections(nextSections);
+    if (!saved) {
+      setDetailedSections(previousSections);
+      return;
+    }
+
+    toast({
+      title: 'Entry deleted',
+      description: 'The section item was removed.',
+    });
   };
 
   const handleImportLinkedInData = async (data: any) => {
@@ -568,14 +1073,6 @@ export default function ProfilePage() {
     await saveProfileSections(experiences, educations, nextSkills, interests);
   };
 
-  const handleAddInterest = async (interest: string) => {
-    if (!interests.includes(interest)) {
-      const nextInterests = [...interests, interest];
-      setInterests(nextInterests);
-      await saveProfileSections(experiences, educations, skills, nextInterests);
-    }
-  };
-
   const handleRemoveInterest = async (interestToRemove: string) => {
     const nextInterests = interests.filter((interest) => interest !== interestToRemove);
     setInterests(nextInterests);
@@ -609,6 +1106,32 @@ export default function ProfilePage() {
       </div>
     );
   }
+
+  const hasDetailedSectionEntries = DETAILED_SECTION_CONFIG.some(
+    (config) => detailedSections[config.key].length > 0
+  );
+  const activeDetailedSectionMeta = DETAILED_SECTION_CONFIG.find((item) => item.key === activeDetailedSection);
+  const activeDetailedFormConfig = DETAILED_SECTION_FORM_CONFIG[activeDetailedSection];
+
+  const updateDetailedExtraField = (key: string, value: string | boolean | string[]) => {
+    setDetailedFormData((prev) => ({
+      ...prev,
+      extraData: {
+        ...prev.extraData,
+        [key]: value,
+      },
+    }));
+  };
+
+  const toggleDetailedMultiSelectOption = (key: string, option: string) => {
+    const current = detailedFormData.extraData[key];
+    const selected = Array.isArray(current) ? current : [];
+    const nextSelected = selected.includes(option)
+      ? selected.filter((item) => item !== option)
+      : [...selected, option];
+
+    updateDetailedExtraField(key, nextSelected);
+  };
   
   return (
     <div>
@@ -694,7 +1217,7 @@ export default function ProfilePage() {
                 
                 {profile.linkedInProfile && (
                   <div className="flex items-center gap-2">
-                    <LinkedinIcon className="h-4 w-4 text-muted-foreground" />
+                    <Globe className="h-4 w-4 text-muted-foreground" />
                     <a href={profile.linkedInProfile} target="_blank" rel="noopener noreferrer" className="text-foreground/90 hover:underline">LinkedIn Profile</a>
                   </div>
                 )}
@@ -749,11 +1272,24 @@ export default function ProfilePage() {
               >
                 Skills & Interests
               </TabsTrigger>
+              <TabsTrigger 
+                value="detailed"
+                className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white hover:text-foreground"
+              >
+                Detailed Sections
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="profile" className="mt-4">
               <Card>
                 <CardContent className="pt-6">
-                  <div className="flex justify-end mb-4">
+                  <div className="flex justify-end mb-4 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsAddToProfileModalOpen(true)}
+                    >
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add to Profile
+                    </Button>
                     <Button
                       variant="outline"
                       onClick={() => setIsLinkedInModalOpen(true)}
@@ -1191,40 +1727,116 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     
+                    <p className="text-sm text-muted-foreground">
+                      Use the <span className="font-medium">Detailed Sections</span> tab to add languages, certifications, projects, publications, and other advanced profile data.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="detailed" className="mt-4">
+              <Card>
+                <CardContent className="pt-6 space-y-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-medium">Languages</h3>
-                        {isOwnProfile && (
-                          <Button
-                            className="bg-primary hover:bg-primary/90 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
-                            onClick={() => setIsSkillsModalOpen(true)}
-                          >
-                            + Add Languages
+                      <h3 className="text-lg font-medium">Detailed Profile Sections</h3>
+                      <p className="text-sm text-muted-foreground">Build a richer profile with achievements, projects, credentials, and more.</p>
+                    </div>
+                    <Button variant="outline" onClick={() => setIsAddToProfileModalOpen(true)}>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Add to Profile
+                    </Button>
+                  </div>
+
+                  {DETAILED_SECTION_CONFIG.map((config) => {
+                    const entries = detailedSections[config.key];
+                    return (
+                      <div key={config.key} className="border rounded-lg p-4">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                          <div>
+                            <h4 className="font-semibold">{config.label}</h4>
+                            <p className="text-xs text-muted-foreground">{config.hint}</p>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={() => openDetailedItemModal(config.key)}>
+                            + Add
                           </Button>
+                        </div>
+
+                        {entries.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No entries yet.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {entries.map((entry) => (
+                              <div key={entry.id} className="border rounded-md p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="font-medium">{entry.title}</p>
+                                    {(entry.organization || entry.startDate || entry.endDate) && (
+                                      <p className="text-sm text-muted-foreground">
+                                        {[entry.organization, [entry.startDate, entry.endDate].filter(Boolean).join(' - ')].filter(Boolean).join(' · ')}
+                                      </p>
+                                    )}
+                                    {entry.description && <p className="text-sm mt-2">{entry.description}</p>}
+                                    {entry.url && (
+                                      <a href={entry.url} target="_blank" rel="noopener noreferrer" className="text-sm text-foreground hover:underline">
+                                        {entry.url}
+                                      </a>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-2 shrink-0">
+                                    <Button variant="outline" size="sm" onClick={() => openDetailedItemModal(config.key, entry)}>Edit</Button>
+                                    <Button variant="outline" size="sm" className="text-red-500" onClick={() => handleDeleteDetailedItem(config.key, entry.id)}>Delete</Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">English</span>
-                          <span className="text-sm text-muted-foreground/80">Native or Bilingual</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">Spanish</span>
-                          <span className="text-sm text-muted-foreground/80">Professional Working</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">French</span>
-                          <span className="text-sm text-muted-foreground/80">Elementary</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })}
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
         </div>
+      )}
+
+      {hasDetailedSectionEntries && (
+        <Card className="mt-6">
+          <CardContent className="pt-6 space-y-6">
+            <h3 className="text-lg font-semibold">Additional Profile Details</h3>
+            {DETAILED_SECTION_CONFIG.map((config) => {
+              const entries = detailedSections[config.key];
+              if (!entries.length) return null;
+
+              return (
+                <div key={config.key} className="border-b last:border-b-0 pb-4 last:pb-0">
+                  <h4 className="font-medium mb-3">{config.label}</h4>
+                  <div className="space-y-3">
+                    {entries.map((entry) => (
+                      <div key={entry.id} className="rounded-md border p-3">
+                        <p className="font-medium">{entry.title}</p>
+                        {(entry.organization || entry.startDate || entry.endDate) && (
+                          <p className="text-sm text-muted-foreground">
+                            {[entry.organization, [entry.startDate, entry.endDate].filter(Boolean).join(' - ')].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                        {entry.description && <p className="text-sm mt-2">{entry.description}</p>}
+                        {entry.url && (
+                          <a href={entry.url} target="_blank" rel="noopener noreferrer" className="text-sm text-foreground hover:underline">
+                            {entry.url}
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
       )}
       
       {isOwnProfile && isLinkedInModalOpen && (
@@ -1234,6 +1846,149 @@ export default function ProfilePage() {
           onImport={handleImportLinkedInData}
         />
       )}
+
+      <Dialog open={isAddToProfileModalOpen} onOpenChange={setIsAddToProfileModalOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add to profile</DialogTitle>
+            <DialogDescription>
+              Start with core details, then add recommended and additional sections to build a complete profile.
+            </DialogDescription>
+          </DialogHeader>
+
+          {(['Core', 'Recommended', 'Additional'] as DetailedSectionGroup[]).map((group) => {
+            const sections = DETAILED_SECTION_CONFIG.filter((section) => section.group === group);
+            return (
+              <div key={group} className="border rounded-lg p-3">
+                <h4 className="font-semibold mb-2">{group}</h4>
+                <div className="space-y-2">
+                  {sections.map((section) => (
+                    <div key={section.key} className="flex items-start justify-between gap-3 py-2 border-b last:border-b-0">
+                      <div>
+                        <p className="font-medium">Add {section.label}</p>
+                        <p className="text-xs text-muted-foreground">{section.hint}</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => openDetailedItemModal(section.key)}>
+                        Add
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDetailedItemModalOpen} onOpenChange={setIsDetailedItemModalOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{currentDetailedItem ? `Edit ${activeDetailedSectionMeta?.label || 'entry'}` : `Add ${activeDetailedSectionMeta?.label || 'entry'}`}</DialogTitle>
+            <DialogDescription>
+              {activeDetailedFormConfig.helperText}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            {activeDetailedFormConfig.fields.map((field) => {
+              const fieldId = `detail-${field.key}`;
+              const fieldValue = detailedFormData.extraData[field.key];
+
+              if (field.type === 'checkbox') {
+                return (
+                  <div key={field.key} className="flex items-center gap-2">
+                    <input
+                      id={fieldId}
+                      type="checkbox"
+                      checked={fieldValue === true}
+                      onChange={(e) => updateDetailedExtraField(field.key, e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor={fieldId}>{field.label}</Label>
+                  </div>
+                );
+              }
+
+              if (field.type === 'multiselect') {
+                const selectedValues = Array.isArray(fieldValue) ? fieldValue : [];
+                return (
+                  <div key={field.key}>
+                    <Label>{field.label}{field.required ? ' *' : ''}</Label>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-md p-3 max-h-52 overflow-y-auto">
+                      {(field.options || []).map((option) => (
+                        <label key={option} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedValues.includes(option)}
+                            onChange={() => toggleDetailedMultiSelectOption(field.key, option)}
+                            className="h-4 w-4"
+                          />
+                          <span>{option}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.type === 'select') {
+                return (
+                  <div key={field.key}>
+                    <Label htmlFor={fieldId}>{field.label}{field.required ? ' *' : ''}</Label>
+                    <select
+                      id={fieldId}
+                      className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={typeof fieldValue === 'string' ? fieldValue : ''}
+                      onChange={(e) => updateDetailedExtraField(field.key, e.target.value)}
+                    >
+                      <option value="">Please select</option>
+                      {(field.options || []).map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              }
+
+              if (field.type === 'textarea') {
+                return (
+                  <div key={field.key}>
+                    <Label htmlFor={fieldId}>{field.label}{field.required ? ' *' : ''}</Label>
+                    <Textarea
+                      id={fieldId}
+                      className="mt-2"
+                      value={typeof fieldValue === 'string' ? fieldValue : ''}
+                      onChange={(e) => updateDetailedExtraField(field.key, e.target.value)}
+                      placeholder={field.placeholder}
+                      rows={field.rows || 4}
+                    />
+                    {field.helperText && <p className="text-xs text-muted-foreground mt-1">{field.helperText}</p>}
+                  </div>
+                );
+              }
+
+              return (
+                <div key={field.key}>
+                  <Label htmlFor={fieldId}>{field.label}{field.required ? ' *' : ''}</Label>
+                  <Input
+                    id={fieldId}
+                    className="mt-2"
+                    value={typeof fieldValue === 'string' ? fieldValue : ''}
+                    onChange={(e) => updateDetailedExtraField(field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                  />
+                  {field.helperText && <p className="text-xs text-muted-foreground mt-1">{field.helperText}</p>}
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailedItemModalOpen(false)}>Cancel</Button>
+            <Button className="bg-primary hover:bg-primary/90" onClick={handleSaveDetailedItem}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       {/* Experience Modal */}
       <Dialog open={isExperienceModalOpen} onOpenChange={setIsExperienceModalOpen}>
