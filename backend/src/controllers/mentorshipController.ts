@@ -273,30 +273,49 @@ export const becomeMentor = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
+    const normalizedExpertise = Array.isArray(profileData.expertise)
+      ? profileData.expertise.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
+
+    const normalizedPreferredMenteeLevel = Array.isArray(profileData.preferredMenteeLevel)
+      ? profileData.preferredMenteeLevel.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+      : ['new_graduate'];
+
+    const normalizedExperience = typeof profileData.experience === 'string' ? profileData.experience : '';
+    const normalizedIndustry = typeof profileData.industry === 'string' ? profileData.industry : '';
+    const normalizedBio = typeof profileData.bio === 'string' ? profileData.bio : '';
+    const normalizedYears = Number.isFinite(Number(profileData.yearsOfExperience))
+      ? Number(profileData.yearsOfExperience)
+      : 0;
+    const normalizedMaxMentees = Number.isFinite(Number(profileData.maxMentees))
+      ? Number(profileData.maxMentees)
+      : 3;
+    const normalizedCurrentMentees = Number.isFinite(Number(profileData.currentMentees))
+      ? Number(profileData.currentMentees)
+      : 0;
+
+    const upsertData = {
+      isMentor: true,
+      isActive: true,
+      expertise: normalizedExpertise,
+      experience: normalizedExperience,
+      industry: normalizedIndustry,
+      yearsOfExperience: normalizedYears,
+      bio: normalizedBio,
+      availability: availabilityPayload,
+      preferredMenteeLevel: normalizedPreferredMenteeLevel,
+      maxMentees: normalizedMaxMentees,
+      currentMentees: normalizedCurrentMentees,
+      communicationPreferences: communicationPreferences.length > 0 ? communicationPreferences : ['email', sessionMode]
+    };
+
     const profile = await prisma.mentorshipProfile.upsert({
       where: { userId },
       create: {
         userId,
-        isMentor: true,
-        isActive: true,
-        expertise: profileData.expertise || [],
-        experience: profileData.experience || '',
-        industry: profileData.industry || '',
-        yearsOfExperience: profileData.yearsOfExperience || 0,
-        bio: profileData.bio || '',
-        availability: availabilityPayload,
-        preferredMenteeLevel: profileData.preferredMenteeLevel || ['new_graduate'],
-        maxMentees: profileData.maxMentees || 3,
-        currentMentees: profileData.currentMentees || 0,
-        communicationPreferences: communicationPreferences.length > 0 ? communicationPreferences : ['email', sessionMode]
+        ...upsertData,
       },
-      update: {
-        ...profileData,
-        availability: availabilityPayload,
-        communicationPreferences: communicationPreferences.length > 0 ? communicationPreferences : ['email', sessionMode],
-        isMentor: true,
-        isActive: true
-      }
+      update: upsertData
     });
 
     await prisma.user.update({

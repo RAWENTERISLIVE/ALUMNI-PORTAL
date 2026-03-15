@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
@@ -107,9 +107,12 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: Re
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Request Mentorship</DialogTitle>
+          <DialogDescription>
+            Choose a topic, preferred session mode, and an optional time slot to send a focused mentorship request.
+          </DialogDescription>
         </DialogHeader>
         
         <div className="flex gap-4 items-start">
