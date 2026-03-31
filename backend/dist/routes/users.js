@@ -76,6 +76,7 @@ router.patch('/:userId/approve', auth_1.authMiddleware, auth_1.requireAdmin, use
 router.patch('/:userId/reject', auth_1.authMiddleware, auth_1.requireAdmin, userController_1.rejectUser);
 router.patch('/:userId/suspend', auth_1.authMiddleware, auth_1.requireAdmin, userController_1.suspendUser);
 router.patch('/:userId/reactivate', auth_1.authMiddleware, auth_1.requireAdmin, userController_1.reactivateUser);
+router.patch('/:userId/edit', auth_1.authMiddleware, auth_1.requireAdmin, userController_1.adminEditUser);
 router.patch('/:userId/promote-moderator', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.promoteToModerator);
 router.patch('/:userId/promote', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.promoteToAdmin);
 router.patch('/:userId/demote', auth_1.authMiddleware, auth_1.requireSuperAdmin, userController_1.demoteAdmin);

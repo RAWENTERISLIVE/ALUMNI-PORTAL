@@ -982,6 +982,20 @@ class ApiService {
     }
   }
 
+  async adminEditUser(userId: string, userData: Record<string, any>): Promise<ApiResponse> {
+    try {
+      return await this.request(`/users/${userId}/edit`, {
+        method: 'PATCH',
+        body: JSON.stringify(userData)
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to edit user.'
+      };
+    }
+  }
+
   // Comment methods
   async getComments(postId: string): Promise<ApiResponse> {
     try {
@@ -1879,6 +1893,118 @@ class ApiService {
       return await this.request(`/events/${eventId}/attendees`);
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to fetch event attendees.', data: [] };
+    }
+  }
+
+  // Help Ticket methods
+  async createHelpTicket(data: any): Promise<ApiResponse> {
+    try {
+      const formData = new FormData();
+      formData.append('title', data.title);
+      formData.append('description', data.description);
+      formData.append('category', data.category);
+      formData.append('priority', data.priority);
+      if (data.reportedUserId) {
+        formData.append('reportedUserId', data.reportedUserId);
+      }
+      formData.append('tags', JSON.stringify(data.tags || []));
+
+      if (data.attachments && Array.isArray(data.attachments)) {
+        for (const file of data.attachments) {
+          formData.append('attachments', file);
+        }
+      }
+
+      return await this.request('/help-tickets', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          // Remove Content-Type header to let browser set it with boundary
+          'Content-Type': undefined,
+        } as any,
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to create help ticket.' };
+    }
+  }
+
+  async getMyHelpTickets(page = 1, limit = 10, status?: string): Promise<ApiResponse> {
+    try {
+      const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('limit', String(limit));
+      if (status) params.append('status', status);
+      return await this.request(`/help-tickets/my?${params.toString()}`);
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch help tickets.' };
+    }
+  }
+
+  async getAllHelpTickets(page = 1, limit = 10, filters?: any): Promise<ApiResponse> {
+    try {
+      const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('limit', String(limit));
+      if (filters?.status) params.append('status', filters.status);
+      if (filters?.category) params.append('category', filters.category);
+      if (filters?.priority) params.append('priority', filters.priority);
+      return await this.request(`/help-tickets/all?${params.toString()}`);
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch help tickets.' };
+    }
+  }
+
+  async getHelpTicket(id: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/help-tickets/${id}`);
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch help ticket.' };
+    }
+  }
+
+  async updateHelpTicket(id: string, data: any): Promise<ApiResponse> {
+    try {
+      return await this.request(`/help-tickets/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to update help ticket.' };
+    }
+  }
+
+  async addHelpTicketReply(ticketId: string, content: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/help-tickets/${ticketId}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to add reply.' };
+    }
+  }
+
+  async deleteHelpTicket(id: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/help-tickets/${id}`, {
+        method: 'DELETE',
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to delete help ticket.' };
+    }
+  }
+
+  async searchHelpTickets(query: string, page = 1, limit = 10, filters?: any): Promise<ApiResponse> {
+    try {
+      const params = new URLSearchParams();
+      params.append('query', query);
+      params.append('page', String(page));
+      params.append('limit', String(limit));
+      if (filters?.category) params.append('category', filters.category);
+      if (filters?.status) params.append('status', filters.status);
+      return await this.request(`/help-tickets/search?${params.toString()}`);
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to search help tickets.' };
     }
   }
 }

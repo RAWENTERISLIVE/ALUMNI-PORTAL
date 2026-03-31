@@ -17,12 +17,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Search, UserX, Check, X, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw } from "lucide-react";
+import { Search, UserX, Check, X, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import apiService from "@/services/apiService";
 import AdminSettingsPanel from "@/components/admin/AdminSettingsPanel";
+import AdminUserEditModal from "@/components/admin/AdminUserEditModal";
 
 interface User {
   id: string;
@@ -103,6 +104,8 @@ export default function AdminPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<string>('');
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
 
   // Check if user has admin permissions
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
@@ -306,6 +309,18 @@ export default function AdminPage() {
         });
       }
     }, `delete-${userId}`);
+  };
+
+  const handleEditUser = (user: User) => {
+    setSelectedUserForEdit(user);
+    setEditModalOpen(true);
+  };
+
+  const handleUserUpdated = (updatedUser: any) => {
+    // Update the user in the users list
+    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    setEditModalOpen(false);
+    setSelectedUserForEdit(null);
   };
 
   const resolveReport = async (reportId: string) => {
@@ -552,6 +567,15 @@ export default function AdminPage() {
                       <TableCell>{user.admissionYear}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditUser(user)}
+                            title="Edit user details"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+
                           {user.status === 'suspended' && (
                             <Button
                               size="sm"
@@ -951,6 +975,19 @@ export default function AdminPage() {
           <AdminSettingsPanel />
         </TabsContent>
       </Tabs>
+
+      {/* Admin Edit User Modal */}
+      {selectedUserForEdit && (
+        <AdminUserEditModal
+          isOpen={editModalOpen}
+          onClose={() => {
+            setEditModalOpen(false);
+            setSelectedUserForEdit(null);
+          }}
+          user={selectedUserForEdit}
+          onUserUpdated={handleUserUpdated}
+        />
+      )}
     </div>
   );
 }

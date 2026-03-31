@@ -25,7 +25,8 @@ import {
   getDirectConversations,
   searchDirectMessageUsers,
   getDirectMessages,
-  sendDirectMessage
+  sendDirectMessage,
+  adminEditUser
 } from '../controllers/userController';
 import { authMiddleware, requireAdmin, requireSuperAdmin } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -104,6 +105,7 @@ router.patch('/:userId/approve', authMiddleware, requireAdmin, approveUser);
 router.patch('/:userId/reject', authMiddleware, requireAdmin, rejectUser);
 router.patch('/:userId/suspend', authMiddleware, requireAdmin, suspendUser);
 router.patch('/:userId/reactivate', authMiddleware, requireAdmin, reactivateUser);
+router.patch('/:userId/edit', authMiddleware, requireAdmin, adminEditUser);
 
 // Admin management (Super Admin only)
 router.patch('/:userId/promote-moderator', authMiddleware, requireSuperAdmin, promoteToModerator);

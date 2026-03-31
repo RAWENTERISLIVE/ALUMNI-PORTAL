@@ -103,6 +103,14 @@ const buildShortcutResults = (query, isAdmin) => {
             route: '/admin',
             keywords: ['admin', 'moderation', 'approvals'],
             adminOnly: true
+        },
+        {
+            id: 'shortcut-help',
+            type: 'shortcut',
+            title: 'Help & Support',
+            subtitle: 'Ask questions, report issues, or share feedback',
+            route: '/settings?tab=help',
+            keywords: ['help', 'support', 'ticket', 'report', 'feedback', 'bug']
         }
     ];
     const normalizedQuery = normalizeText(query);
@@ -149,7 +157,7 @@ exports.universalSearch = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         return;
     }
     const hiddenEmails = [...(0, systemAccounts_1.getHiddenSystemAccountEmails)()];
-    const [messageableUsers, users, groups, events, jobs, posts] = await Promise.all([
+    const [messageableUsers, users, groups, events, jobs, posts, helpTickets] = await Promise.all([
         prisma_1.default.user.findMany({
             where: {
                 status: client_1.Status.ACTIVE,
@@ -280,6 +288,28 @@ exports.universalSearch = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             },
             orderBy: { createdAt: 'desc' },
             take: limit
+        }),
+        prisma_1.default.helpTicket.findMany({
+            where: {
+                OR: [
+                    { title: { contains: query, mode: 'insensitive' } },
+                    { description: { contains: query, mode: 'insensitive' } },
+                    { tags: { hasSome: [query] } }
+                ],
+                OR: [
+                    { createdById: currentUserId },
+                    { assignedTo: currentUserId }
+                ]
+            },
+            select: {
+                id: true,
+                title: true,
+                category: true,
+                status: true,
+                priority: true
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit
         })
     ]);
     const messageResults = messageableUsers.map((user) => ({
@@ -324,6 +354,13 @@ exports.universalSearch = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         subtitle: post.author?.name || post.content.slice(0, 90),
         route: '/posts'
     }));
+    const helpTicketResults = helpTickets.map((ticket) => ({
+        id: `help-ticket-${ticket.id}`,
+        type: 'help_ticket',
+        title: ticket.title,
+        subtitle: `${ticket.category.replace(/_/g, ' ')} • ${ticket.status}`,
+        route: `/settings?tab=help&ticket=${encodeURIComponent(ticket.id)}`
+    }));
     const combinedResults = [
         ...shortcutResults,
         ...messageResults,
@@ -331,7 +368,8 @@ exports.universalSearch = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         ...groupResults,
         ...eventResults,
         ...jobResults,
-        ...postResults
+        ...postResults,
+        ...helpTicketResults
     ];
     res.status(200).json({
         success: true,
@@ -343,7 +381,8 @@ exports.universalSearch = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             groups: groupResults.length,
             events: eventResults.length,
             jobs: jobResults.length,
-            posts: postResults.length
+            posts: postResults.length,
+            help_tickets: helpTicketResults.length
         }
     });
 });

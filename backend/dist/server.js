@@ -26,6 +26,7 @@ const status_1 = __importDefault(require("./routes/status"));
 const notifications_1 = __importDefault(require("./routes/notifications"));
 const linkedin_1 = __importDefault(require("./routes/linkedin"));
 const search_1 = __importDefault(require("./routes/search"));
+const helpTickets_1 = __importDefault(require("./routes/helpTickets"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = Number.parseInt(process.env.PORT || '5000', 10);
@@ -92,6 +93,7 @@ app.use('/api/reports', reports_1.default);
 app.use('/api/notifications', notifications_1.default);
 app.use('/api/linkedin', linkedin_1.default);
 app.use('/api/search', search_1.default);
+app.use('/api/help-tickets', helpTickets_1.default);
 app.use(errorHandler_1.errorHandler);
 app.get('/api', (_req, res) => {
     res.send('Alumni Connect API is running');

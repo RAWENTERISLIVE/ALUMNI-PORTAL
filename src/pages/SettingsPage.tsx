@@ -21,10 +21,12 @@ import {
   GraduationCap,
   Users,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  HelpCircle
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import apiService from "@/services/apiService";
+import HelpSection from "@/components/settings/HelpSection";
 
 // Define types for form data
 interface ProfileFormData {
@@ -497,7 +499,7 @@ export default function SettingsPage() {
         {/* Main Content */}
         <div className="flex-1 max-w-4xl">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 h-auto gap-1">
+            <TabsList className="grid w-full grid-cols-4 h-auto gap-1">
               <TabsTrigger value="notifications" className="flex items-center gap-2">
                 <Bell className="h-4 w-4" />
                 <span className="hidden sm:inline">Notifications</span>
@@ -509,6 +511,10 @@ export default function SettingsPage() {
               <TabsTrigger value="security" className="flex items-center gap-2">
                 <Lock className="h-4 w-4" />
                 <span className="hidden sm:inline">Security</span>
+              </TabsTrigger>
+              <TabsTrigger value="help" className="flex items-center gap-2">
+                <HelpCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Help</span>
               </TabsTrigger>
             </TabsList>
 
@@ -1040,6 +1046,10 @@ export default function SettingsPage() {
                     </div>
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="help" className="space-y-6">
+                <HelpSection />
               </TabsContent>
             </div>
           </Tabs>

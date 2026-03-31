@@ -24,6 +24,7 @@ import statusRoutes from './routes/status';
 import notificationRoutes from './routes/notifications';
 import linkedinRoutes from './routes/linkedin';
 import searchRoutes from './routes/search';
+import helpTicketRoutes from './routes/helpTickets';
 
 // Load environment variables
 dotenv.config();
@@ -110,6 +111,7 @@ app.use('/api/reports', reportRoutes); // Reports routes
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/linkedin', linkedinRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/help-tickets', helpTicketRoutes); // Help ticket routes
 
 // Error handling middleware
 app.use(errorHandler);

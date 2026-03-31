@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserSuggestions = exports.getAlumniDirectory = exports.updateUserProfile = exports.setPremiumBadge = exports.demoteAdmin = exports.promoteToModerator = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.getPendingUsers = exports.searchAlumni = exports.getConnectionSuggestions = exports.sendDirectMessage = exports.getDirectMessages = exports.getDirectConversations = exports.unfollowUser = exports.followUser = exports.disconnectUser = exports.acceptConnectionRequest = exports.connectUser = exports.getUserStats = exports.deleteUser = exports.blockUser = exports.rejectUser = exports.approveUser = exports.updateProfile = exports.getUserProfile = exports.getUserById = exports.searchDirectMessageUsers = exports.getPublicAlumni = exports.getAllUsers = void 0;
+exports.getUserSuggestions = exports.getAlumniDirectory = exports.updateUserProfile = exports.adminEditUser = exports.setPremiumBadge = exports.demoteAdmin = exports.promoteToModerator = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.getPendingUsers = exports.searchAlumni = exports.getConnectionSuggestions = exports.sendDirectMessage = exports.getDirectMessages = exports.getDirectConversations = exports.unfollowUser = exports.followUser = exports.disconnectUser = exports.acceptConnectionRequest = exports.connectUser = exports.getUserStats = exports.deleteUser = exports.blockUser = exports.rejectUser = exports.approveUser = exports.updateProfile = exports.getUserProfile = exports.getUserById = exports.searchDirectMessageUsers = exports.getPublicAlumni = exports.getAllUsers = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const errorHandler_1 = require("../middleware/errorHandler");
@@ -43,7 +43,19 @@ const adminUserSelect = {
     isVerified: true,
     createdAt: true,
     updatedAt: true,
-    lastLogin: true
+    lastLogin: true,
+    bio: true,
+    headline: true,
+    linkedInProfile: true,
+    skills: true,
+    contactEmail: true,
+    contactPhone: true,
+    city: true,
+    country: true,
+    company: true,
+    jobTitle: true,
+    location: true,
+    isAvailableAsMentor: true
 };
 const normalizeRole = (role) => (role || '').toUpperCase();
 const normalizeStatus = (status) => (status || '').toUpperCase();
@@ -1555,6 +1567,211 @@ exports.setPremiumBadge = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const user = await prisma_1.default.user.update({
         where: { id },
         data: { hasPremiumBadge: enabled },
+        select: adminUserSelect
+    });
+    res.status(200).json({ success: true, data: serializeUser(user) });
+});
+exports.adminEditUser = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const id = getTargetUserId(req);
+    if (!id) {
+        res.status(400).json({ success: false, message: 'User ID is required' });
+        return;
+    }
+    if (!req.user || !isAdminRole(req.user.role)) {
+        res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
+    }
+    const target = await prisma_1.default.user.findUnique({ where: { id }, select: { email: true } });
+    if (!target || (0, systemAccounts_1.isHiddenSystemAccountEmail)(target.email)) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+    }
+    const { email, firstName, lastName, name, admissionNumber, admissionYear, accountType, contactEmail, contactPhone, city, country, company, jobTitle, location, isAvailableAsMentor, bio, headline, linkedInProfile, skills, status, role, isVerified, hasPremiumBadge } = req.body;
+    const updateData = {};
+    const isSuperAdmin = req.user.role === 'SUPER_ADMIN';
+    if (email !== undefined) {
+        if (typeof email !== 'string' || !email.includes('@')) {
+            res.status(400).json({ success: false, message: 'Invalid email format' });
+            return;
+        }
+        const existingUser = await prisma_1.default.user.findUnique({ where: { email } });
+        if (existingUser && existingUser.id !== id) {
+            res.status(400).json({ success: false, message: 'Email already in use' });
+            return;
+        }
+        updateData.email = email;
+    }
+    if (name !== undefined) {
+        if (typeof name !== 'string' || name.trim().length < 2) {
+            res.status(400).json({ success: false, message: 'Name must be at least 2 characters' });
+            return;
+        }
+        updateData.name = name;
+    }
+    if (firstName !== undefined) {
+        if (firstName !== null && (typeof firstName !== 'string' || firstName.trim().length === 0)) {
+            res.status(400).json({ success: false, message: 'First name must be non-empty string or null' });
+            return;
+        }
+        updateData.firstName = firstName || null;
+    }
+    if (lastName !== undefined) {
+        if (lastName !== null && (typeof lastName !== 'string' || lastName.trim().length === 0)) {
+            res.status(400).json({ success: false, message: 'Last name must be non-empty string or null' });
+            return;
+        }
+        updateData.lastName = lastName || null;
+    }
+    if (admissionNumber !== undefined) {
+        if (typeof admissionNumber !== 'string' || admissionNumber.trim().length === 0) {
+            res.status(400).json({ success: false, message: 'Admission number is required' });
+            return;
+        }
+        updateData.admissionNumber = admissionNumber;
+    }
+    if (admissionYear !== undefined) {
+        if (typeof admissionYear !== 'string' || admissionYear.trim().length === 0) {
+            res.status(400).json({ success: false, message: 'Admission year is required' });
+            return;
+        }
+        updateData.admissionYear = admissionYear;
+    }
+    if (accountType !== undefined) {
+        if (accountType && !['ALUMNI', 'FACULTY', 'STUDENT'].includes(accountType.toUpperCase())) {
+            res.status(400).json({ success: false, message: 'Invalid account type' });
+            return;
+        }
+        updateData.accountType = accountType?.toUpperCase() || 'ALUMNI';
+    }
+    if (contactEmail !== undefined) {
+        if (contactEmail !== null && typeof contactEmail === 'string') {
+            if (!contactEmail.includes('@')) {
+                res.status(400).json({ success: false, message: 'Invalid contact email format' });
+                return;
+            }
+        }
+        updateData.contactEmail = contactEmail || null;
+    }
+    if (contactPhone !== undefined) {
+        if (contactPhone !== null && typeof contactPhone !== 'string') {
+            res.status(400).json({ success: false, message: 'Contact phone must be string or null' });
+            return;
+        }
+        updateData.contactPhone = contactPhone || null;
+    }
+    if (city !== undefined) {
+        if (city !== null && (typeof city !== 'string' || city.trim().length === 0)) {
+            res.status(400).json({ success: false, message: 'City must be non-empty string or null' });
+            return;
+        }
+        updateData.city = city || null;
+    }
+    if (country !== undefined) {
+        if (country !== null && (typeof country !== 'string' || country.trim().length === 0)) {
+            res.status(400).json({ success: false, message: 'Country must be non-empty string or null' });
+            return;
+        }
+        updateData.country = country || null;
+    }
+    if (company !== undefined) {
+        if (company !== null && (typeof company !== 'string' || company.trim().length === 0)) {
+            res.status(400).json({ success: false, message: 'Company must be non-empty string or null' });
+            return;
+        }
+        updateData.company = company || null;
+    }
+    if (jobTitle !== undefined) {
+        if (jobTitle !== null && (typeof jobTitle !== 'string' || jobTitle.trim().length === 0)) {
+            res.status(400).json({ success: false, message: 'Job title must be non-empty string or null' });
+            return;
+        }
+        updateData.jobTitle = jobTitle || null;
+    }
+    if (location !== undefined) {
+        if (location !== null && (typeof location !== 'string' || location.trim().length === 0)) {
+            res.status(400).json({ success: false, message: 'Location must be non-empty string or null' });
+            return;
+        }
+        updateData.location = location || null;
+    }
+    if (isAvailableAsMentor !== undefined) {
+        if (typeof isAvailableAsMentor !== 'boolean') {
+            res.status(400).json({ success: false, message: 'isAvailableAsMentor must be boolean' });
+            return;
+        }
+        updateData.isAvailableAsMentor = isAvailableAsMentor;
+    }
+    if (bio !== undefined) {
+        if (bio !== null && (typeof bio !== 'string' || bio.trim().length === 0)) {
+            res.status(400).json({ success: false, message: 'Bio must be non-empty string or null' });
+            return;
+        }
+        updateData.bio = bio || null;
+    }
+    if (headline !== undefined) {
+        if (headline !== null && (typeof headline !== 'string' || headline.trim().length === 0)) {
+            res.status(400).json({ success: false, message: 'Headline must be non-empty string or null' });
+            return;
+        }
+        updateData.headline = headline || null;
+    }
+    if (linkedInProfile !== undefined) {
+        if (linkedInProfile !== null && typeof linkedInProfile !== 'string') {
+            res.status(400).json({ success: false, message: 'LinkedIn profile must be string or null' });
+            return;
+        }
+        updateData.linkedInProfile = linkedInProfile || null;
+    }
+    if (skills !== undefined) {
+        if (!Array.isArray(skills)) {
+            res.status(400).json({ success: false, message: 'Skills must be an array' });
+            return;
+        }
+        if (skills.some((s) => typeof s !== 'string')) {
+            res.status(400).json({ success: false, message: 'All skills must be strings' });
+            return;
+        }
+        updateData.skills = skills;
+    }
+    if (status !== undefined) {
+        if (!['PENDING', 'ACTIVE', 'SUSPENDED', 'DELETED'].includes(status?.toUpperCase())) {
+            res.status(400).json({ success: false, message: 'Invalid status. Must be one of: PENDING, ACTIVE, SUSPENDED, DELETED' });
+            return;
+        }
+        updateData.status = status?.toUpperCase();
+    }
+    if (role !== undefined) {
+        if (!isSuperAdmin) {
+            res.status(403).json({ success: false, message: 'Only super admins can change user roles' });
+            return;
+        }
+        if (!['USER', 'MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(role?.toUpperCase())) {
+            res.status(400).json({ success: false, message: 'Invalid role. Must be one of: USER, MODERATOR, ADMIN, SUPER_ADMIN' });
+            return;
+        }
+        updateData.role = role?.toUpperCase();
+    }
+    if (isVerified !== undefined) {
+        if (typeof isVerified !== 'boolean') {
+            res.status(400).json({ success: false, message: 'isVerified must be boolean' });
+            return;
+        }
+        updateData.isVerified = isVerified;
+    }
+    if (hasPremiumBadge !== undefined) {
+        if (typeof hasPremiumBadge !== 'boolean') {
+            res.status(400).json({ success: false, message: 'hasPremiumBadge must be boolean' });
+            return;
+        }
+        updateData.hasPremiumBadge = hasPremiumBadge;
+    }
+    if (Object.keys(updateData).length === 0) {
+        res.status(400).json({ success: false, message: 'No fields to update' });
+        return;
+    }
+    const user = await prisma_1.default.user.update({
+        where: { id },
+        data: updateData,
         select: adminUserSelect
     });
     res.status(200).json({ success: true, data: serializeUser(user) });

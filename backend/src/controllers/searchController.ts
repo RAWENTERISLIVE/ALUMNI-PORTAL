@@ -12,7 +12,7 @@ interface AuthRequest extends Request {
   };
 }
 
-type SearchResultType = 'shortcut' | 'message' | 'user' | 'group' | 'event' | 'job' | 'post';
+type SearchResultType = 'shortcut' | 'message' | 'user' | 'group' | 'event' | 'job' | 'post' | 'help_ticket';
 
 interface UniversalSearchResult {
   id: string;
@@ -122,6 +122,14 @@ const buildShortcutResults = (query: string, isAdmin: boolean): UniversalSearchR
       route: '/admin',
       keywords: ['admin', 'moderation', 'approvals'],
       adminOnly: true
+    },
+    {
+      id: 'shortcut-help',
+      type: 'shortcut',
+      title: 'Help & Support',
+      subtitle: 'Ask questions, report issues, or share feedback',
+      route: '/settings?tab=help',
+      keywords: ['help', 'support', 'ticket', 'report', 'feedback', 'bug']
     }
   ];
 
@@ -176,7 +184,7 @@ export const universalSearch = asyncHandler(async (req: Request, res: Response) 
 
   const hiddenEmails = [...getHiddenSystemAccountEmails()];
 
-  const [messageableUsers, users, groups, events, jobs, posts] = await Promise.all([
+  const [messageableUsers, users, groups, events, jobs, posts, helpTickets] = await Promise.all([
     prisma.user.findMany({
       where: {
         status: Status.ACTIVE,
@@ -307,6 +315,29 @@ export const universalSearch = asyncHandler(async (req: Request, res: Response) 
       },
       orderBy: { createdAt: 'desc' },
       take: limit
+    }),
+    prisma.helpTicket.findMany({
+      where: {
+        OR: [
+          { title: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+          { tags: { hasSome: [query] } }
+        ],
+        // User can only see their own tickets or tickets assigned to them (for admins/moderators)
+        OR: [
+          { createdById: currentUserId },
+          { assignedTo: currentUserId }
+        ]
+      },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        status: true,
+        priority: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit
     })
   ]);
 
@@ -358,6 +389,14 @@ export const universalSearch = asyncHandler(async (req: Request, res: Response) 
     route: '/posts'
   }));
 
+  const helpTicketResults: UniversalSearchResult[] = helpTickets.map((ticket) => ({
+    id: `help-ticket-${ticket.id}`,
+    type: 'help_ticket',
+    title: ticket.title,
+    subtitle: `${ticket.category.replace(/_/g, ' ')} • ${ticket.status}`,
+    route: `/settings?tab=help&ticket=${encodeURIComponent(ticket.id)}`
+  }));
+
   const combinedResults = [
     ...shortcutResults,
     ...messageResults,
@@ -365,7 +404,8 @@ export const universalSearch = asyncHandler(async (req: Request, res: Response) 
     ...groupResults,
     ...eventResults,
     ...jobResults,
-    ...postResults
+    ...postResults,
+    ...helpTicketResults
   ];
 
   res.status(200).json({
@@ -378,7 +418,8 @@ export const universalSearch = asyncHandler(async (req: Request, res: Response) 
       groups: groupResults.length,
       events: eventResults.length,
       jobs: jobResults.length,
-      posts: postResults.length
+      posts: postResults.length,
+      help_tickets: helpTicketResults.length
     }
   });
 });
