@@ -23,6 +23,7 @@ import reportRoutes from './routes/reports';
 import statusRoutes from './routes/status';
 import notificationRoutes from './routes/notifications';
 import linkedinRoutes from './routes/linkedin';
+import searchRoutes from './routes/search';
 
 // Load environment variables
 dotenv.config();
@@ -108,6 +109,7 @@ app.use('/api/uploads', uploadRoutes); // Added uploads routes
 app.use('/api/reports', reportRoutes); // Reports routes
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/linkedin', linkedinRoutes);
+app.use('/api/search', searchRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

@@ -23,6 +23,7 @@ import {
   followUser,
   unfollowUser,
   getDirectConversations,
+  searchDirectMessageUsers,
   getDirectMessages,
   sendDirectMessage
 } from '../controllers/userController';
@@ -128,6 +129,7 @@ router.delete('/:userId/follow', authMiddleware, unfollowUser);
 
 // Direct messaging
 router.get('/messages/conversations', authMiddleware, getDirectConversations);
+router.get('/messages/search', authMiddleware, searchDirectMessageUsers);
 router.get('/messages/:userId', authMiddleware, getDirectMessages);
 router.post('/messages/:userId', authMiddleware, sendDirectMessage);
 

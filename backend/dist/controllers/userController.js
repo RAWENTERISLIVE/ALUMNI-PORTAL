@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserSuggestions = exports.getAlumniDirectory = exports.updateUserProfile = exports.setPremiumBadge = exports.demoteAdmin = exports.promoteToModerator = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.getPendingUsers = exports.searchAlumni = exports.getConnectionSuggestions = exports.sendDirectMessage = exports.getDirectMessages = exports.getDirectConversations = exports.unfollowUser = exports.followUser = exports.disconnectUser = exports.acceptConnectionRequest = exports.connectUser = exports.getUserStats = exports.deleteUser = exports.blockUser = exports.rejectUser = exports.approveUser = exports.updateProfile = exports.getUserProfile = exports.getUserById = exports.getPublicAlumni = exports.getAllUsers = void 0;
+exports.getUserSuggestions = exports.getAlumniDirectory = exports.updateUserProfile = exports.setPremiumBadge = exports.demoteAdmin = exports.promoteToModerator = exports.promoteToAdmin = exports.reactivateUser = exports.suspendUser = exports.getPendingUsers = exports.searchAlumni = exports.getConnectionSuggestions = exports.sendDirectMessage = exports.getDirectMessages = exports.getDirectConversations = exports.unfollowUser = exports.followUser = exports.disconnectUser = exports.acceptConnectionRequest = exports.connectUser = exports.getUserStats = exports.deleteUser = exports.blockUser = exports.rejectUser = exports.approveUser = exports.updateProfile = exports.getUserProfile = exports.getUserById = exports.searchDirectMessageUsers = exports.getPublicAlumni = exports.getAllUsers = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const errorHandler_1 = require("../middleware/errorHandler");
@@ -76,6 +76,146 @@ const isMissingDirectMessageTableError = (error) => {
     }
     return false;
 };
+const DIRECTORY_FILTER_ANALYTICS_TABLE = 'directory_filter_analytics';
+const MAX_DIRECTORY_FACET_VALUES = 8;
+const defaultIndustryFilters = [
+    'Technology',
+    'Finance',
+    'Healthcare',
+    'Education',
+    'Manufacturing',
+    'Retail',
+    'Consulting'
+];
+const defaultLocationFilters = [
+    'San Francisco, CA',
+    'New York, NY',
+    'Austin, TX',
+    'Chicago, IL',
+    'Seattle, WA'
+];
+let directoryAnalyticsTableReady = null;
+const normalizeFacetValue = (value) => value.trim().replace(/\s+/g, ' ');
+const mergeFacetValues = (analyticsValues, dataValues, fallbackValues, maxValues = MAX_DIRECTORY_FACET_VALUES) => {
+    const seen = new Set();
+    const merged = [];
+    const append = (candidate) => {
+        const normalized = normalizeFacetValue(candidate);
+        if (!normalized || seen.has(normalized))
+            return;
+        seen.add(normalized);
+        merged.push(normalized);
+    };
+    for (const value of analyticsValues)
+        append(value);
+    for (const value of dataValues)
+        append(value);
+    for (const value of fallbackValues)
+        append(value);
+    return merged.slice(0, maxValues);
+};
+const ensureDirectoryAnalyticsTable = async () => {
+    directoryAnalyticsTableReady ?? (directoryAnalyticsTableReady = prisma_1.default.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS ${DIRECTORY_FILTER_ANALYTICS_TABLE} (
+        facet_type TEXT NOT NULL,
+        facet_value TEXT NOT NULL,
+        search_count INTEGER NOT NULL DEFAULT 0,
+        match_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (facet_type, facet_value)
+      )
+    `)
+        .then(() => undefined)
+        .catch((error) => {
+        directoryAnalyticsTableReady = null;
+        throw error;
+    }));
+    await directoryAnalyticsTableReady;
+};
+const incrementDirectoryFacetMetric = async (facetType, facetValue, metric, incrementBy = 1) => {
+    const normalizedValue = normalizeFacetValue(facetValue);
+    if (!normalizedValue || incrementBy <= 0)
+        return;
+    await ensureDirectoryAnalyticsTable();
+    await prisma_1.default.$executeRawUnsafe(`
+      INSERT INTO ${DIRECTORY_FILTER_ANALYTICS_TABLE} (facet_type, facet_value, ${metric}, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (facet_type, facet_value)
+      DO UPDATE SET
+        ${metric} = ${DIRECTORY_FILTER_ANALYTICS_TABLE}.${metric} + EXCLUDED.${metric},
+        updated_at = NOW()
+    `, facetType, normalizedValue, incrementBy);
+};
+const getDirectoryFacetAnalytics = async (facetType, limit = MAX_DIRECTORY_FACET_VALUES) => {
+    try {
+        await ensureDirectoryAnalyticsTable();
+        const rows = await prisma_1.default.$queryRawUnsafe(`
+        SELECT facet_value
+        FROM ${DIRECTORY_FILTER_ANALYTICS_TABLE}
+        WHERE facet_type = $1
+        ORDER BY (search_count * 2 + match_count) DESC, updated_at DESC
+        LIMIT $2
+      `, facetType, limit);
+        return rows
+            .map((row) => normalizeFacetValue(row.facet_value))
+            .filter(Boolean);
+    }
+    catch (error) {
+        console.warn('Unable to fetch directory analytics facets:', error);
+        return [];
+    }
+};
+const incrementFacetCounter = (counter, rawValue) => {
+    if (!rawValue)
+        return;
+    const normalized = normalizeFacetValue(rawValue);
+    if (!normalized)
+        return;
+    const previous = counter.get(normalized) ?? 0;
+    counter.set(normalized, previous + 1);
+};
+const captureDirectorySearchAnalytics = async (filters, results) => {
+    try {
+        const searchUpdates = [];
+        if (filters.graduationYear) {
+            searchUpdates.push(incrementDirectoryFacetMetric('graduationYear', filters.graduationYear, 'search_count'));
+        }
+        if (filters.location) {
+            searchUpdates.push(incrementDirectoryFacetMetric('location', filters.location, 'search_count'));
+        }
+        if (filters.industry) {
+            searchUpdates.push(incrementDirectoryFacetMetric('industry', filters.industry, 'search_count'));
+        }
+        if (filters.search) {
+            const yearMatches = filters.search.match(/\b(?:19|20)\d{2}\b/g) || [];
+            for (const year of yearMatches) {
+                searchUpdates.push(incrementDirectoryFacetMetric('graduationYear', year, 'search_count'));
+            }
+        }
+        const yearMatches = new Map();
+        const locationMatches = new Map();
+        const industryMatches = new Map();
+        for (const result of results) {
+            incrementFacetCounter(yearMatches, result.admissionYear ?? null);
+            incrementFacetCounter(locationMatches, result.location ?? null);
+            incrementFacetCounter(industryMatches, result.industry ?? null);
+        }
+        const matchUpdates = [];
+        for (const [value, count] of yearMatches.entries()) {
+            matchUpdates.push(incrementDirectoryFacetMetric('graduationYear', value, 'match_count', count));
+        }
+        for (const [value, count] of locationMatches.entries()) {
+            matchUpdates.push(incrementDirectoryFacetMetric('location', value, 'match_count', count));
+        }
+        for (const [value, count] of industryMatches.entries()) {
+            matchUpdates.push(incrementDirectoryFacetMetric('industry', value, 'match_count', count));
+        }
+        await Promise.all([...searchUpdates, ...matchUpdates]);
+    }
+    catch (error) {
+        console.warn('Unable to capture directory analytics:', error);
+    }
+};
 exports.getAllUsers = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { page, limit, skip } = parsePagination(req.query.page, req.query.limit);
     const { role, status, search } = req.query;
@@ -112,7 +252,11 @@ exports.getAllUsers = (0, errorHandler_1.asyncHandler)(async (req, res) => {
 });
 exports.getPublicAlumni = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { page, limit, skip } = parsePagination(req.query.page, req.query.limit, 20);
-    const { search, graduationYear, company, location } = req.query;
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const graduationYear = typeof req.query.graduationYear === 'string' ? req.query.graduationYear.trim() : '';
+    const company = typeof req.query.company === 'string' ? req.query.company.trim() : '';
+    const location = typeof req.query.location === 'string' ? req.query.location.trim() : '';
+    const industry = typeof req.query.industry === 'string' ? req.query.industry.trim() : '';
     const authReq = req;
     const currentUserId = getAuthenticatedUserId(authReq);
     let connectedUserIds = new Set();
@@ -158,16 +302,25 @@ exports.getPublicAlumni = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             { headline: { contains: search, mode: 'insensitive' } },
             { company: { contains: search, mode: 'insensitive' } },
             { jobTitle: { contains: search, mode: 'insensitive' } },
+            { mentorshipProfile: { is: { industry: { contains: search, mode: 'insensitive' } } } },
         ];
     }
-    if (typeof graduationYear === 'string' && graduationYear.trim()) {
-        where.admissionYear = graduationYear.trim();
+    if (graduationYear) {
+        where.admissionYear = graduationYear;
     }
     if (company)
         where.company = { contains: company, mode: 'insensitive' };
     if (location)
         where.location = { contains: location, mode: 'insensitive' };
-    const [alumni, total] = await Promise.all([
+    if (industry) {
+        where.mentorshipProfile = {
+            is: {
+                isActive: true,
+                industry: { equals: industry, mode: 'insensitive' }
+            }
+        };
+    }
+    const [alumni, total, popularYears, popularLocations, popularIndustries] = await Promise.all([
         prisma_1.default.user.findMany({
             where, skip, take: limit,
             select: {
@@ -182,15 +335,76 @@ exports.getPublicAlumni = (0, errorHandler_1.asyncHandler)(async (req, res) => {
                 company: true,
                 location: true,
                 admissionYear: true,
-                bio: true
+                bio: true,
+                mentorshipProfile: {
+                    select: {
+                        industry: true,
+                    }
+                }
             }
         }),
-        prisma_1.default.user.count({ where })
+        prisma_1.default.user.count({ where }),
+        prisma_1.default.user.groupBy({
+            by: ['admissionYear'],
+            where: {
+                status: client_1.Status.ACTIVE,
+                email: notHiddenSystemAccountsFilter(),
+                NOT: { admissionYear: '' }
+            },
+            _count: {
+                admissionYear: true
+            },
+            orderBy: {
+                _count: {
+                    admissionYear: 'desc'
+                }
+            },
+            take: MAX_DIRECTORY_FACET_VALUES
+        }),
+        prisma_1.default.user.groupBy({
+            by: ['location'],
+            where: {
+                status: client_1.Status.ACTIVE,
+                email: notHiddenSystemAccountsFilter(),
+                location: { not: null },
+                NOT: { location: '' }
+            },
+            _count: {
+                location: true
+            },
+            orderBy: {
+                _count: {
+                    location: 'desc'
+                }
+            },
+            take: MAX_DIRECTORY_FACET_VALUES
+        }),
+        prisma_1.default.mentorshipProfile.groupBy({
+            by: ['industry'],
+            where: {
+                isActive: true,
+                industry: { not: null },
+                user: {
+                    status: client_1.Status.ACTIVE,
+                    email: notHiddenSystemAccountsFilter()
+                }
+            },
+            _count: {
+                industry: true
+            },
+            orderBy: {
+                _count: {
+                    industry: 'desc'
+                }
+            },
+            take: MAX_DIRECTORY_FACET_VALUES
+        })
     ]);
     const alumniWithConnectionStatus = alumni
         .filter((user) => user.id !== currentUserId)
         .map((user) => {
         let connectionStatus = 'none';
+        const profileIndustry = user.mentorshipProfile?.industry ? normalizeFacetValue(user.mentorshipProfile.industry) : undefined;
         if (connectedUserIds.has(user.id)) {
             connectionStatus = 'connected';
         }
@@ -203,13 +417,121 @@ exports.getPublicAlumni = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         return {
             ...user,
             connectionStatus,
-            isFollowing: followingUserIds.has(user.id)
+            isFollowing: followingUserIds.has(user.id),
+            industry: profileIndustry,
         };
     });
+    const [analyticsIndustries, analyticsYears, analyticsLocations] = await Promise.all([
+        getDirectoryFacetAnalytics('industry'),
+        getDirectoryFacetAnalytics('graduationYear'),
+        getDirectoryFacetAnalytics('location')
+    ]);
+    const dataIndustryValues = popularIndustries
+        .map((item) => item.industry)
+        .filter((value) => typeof value === 'string' && value.trim().length > 0)
+        .map((value) => normalizeFacetValue(value));
+    const dataYearValues = popularYears
+        .map((item) => normalizeFacetValue(item.admissionYear))
+        .filter((value) => /^\d{4}$/.test(value));
+    const dataLocationValues = popularLocations
+        .map((item) => item.location)
+        .filter((value) => typeof value === 'string' && value.trim().length > 0)
+        .map((value) => normalizeFacetValue(value));
+    const mergedIndustryValues = mergeFacetValues(analyticsIndustries, dataIndustryValues, defaultIndustryFilters);
+    const mergedYearValues = mergeFacetValues(analyticsYears, dataYearValues, []);
+    const mergedLocationValues = mergeFacetValues(analyticsLocations, dataLocationValues, defaultLocationFilters);
+    const graduationYearsFromFacets = mergedYearValues
+        .map((year) => Number.parseInt(year, 10))
+        .filter((year) => Number.isInteger(year) && year > 1900 && year < 3000)
+        .slice(0, MAX_DIRECTORY_FACET_VALUES);
+    const fallbackYears = Array.from({ length: 10 }, (_, index) => new Date().getFullYear() - index);
+    const analyticsFilters = {};
+    if (search)
+        analyticsFilters.search = search;
+    if (graduationYear)
+        analyticsFilters.graduationYear = graduationYear;
+    if (location)
+        analyticsFilters.location = location;
+    if (industry)
+        analyticsFilters.industry = industry;
+    await captureDirectorySearchAnalytics(analyticsFilters, alumniWithConnectionStatus.map((alumniUser) => ({
+        admissionYear: alumniUser.admissionYear,
+        location: alumniUser.location,
+        industry: alumniUser.industry,
+    })));
     res.status(200).json({
         success: true, data: alumniWithConnectionStatus,
+        filters: {
+            industries: mergedIndustryValues,
+            graduationYears: graduationYearsFromFacets.length > 0 ? graduationYearsFromFacets : fallbackYears.slice(0, MAX_DIRECTORY_FACET_VALUES),
+            locations: mergedLocationValues,
+        },
         pagination: { page, limit, total, pages: Math.ceil(total / limit) }
     });
+});
+exports.searchDirectMessageUsers = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const currentUserId = getAuthenticatedUserId(req);
+    if (!currentUserId) {
+        res.status(401).json({ success: false, message: 'Not authenticated' });
+        return;
+    }
+    const query = typeof req.query.query === 'string' ? req.query.query.trim() : '';
+    const requestedLimit = parsePositiveInt(req.query.limit, 20);
+    const limit = Math.min(Math.max(requestedLimit, 1), 50);
+    const textMatchFilter = { contains: query, mode: client_1.Prisma.QueryMode.insensitive };
+    const searchConditions = [];
+    if (query) {
+        searchConditions.push({
+            OR: [
+                { name: textMatchFilter },
+                { email: textMatchFilter },
+                { headline: textMatchFilter },
+                { company: textMatchFilter },
+                { jobTitle: textMatchFilter },
+                { location: textMatchFilter }
+            ]
+        });
+    }
+    const messageableUsers = await prisma_1.default.user.findMany({
+        where: {
+            status: client_1.Status.ACTIVE,
+            email: notHiddenSystemAccountsFilter(),
+            id: { not: currentUserId },
+            AND: [
+                {
+                    OR: [
+                        { connections: { some: { id: currentUserId } } },
+                        { connectedTo: { some: { id: currentUserId } } }
+                    ]
+                },
+                ...searchConditions
+            ]
+        },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            headline: true,
+            jobTitle: true,
+            company: true,
+            location: true,
+        },
+        orderBy: [
+            { name: 'asc' }
+        ],
+        take: limit
+    });
+    const results = messageableUsers.map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        profileImage: user.profileImage,
+        headline: user.headline || user.jobTitle || undefined,
+        company: user.company,
+        location: user.location,
+    }));
+    res.status(200).json({ success: true, data: results });
 });
 exports.getUserById = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const id = getTargetUserId(req);

@@ -2,12 +2,15 @@
 import { Link, useLocation } from "react-router-dom";
 import { 
   User, Users, Briefcase, GraduationCap, Home, MessageSquare, MessageCircle,
-  BookOpen, Settings, Calendar
+  BookOpen, Settings, Calendar, Shield
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Sidebar = () => {
   const location = useLocation();
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   
   const navigation = [
     { 
@@ -61,6 +64,9 @@ export const Sidebar = () => {
       href: "/settings", 
       icon: Settings
     },
+    ...(isAdmin
+      ? [{ name: "Admin Panel", href: "/admin", icon: Shield }]
+      : []),
   ];
 
   return (

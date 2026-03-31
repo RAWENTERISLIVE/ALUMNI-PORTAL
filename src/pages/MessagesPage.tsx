@@ -6,8 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { ArrowLeft, MessageSquarePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import apiService from "@/services/apiService";
 
 interface Conversation {
@@ -38,10 +49,21 @@ interface PreviewParticipant {
   profileImage?: string;
 }
 
+interface MessageableUser {
+  id: string;
+  name: string;
+  email?: string;
+  profileImage?: string;
+  headline?: string;
+  company?: string;
+  location?: string;
+}
+
 export default function MessagesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -53,6 +75,10 @@ export default function MessagesPage() {
   const [isSending, setIsSending] = useState(false);
   const [lastInfoMessage, setLastInfoMessage] = useState('');
   const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
+  const [dmSearchOpen, setDmSearchOpen] = useState(false);
+  const [dmSearchQuery, setDmSearchQuery] = useState("");
+  const [dmSearchResults, setDmSearchResults] = useState<MessageableUser[]>([]);
+  const [isLoadingDmSearch, setIsLoadingDmSearch] = useState(false);
 
   const activeConversation = useMemo(
     () => {
@@ -92,6 +118,20 @@ export default function MessagesPage() {
       name: response.user.name,
       profileImage: response.user.profileImage,
     });
+  };
+
+  const loadMessageableUsers = async (query = "") => {
+    setIsLoadingDmSearch(true);
+    const response = await apiService.searchDirectMessageUsers(query, 25);
+
+    if (!response.success) {
+      setDmSearchResults([]);
+      setIsLoadingDmSearch(false);
+      return;
+    }
+
+    setDmSearchResults((response.data || []) as MessageableUser[]);
+    setIsLoadingDmSearch(false);
   };
 
   const loadConversations = async () => {
@@ -223,10 +263,31 @@ export default function MessagesPage() {
     return () => clearInterval(interval);
   }, [selectedUserId, rateLimitedUntil]);
 
+  useEffect(() => {
+    if (!dmSearchOpen) return;
+
+    const timeout = setTimeout(() => {
+      void loadMessageableUsers(dmSearchQuery);
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [dmSearchOpen, dmSearchQuery]);
+
   const handleSelectConversation = (userId: string) => {
     setSelectedUserId(userId);
     setPreviewParticipant(null);
     setSearchParams({ user: userId }, { replace: true });
+    setDmSearchOpen(false);
+    setDmSearchQuery("");
+  };
+
+  const handleBackToConversationList = () => {
+    setSelectedUserId(null);
+    setPreviewParticipant(null);
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('user');
+    setSearchParams(next, { replace: true });
   };
 
   const handleSend = async (event: FormEvent<HTMLFormElement>) => {
@@ -265,11 +326,67 @@ export default function MessagesPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-[70vh]">
+        {(!isMobile || !selectedUserId) && (
         <Card className="lg:col-span-1">
-          <CardHeader>
+          <CardHeader className="space-y-3">
             <CardTitle className="text-base">Conversations</CardTitle>
+            <Popover open={dmSearchOpen} onOpenChange={setDmSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start">
+                  <MessageSquarePlus className="mr-2 h-4 w-4" />
+                  Start New Chat
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[calc(100vw-2.5rem)] sm:w-[360px] p-0" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Search by name, email, location, company..."
+                    value={dmSearchQuery}
+                    onValueChange={setDmSearchQuery}
+                  />
+                  <CommandList>
+                    {isLoadingDmSearch ? (
+                      <div className="py-5 flex justify-center">
+                        <LoadingSpinner />
+                      </div>
+                    ) : (
+                      <>
+                        <CommandEmpty>No connected users found.</CommandEmpty>
+                        <CommandGroup heading="Connections">
+                          {dmSearchResults.map((user) => (
+                            <CommandItem
+                              key={user.id}
+                              value={`${user.name} ${user.email || ''} ${user.location || ''} ${user.company || ''}`}
+                              onSelect={() => handleSelectConversation(user.id)}
+                              className="gap-2"
+                            >
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={user.profileImage} />
+                                <AvatarFallback>
+                                  {user.name
+                                    .split(" ")
+                                    .map((part) => part[0])
+                                    .slice(0, 2)
+                                    .join("")}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{user.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {[user.headline, user.company, user.location].filter(Boolean).join(" • ") || user.email || "Connected user"}
+                                </p>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </CardHeader>
-          <CardContent className="space-y-2 max-h-[65vh] overflow-y-auto">
+          <CardContent className="space-y-2 max-h-[60vh] lg:max-h-[65vh] overflow-y-auto">
             {isLoadingConversations ? (
               <div className="py-8 flex justify-center">
                 <LoadingSpinner />
@@ -329,12 +446,27 @@ export default function MessagesPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
+        {(!isMobile || Boolean(selectedUserId)) && (
         <Card className="lg:col-span-2 flex flex-col">
           <CardHeader className="border-b">
-            <CardTitle className="text-base">
-              {activeConversation ? activeConversation.participant.name : "Select a conversation"}
-            </CardTitle>
+            <div className="flex items-center gap-2">
+              {isMobile && selectedUserId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={handleBackToConversationList}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
+              <CardTitle className="text-base">
+                {activeConversation ? activeConversation.participant.name : "Select a conversation"}
+              </CardTitle>
+            </div>
           </CardHeader>
 
           <CardContent className="flex-1 p-0 flex flex-col">
@@ -384,6 +516,7 @@ export default function MessagesPage() {
             </form>
           </CardContent>
         </Card>
+        )}
       </div>
     </div>
   );

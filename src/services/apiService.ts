@@ -7,6 +7,12 @@ export interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
   data?: T;
+  filters?: {
+    industries?: string[];
+    graduationYears?: number[];
+    locations?: string[];
+  };
+  sections?: Record<string, number>;
   user?: any;
   accessToken?: string;
   refreshToken?: string;
@@ -639,6 +645,7 @@ class ApiService {
     page?: number;
     limit?: number;
     search?: string;
+    industry?: string;
     graduationYear?: string;
     company?: string;
     location?: string;
@@ -798,6 +805,22 @@ class ApiService {
     }
   }
 
+  async searchDirectMessageUsers(query = '', limit = 20): Promise<ApiResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (query.trim()) queryParams.append('query', query.trim());
+      queryParams.append('limit', String(limit));
+
+      return await this.request(`/users/messages/search?${queryParams.toString()}`);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to search users for direct messages.',
+        data: []
+      };
+    }
+  }
+
   async getDirectMessages(userId: string): Promise<ApiResponse> {
     try {
       return await this.request(`/users/messages/${userId}`);
@@ -820,6 +843,22 @@ class ApiService {
       return {
         success: false,
         message: error.message || 'Failed to send message.'
+      };
+    }
+  }
+
+  async universalSearch(query: string, limit = 6): Promise<ApiResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append('q', query.trim());
+      queryParams.append('limit', String(limit));
+
+      return await this.request(`/search/universal?${queryParams.toString()}`);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to run universal search.',
+        data: []
       };
     }
   }

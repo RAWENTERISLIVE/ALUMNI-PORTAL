@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,84 @@ interface AlumniUser {
   connectionStatus?: "connected" | "pending" | "none";
 }
 
+interface DirectoryFilters {
+  industries: string[];
+  graduationYears: number[];
+  locations: string[];
+}
+
+type ConnectionState = AlumniUser["connectionStatus"];
+
+const DEFAULT_INDUSTRIES = [
+  "Technology",
+  "Finance",
+  "Healthcare",
+  "Education",
+  "Manufacturing",
+  "Retail",
+  "Consulting",
+];
+
+const DEFAULT_LOCATIONS = [
+  "San Francisco, CA",
+  "New York, NY",
+  "Austin, TX",
+  "Chicago, IL",
+  "Seattle, WA",
+];
+
+const buildDefaultGraduationYears = () =>
+  Array.from({ length: 10 }, (_, index) => new Date().getFullYear() - index);
+
+const normalizeText = (value: string) => value.trim().toLowerCase();
+
+const mergeUniqueStrings = (values: Array<string | null | undefined>) => {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+
+  for (const value of values) {
+    if (!value) continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    merged.push(trimmed);
+  }
+
+  return merged;
+};
+
+const mergeUniqueNumbers = (values: Array<number | null | undefined>) => {
+  const seen = new Set<number>();
+  const merged: number[] = [];
+
+  for (const value of values) {
+    if (!Number.isInteger(value)) continue;
+    if (!value || value < 1900 || value > 3000) continue;
+    if (seen.has(value)) continue;
+
+    seen.add(value);
+    merged.push(value);
+  }
+
+  return merged;
+};
+
+const getConnectionButtonVariant = (status: ConnectionState) => {
+  if (status === "connected") return "secondary";
+  if (status === "pending") return "outline";
+  return "default";
+};
+
+const getConnectionLabel = (status: ConnectionState) => {
+  if (status === "connected") return "Connected";
+  if (status === "pending") return "Pending";
+  return "Connect";
+};
+
 export default function DirectoryPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,26 +121,41 @@ export default function DirectoryPage() {
   const [filterIndustry, setFilterIndustry] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState<number | null>(null);
   const [filterLocation, setFilterLocation] = useState<string | null>(null);
+  const [filterOptions, setFilterOptions] = useState<DirectoryFilters>({
+    industries: DEFAULT_INDUSTRIES,
+    graduationYears: buildDefaultGraduationYears(),
+    locations: DEFAULT_LOCATIONS,
+  });
 
-  const industries = [
-    "Technology", 
-    "Finance", 
-    "Healthcare", 
-    "Education", 
-    "Manufacturing", 
-    "Retail", 
-    "Consulting"
-  ];
+  const industries = useMemo(
+    () =>
+      mergeUniqueStrings([
+        filterIndustry,
+        ...filterOptions.industries,
+        ...DEFAULT_INDUSTRIES,
+      ]).slice(0, 12),
+    [filterIndustry, filterOptions.industries]
+  );
 
-  const graduationYears = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
-  
-  const locations = [
-    "San Francisco, CA",
-    "New York, NY",
-    "Austin, TX",
-    "Chicago, IL",
-    "Seattle, WA"
-  ];
+  const graduationYears = useMemo(
+    () =>
+      mergeUniqueNumbers([
+        filterYear,
+        ...filterOptions.graduationYears,
+        ...buildDefaultGraduationYears(),
+      ]).slice(0, 10),
+    [filterYear, filterOptions.graduationYears]
+  );
+
+  const locations = useMemo(
+    () =>
+      mergeUniqueStrings([
+        filterLocation,
+        ...filterOptions.locations,
+        ...DEFAULT_LOCATIONS,
+      ]).slice(0, 10),
+    [filterLocation, filterOptions.locations]
+  );
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || "";
@@ -71,11 +164,11 @@ export default function DirectoryPage() {
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      loadAlumni();
+      void loadAlumni();
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [searchQuery, filterYear, filterLocation]);
+  }, [searchQuery, filterIndustry, filterYear, filterLocation]);
 
   useEffect(() => {
     const currentSearch = searchParams.get('search') || '';
@@ -101,6 +194,7 @@ export default function DirectoryPage() {
         limit: 100,
       };
       if (searchQuery) query.search = searchQuery;
+      if (filterIndustry) query.industry = filterIndustry;
       if (filterYear) query.graduationYear = String(filterYear);
       if (filterLocation) query.location = filterLocation;
       const response = await apiService.getAlumniDirectory(query);
@@ -117,9 +211,28 @@ export default function DirectoryPage() {
           location: u.location,
           graduationYear: u.graduationYear || (u.admissionYear ? Number(u.admissionYear) : undefined),
           skills: u.skills || [],
-          industry: u.industry,
+          industry: typeof u.industry === 'string' ? u.industry : undefined,
           bio: u.bio
         })));
+
+        const apiFilters = response.filters || {};
+        const nextIndustries = Array.isArray(apiFilters.industries)
+          ? apiFilters.industries.filter((value: unknown): value is string => typeof value === 'string')
+          : [];
+        const nextLocations = Array.isArray(apiFilters.locations)
+          ? apiFilters.locations.filter((value: unknown): value is string => typeof value === 'string')
+          : [];
+        const nextYears = Array.isArray(apiFilters.graduationYears)
+          ? apiFilters.graduationYears
+              .map(Number)
+              .filter((value: number) => Number.isInteger(value) && value > 1900 && value < 3000)
+          : [];
+
+        setFilterOptions({
+          industries: mergeUniqueStrings([...nextIndustries, filterIndustry, ...DEFAULT_INDUSTRIES]).slice(0, 12),
+          graduationYears: mergeUniqueNumbers([...nextYears, filterYear, ...buildDefaultGraduationYears()]).slice(0, 10),
+          locations: mergeUniqueStrings([...nextLocations, filterLocation, ...DEFAULT_LOCATIONS]).slice(0, 10),
+        });
       }
     } catch (error) {
       console.error("Error loading alumni:", error);
@@ -131,15 +244,17 @@ export default function DirectoryPage() {
 
   const filteredAlumni = useMemo(() => 
     alumni.filter(person => {
-      const normalizedQuery = searchQuery.toLowerCase();
+      const normalizedQuery = normalizeText(searchQuery);
       const matchesSearch = !searchQuery || 
-        (person.name || '').toLowerCase().includes(normalizedQuery) || 
-        person.title?.toLowerCase().includes(normalizedQuery) ||
-        person.company?.toLowerCase().includes(normalizedQuery);
+        normalizeText(person.name || '').includes(normalizedQuery) || 
+        normalizeText(person.title || '').includes(normalizedQuery) ||
+        normalizeText(person.company || '').includes(normalizedQuery) ||
+        normalizeText(person.location || '').includes(normalizedQuery) ||
+        normalizeText(person.industry || '').includes(normalizedQuery);
       
-      const matchesIndustry = !filterIndustry || person.industry === filterIndustry;
+      const matchesIndustry = !filterIndustry || normalizeText(person.industry || '') === normalizeText(filterIndustry);
       const matchesYear = !filterYear || person.graduationYear === filterYear;
-      const matchesLocation = !filterLocation || person.location === filterLocation;
+      const matchesLocation = !filterLocation || normalizeText(person.location || '') === normalizeText(filterLocation);
       
       return matchesSearch && matchesIndustry && matchesYear && matchesLocation;
     }), 
@@ -166,6 +281,17 @@ export default function DirectoryPage() {
       }
 
       const nextStatus = response.data?.connectionStatus || (isDisconnect ? "none" : "pending");
+      let toastTitle = "Request Sent";
+      let toastDescription = "Connection request sent successfully.";
+
+      if (isDisconnect) {
+        toastTitle = "Disconnected";
+        toastDescription = "Connection removed successfully.";
+      } else if (nextStatus === "connected") {
+        toastTitle = "Connected";
+        toastDescription = "You are now connected.";
+      }
+
       setAlumni((current) =>
         current.map((person) =>
           person.id === userId
@@ -178,16 +304,8 @@ export default function DirectoryPage() {
       );
 
       toast({
-        title: isDisconnect
-          ? "Disconnected"
-          : nextStatus === "connected"
-            ? "Connected"
-            : "Request Sent",
-        description: isDisconnect
-          ? "Connection removed successfully."
-          : nextStatus === "connected"
-            ? "You are now connected."
-            : "Connection request sent successfully.",
+        title: toastTitle,
+        description: toastDescription,
       });
     } catch (error) {
       console.error("Error updating connection:", error);
@@ -201,131 +319,45 @@ export default function DirectoryPage() {
     setFilterLocation(null);
   };
 
-  return (
-    <div className="container mx-auto p-4 sm:p-6">
-      {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-foreground/90">Alumni Directory</h1>
-        <p className="text-md text-muted/300 mt-1">Connect with alumni from your school across different industries and graduating classes.</p>
+  let resultsContent: ReactNode;
+
+  if (loading) {
+    resultsContent = (
+      <div className="flex items-center justify-center py-20">
+        <LoadingSpinner size="lg" />
+        <span className="ml-3 text-muted-foreground">Loading alumni directory...</span>
       </div>
+    );
+  } else if (filteredAlumni.length === 0) {
+    resultsContent = (
+      <EmptyState
+        title="No alumni found"
+        description="Try adjusting your search criteria or filters."
+        action={{
+          label: "Clear Filters",
+          onClick: handleClearFilters
+        }}
+      />
+    );
+  } else {
+    resultsContent = (
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+        {filteredAlumni.map((person) => {
+          const connectionStatus = person.connectionStatus || "none";
 
-      {/* Search and Filters */}
-      <div className="mb-8 flex flex-col md:flex-row gap-4">
-        <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search by name, title, or company..."
-            className="pl-10 pr-4 py-2 w-full"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        
-        <div className="flex gap-2 flex-shrink-0">
-          <Button variant="outline" size="sm" onClick={handleClearFilters}>Clear</Button>
-        </div>
-      </div>
-
-      {/* Filter Pills */}
-      <div className="mb-8">
-        <div className="flex flex-col md:flex-row gap-4 mb-4">
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-muted/300 mb-2">Filter by Industry</h3>
-            <div className="flex flex-wrap gap-2">
-              {industries.map(industry => (
-                <Button
-                  key={industry}
-                  variant={filterIndustry === industry ? "default" : "outline"}
-                  size="sm"
-                  className={filterIndustry === industry ? "bg-primary hover:bg-primary/90" : ""}
-                  onClick={() => setFilterIndustry(filterIndustry === industry ? null : industry)}
-                >
-                  {industry}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4 mb-4">
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-muted/300 mb-2">Graduation Year</h3>
-            <div className="flex flex-wrap gap-2">
-              {graduationYears.slice(0, 5).map(year => (
-                <Button
-                  key={year}
-                  variant={filterYear === year ? "default" : "outline"}
-                  size="sm"
-                  className={filterYear === year ? "bg-primary hover:bg-primary/90" : ""}
-                  onClick={() => setFilterYear(filterYear === year ? null : year)}
-                >
-                  {year}
-                </Button>
-              ))}
-            </div>
-          </div>
-          
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-muted/300 mb-2">Location</h3>
-            <div className="flex flex-wrap gap-2">
-              {locations.map(location => (
-                <Button
-                  key={location}
-                  variant={filterLocation === location ? "default" : "outline"}
-                  size="sm"
-                  className={filterLocation === location ? "bg-primary hover:bg-primary/90" : ""}
-                  onClick={() => setFilterLocation(filterLocation === location ? null : location)}
-                >
-                  {location}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {(filterIndustry || filterYear || filterLocation) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClearFilters}
-            className="text-foreground hover:text-foreground/90"
-          >
-            Clear all filters
-          </Button>
-        )}
-      </div>
-
-      {/* Results */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <LoadingSpinner size="lg" />
-          <span className="ml-3 text-muted-foreground">Loading alumni directory...</span>
-        </div>
-      ) : filteredAlumni.length === 0 ? (
-        <EmptyState
-          title="No alumni found"
-          description="Try adjusting your search criteria or filters."
-          action={{
-            label: "Clear Filters",
-            onClick: handleClearFilters
-          }}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAlumni.map(person => (
+          return (
             <Card key={person.id} className="overflow-hidden hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4 mb-4">
                   <Avatar className="h-14 w-14">
                     <AvatarImage src={person.profileImage} />
                     <AvatarFallback className="bg-primary/10 text-foreground/90">
-                      {person.name.split(' ').map(n => n[0]).join('')}
+                      {person.name.split(' ').map((n) => n[0]).join('')}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h3 className="font-semibold text-foreground/90">{person.name}</h3>
-                    <p className="text-sm text-muted-foreground">{person.title}</p>
+                    <p className="text-sm text-muted-foreground truncate">{person.title}</p>
                     {person.industry && (
                       <Badge variant="secondary" className="mt-1 text-xs">
                         {person.industry}
@@ -349,7 +381,7 @@ export default function DirectoryPage() {
                     </div>
                   )}
                   
-                  {person.graduationYear && (
+                  {Boolean(person.graduationYear) && (
                     <div className="flex items-center text-sm text-muted-foreground">
                       <GraduationCap className="h-4 w-4 mr-2" />
                       <span>Class of {person.graduationYear}</span>
@@ -361,7 +393,7 @@ export default function DirectoryPage() {
                   <div className="mb-4">
                     <div className="text-sm font-medium text-muted-foreground mb-1">Skills</div>
                     <div className="flex flex-wrap gap-1">
-                      {person.skills.map(skill => (
+                      {person.skills.map((skill) => (
                         <Badge key={skill} variant="outline" className="text-xs">
                           {skill}
                         </Badge>
@@ -370,10 +402,10 @@ export default function DirectoryPage() {
                   </div>
                 )}
                 
-                <div className="flex gap-2 pt-4 border-t border-gray-100">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-4 border-t border-gray-100">
                   <Button 
                     size="sm" 
-                    className="flex-1"
+                    className="w-full"
                     onClick={() => navigate(`/directory/profile/${person.id}`)}
                     variant="outline"
                   >
@@ -383,21 +415,20 @@ export default function DirectoryPage() {
                   
                   <Button
                     size="sm"
-                    className="flex-1"
-                    variant={person.connectionStatus === "connected" ? "secondary" : 
-                             person.connectionStatus === "pending" ? "outline" : "default"}
+                    className="w-full"
+                    variant={getConnectionButtonVariant(connectionStatus)}
                     onClick={() => handleConnection(person.id)}
-                    disabled={person.connectionStatus === "pending" || person.connectionStatus === "connected"}
+                    disabled={connectionStatus === "pending" || connectionStatus === "connected"}
                   >
                     <Users className="h-3 w-3 mr-1" />
-                    {person.connectionStatus === "connected" ? "Connected" : 
-                     person.connectionStatus === "pending" ? "Pending" : "Connect"}
+                    {getConnectionLabel(connectionStatus)}
                   </Button>
                   
                   <Button
                     size="sm"
                     variant="outline"
-                    className="flex-1"
+                    className="w-full"
+                    onClick={() => navigate(`/messages?user=${person.id}`)}
                   >
                     <MessageSquare className="h-3 w-3 mr-1" />
                     Message
@@ -405,9 +436,113 @@ export default function DirectoryPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-3 py-4 sm:p-6">
+      {/* Page Header */}
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground/90">Alumni Directory</h1>
+        <p className="text-sm sm:text-base text-muted/300 mt-1">Connect with alumni from your school across different industries and graduating classes.</p>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="mb-6 sm:mb-8 flex flex-col md:flex-row gap-3 sm:gap-4">
+        <div className="relative flex-grow">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search by name, title, company, location, or industry..."
+            className="pl-10 pr-4 py-2 w-full"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-      )}
+        
+        <div className="flex gap-2 flex-shrink-0">
+          <Button variant="outline" size="sm" onClick={handleClearFilters}>Clear</Button>
+        </div>
+      </div>
+
+      {/* Filter Pills */}
+      <div className="mb-6 sm:mb-8 rounded-lg border border-border/60 p-3 sm:p-4">
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-medium text-muted/300 mb-2">Filter by Industry</h3>
+            <div className="flex flex-wrap gap-2">
+              {industries.map((industry) => (
+                <Button
+                  key={industry}
+                  variant={filterIndustry === industry ? "default" : "outline"}
+                  size="sm"
+                  className={`h-auto min-h-9 px-3 py-1.5 text-xs sm:text-sm whitespace-normal break-words text-left justify-start ${
+                    filterIndustry === industry ? "bg-primary hover:bg-primary/90" : ""
+                  }`}
+                  onClick={() => setFilterIndustry(filterIndustry === industry ? null : industry)}
+                >
+                  {industry}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-muted/300 mb-2">Graduation Year</h3>
+            <div className="flex flex-wrap gap-2">
+              {graduationYears.map((year) => (
+                <Button
+                  key={year}
+                  variant={filterYear === year ? "default" : "outline"}
+                  size="sm"
+                  className={`h-auto min-h-9 px-3 py-1.5 text-xs sm:text-sm ${
+                    filterYear === year ? "bg-primary hover:bg-primary/90" : ""
+                  }`}
+                  onClick={() => setFilterYear(filterYear === year ? null : year)}
+                >
+                  {year}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-muted/300 mb-2">Location</h3>
+            <div className="flex flex-wrap gap-2">
+              {locations.map((locationOption) => (
+                <Button
+                  key={locationOption}
+                  variant={filterLocation === locationOption ? "default" : "outline"}
+                  size="sm"
+                  className={`h-auto min-h-9 px-3 py-1.5 text-xs sm:text-sm whitespace-normal break-words text-left justify-start ${
+                    filterLocation === locationOption ? "bg-primary hover:bg-primary/90" : ""
+                  }`}
+                  onClick={() => setFilterLocation(filterLocation === locationOption ? null : locationOption)}
+                >
+                  {locationOption}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {Boolean(filterIndustry || filterYear || filterLocation) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearFilters}
+            className="text-foreground hover:text-foreground/90"
+          >
+            Clear all filters
+          </Button>
+        )}
+      </div>
+
+      {/* Results */}
+      {resultsContent}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 export declare const getAllUsers: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getPublicAlumni: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const searchDirectMessageUsers: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getUserById: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getUserProfile: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const updateProfile: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;

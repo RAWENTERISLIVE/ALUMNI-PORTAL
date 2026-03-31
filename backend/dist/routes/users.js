@@ -89,6 +89,7 @@ router.delete('/:userId/connect', auth_1.authMiddleware, userController_1.discon
 router.post('/:userId/follow', auth_1.authMiddleware, userController_1.followUser);
 router.delete('/:userId/follow', auth_1.authMiddleware, userController_1.unfollowUser);
 router.get('/messages/conversations', auth_1.authMiddleware, userController_1.getDirectConversations);
+router.get('/messages/search', auth_1.authMiddleware, userController_1.searchDirectMessageUsers);
 router.get('/messages/:userId', auth_1.authMiddleware, userController_1.getDirectMessages);
 router.post('/messages/:userId', auth_1.authMiddleware, userController_1.sendDirectMessage);
 router.get('/me', auth_1.authMiddleware, async (req, res, next) => {
