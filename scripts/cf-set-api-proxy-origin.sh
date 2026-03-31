@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_NAME="${CF_PAGES_PROJECT_NAME:-alumni-portal}"
+WORKER_NAME="${CF_WORKER_NAME:-alumni-portal}"
 ORIGIN="${API_PROXY_ORIGIN:-}"
 
 if [[ -z "$ORIGIN" ]]; then
   cat <<'EOF'
-ERROR: API_PROXY_ORIGIN is required for Cloudflare deploys while API routes are still proxied.
+ERROR: API_PROXY_ORIGIN is required for Cloudflare Worker deploys while API routes are still proxied.
 Set it to your legacy backend base URL, for example:
   export API_PROXY_ORIGIN="https://api.example.com/api"
 
@@ -25,6 +25,6 @@ if [[ "$ORIGIN" != */api ]]; then
   ORIGIN="$ORIGIN/api"
 fi
 
-echo "Setting API_PROXY_ORIGIN for Pages project: $PROJECT_NAME"
-printf "%s" "$ORIGIN" | npx wrangler pages secret put API_PROXY_ORIGIN --project-name "$PROJECT_NAME"
+echo "Setting API_PROXY_ORIGIN for Worker: $WORKER_NAME"
+printf "%s" "$ORIGIN" | npx wrangler secret put API_PROXY_ORIGIN --name "$WORKER_NAME"
 echo "API_PROXY_ORIGIN secret updated successfully."

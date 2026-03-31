@@ -1,20 +1,18 @@
-# Cloudflare Deployment Guide (Pages + Workers Runtime + D1 + R2)
+# Cloudflare Worker Deployment Guide (Frontend + Backend Proxy)
 
-This repository now includes a Cloudflare-native deployment track using:
-- Cloudflare Pages for frontend hosting.
-- Pages Functions (Workers runtime) for server-side API routes.
-- D1 for SQL metadata.
-- R2 for object storage.
+This repository now uses a Worker-first deployment model:
+- Frontend SPA is served from Worker static assets (`dist`).
+- `/api/*` routes are proxied by the Worker to your existing backend.
+- D1 and R2 bindings in `wrangler.jsonc` remain available for phased migration.
 
-## Added in this repo
+This setup avoids the Pages/Functions dependency and keeps login working as long as `API_PROXY_ORIGIN` points to your backend.
 
-- `wrangler.jsonc` for Cloudflare project config.
-- `functions/api/health.js` for runtime health checks.
-- `functions/api/storage/status.js` for D1 and R2 binding validation.
-- `functions/api/uploads/[[key]].js` for R2 object upload/read/delete.
-- `functions/api/[[catchall]].js` as a fallback API proxy for non-migrated endpoints.
-- `cloudflare/d1/migrations/0001_create_uploads_table.sql` for D1 schema.
-- `.dev.vars.example` for local Cloudflare runtime variables.
+## Architecture
+
+Request flow on your Worker domain:
+- `/` and SPA routes -> static assets (`dist`)
+- `/api/health` -> Worker runtime health endpoint
+- `/api/*` -> proxied to `API_PROXY_ORIGIN`
 
 ## 1. Prerequisites
 
@@ -30,78 +28,71 @@ npm install
 npx wrangler login
 ```
 
-## 2. Provision Cloudflare resources
+3. Ensure backend is publicly reachable over HTTPS (for example `https://api.yourdomain.com/api`).
 
-1. Create Pages project (run once):
+## 2. Backend readiness (required before Worker deploy)
+
+1. Deploy backend (Docker/VPS) using your existing backend flow.
+2. Confirm backend API is reachable:
 
 ```bash
-npm run cf:pages:create
+curl -i https://api.yourdomain.com/api/status/health
 ```
 
-2. Create D1 database:
+3. Set backend environment correctly:
+- `FRONTEND_URL` must match your Worker frontend domain.
+- CORS must allow that frontend origin.
+
+## 3. Optional Cloudflare resources (D1/R2)
+
+Use only if your Worker code needs them now:
 
 ```bash
 npm run cf:d1:create
-```
-
-Copy the returned `database_id` and set it in `wrangler.jsonc` under `d1_databases[0].database_id`.
-
-3. Create R2 bucket:
-
-```bash
 npm run cf:r2:create
-```
-
-If you choose a different bucket name, update `wrangler.jsonc` under `r2_buckets[0].bucket_name`.
-
-## 3. Apply D1 migrations
-
-For local testing:
-
-```bash
-npm run cf:d1:migrate:local
-```
-
-For remote/production D1:
-
-```bash
 npm run cf:d1:migrate:remote
 ```
 
-## 4. Local development with Pages Functions
+If IDs or names differ, update `wrangler.jsonc` bindings.
 
-1. Copy runtime env file:
+## 4. Local Worker development
+
+1. Copy local runtime vars:
 
 ```bash
 cp .dev.vars.example .dev.vars
 ```
 
-2. (Optional) keep using existing Express API for routes not yet migrated:
-- Set `API_PROXY_ORIGIN` in `.dev.vars` (default is `http://localhost:5000/api`).
-- Start backend separately when proxying:
+2. Start backend locally in one terminal:
 
 ```bash
 npm run backend
 ```
 
-3. Start Cloudflare local runtime:
+3. Start Worker runtime in another terminal:
 
 ```bash
 npm run cf:dev
 ```
 
-## 5. Deploy to Cloudflare
+By default `.dev.vars.example` uses:
 
-1. Export your legacy backend origin (the deploy script auto-normalizes to `/api` if needed):
+```env
+API_PROXY_ORIGIN=http://localhost:5000/api
+```
+
+## 5. Deploy Worker to production
+
+1. Export backend proxy target:
 
 ```bash
 export API_PROXY_ORIGIN="https://api.yourdomain.com/api"
 ```
 
-2. (Optional) override the Pages project name if not `alumni-portal`:
+2. Optional if Worker name differs from `alumni-portal`:
 
 ```bash
-export CF_PAGES_PROJECT_NAME="your-pages-project"
+export CF_WORKER_NAME="your-worker-name"
 ```
 
 3. Deploy:
@@ -110,29 +101,42 @@ export CF_PAGES_PROJECT_NAME="your-pages-project"
 npm run cf:deploy
 ```
 
-This now runs three steps in order:
-- Build frontend (`dist`).
-- Update Pages secret `API_PROXY_ORIGIN` via `wrangler pages secret put`.
-- Deploy with `wrangler pages deploy --branch main` using `wrangler.jsonc` project settings.
+`cf:deploy` performs:
+- Frontend build (`dist`)
+- `wrangler secret put API_PROXY_ORIGIN`
+- `wrangler deploy`
 
-If `API_PROXY_ORIGIN` is missing, deploy exits early to prevent shipping a production build where non-migrated `/api/*` routes fail with `501`.
+If `API_PROXY_ORIGIN` is missing or invalid, deploy fails early.
 
-## 6. Available Cloudflare API routes
+## 6. Post-deploy verification
 
-- `GET /api/health`
-- `GET /api/storage/status`
-- `POST /api/uploads` (multipart form field name: `file`)
-- `GET /api/uploads/<object-key>`
-- `DELETE /api/uploads/<object-key>`
+1. Health check:
 
-For endpoints not yet moved to Cloudflare Functions, `functions/api/[[catchall]].js` will:
-- Proxy to `API_PROXY_ORIGIN` when provided.
-- Return `501` when no proxy origin is configured.
-- Return `500` for invalid proxy configuration (for example self-referential `/api` loop).
+```bash
+curl -i https://your-frontend-domain/api/health
+```
 
-## 7. Notes
+2. Login API path test:
 
-- `wrangler.jsonc` is treated as the source of truth for bindings and Pages configuration.
-- Use `npx wrangler pages download config <PROJECT_NAME>` if you want to import existing dashboard config before further edits.
-- If deploy fails with `Can't set compatibility date in the future`, update `compatibility_date` in `wrangler.jsonc` to a currently supported date and avoid hardcoding a newer date in CLI flags.
-- Current D1 schema in this track is scoped to upload metadata; existing Prisma/PostgreSQL backend can run in parallel until full endpoint migration is complete.
+```bash
+curl -i -X POST https://your-frontend-domain/api/auth/login \
+	-H 'content-type: application/json' \
+	-d '{"email":"test@example.com","password":"test"}'
+```
+
+Expected behavior:
+- No Worker `501` fallback for non-migrated routes.
+- Backend response code is returned through the Worker.
+
+## 7. Troubleshooting
+
+- `501 This endpoint has not been migrated...` means `API_PROXY_ORIGIN` secret is missing on Worker.
+- `500 API_PROXY_ORIGIN is invalid` means the URL is malformed; use a full URL like `https://api.example.com/api`.
+- Login still fails with network/CORS errors when backend `FRONTEND_URL` or CORS allow-list does not include your Worker frontend domain.
+- Proxy loop protection error means `API_PROXY_ORIGIN` points back to the same frontend Worker domain `/api`.
+
+## 8. Notes
+
+- `wrangler.jsonc` is the source of truth for Worker bindings/config.
+- If compatibility-date errors appear, set `compatibility_date` to a supported date.
+- The backend remains your source of truth for auth and business APIs until full Worker migration is complete.
