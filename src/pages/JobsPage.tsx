@@ -34,6 +34,36 @@ const formatJobTypeLabel = (value: string) =>
 
 const normalizeJobType = (value?: string) => (value || "").trim().toLowerCase().replaceAll(/\s+/g, "-");
 
+interface JobApplicationRecord {
+  id: string;
+  applicantId: string;
+  applicantName: string;
+  applicantEmail: string;
+  coverLetter: string;
+  resumeUrl: string;
+  resumeFilename: string;
+  portfolioUrl: string;
+  appliedAt: string;
+}
+
+const getPostedById = (job: Job): string | undefined => {
+  const postedBy = job.postedBy as unknown;
+
+  if (postedBy && typeof postedBy === "object" && "id" in postedBy) {
+    const maybeId = (postedBy as { id?: unknown }).id;
+    if (typeof maybeId === "string") {
+      return maybeId;
+    }
+  }
+
+  return undefined;
+};
+
+const escapeCsvCell = (value: unknown): string => {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
 export default function JobsPage() {
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -48,6 +78,7 @@ export default function JobsPage() {
   const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
   const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
   const [applicationSubmitStatus, setApplicationSubmitStatus] = useState<string>("");
+  const [downloadingApplicantsForJobId, setDownloadingApplicantsForJobId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
   
   // Additional filters
@@ -149,7 +180,7 @@ export default function JobsPage() {
         return false;
       }
 
-      if (job.postedBy?.id === currentUser.id) {
+      if (getPostedById(job) === currentUser.id) {
         toast({ title: "Not allowed", description: "You cannot apply to your own job posting.", variant: "destructive" });
         return false;
       }
@@ -219,13 +250,149 @@ export default function JobsPage() {
       return;
     }
 
-    if (job.postedBy?.id === currentUser.id) {
+    if (getPostedById(job) === currentUser.id) {
       toast({ title: "Not allowed", description: "You cannot apply to your own job posting.", variant: "destructive" });
       return;
     }
 
     setApplyJob(job);
     setIsApplyDialogOpen(true);
+  };
+
+  const isOwnPosting = (job: Job) => {
+    const postedById = getPostedById(job);
+    return Boolean(currentUser && postedById && postedById === currentUser.id);
+  };
+
+  const canDownloadApplications = (job: Job) => {
+    if (!currentUser) return false;
+    if (isOwnPosting(job)) return true;
+
+    const role = (currentUser.role || "").toLowerCase();
+    return role === "moderator" || role === "admin" || role === "super_admin";
+  };
+
+  const handleExternalApply = async (job: Job) => {
+    if (!job.applicationUrl) {
+      openApplyDialog(job);
+      return;
+    }
+
+    if (!currentUser) {
+      toast({ title: "Sign in required", description: "Please sign in to apply for jobs.", variant: "destructive" });
+      return;
+    }
+
+    if (isOwnPosting(job)) {
+      toast({ title: "Not allowed", description: "You cannot apply to your own job posting.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const response = await apiService.applyToJob(job.id);
+      if (!response.success) {
+        throw new Error(response.message || "Failed to register application");
+      }
+
+      const alreadyApplied = Boolean(response.data?.alreadyApplied);
+      setAppliedJobs((prev) => (prev.includes(job.id) ? prev : [...prev, job.id]));
+
+      window.open(job.applicationUrl, "_blank", "noopener,noreferrer");
+
+      toast({
+        title: alreadyApplied ? "Already applied" : "Continue application",
+        description: alreadyApplied
+          ? "Opening the external application page."
+          : "Your interest was recorded. Complete the form on the external page.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to start external application.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePrimaryApplyAction = async (job: Job) => {
+    if (job.applicationUrl) {
+      await handleExternalApply(job);
+      return;
+    }
+
+    openApplyDialog(job);
+  };
+
+  const handleDownloadApplicants = async (job: Job) => {
+    if (!canDownloadApplications(job)) {
+      toast({ title: "Not allowed", description: "Only the job poster can download applicant data.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setDownloadingApplicantsForJobId(job.id);
+
+      const response = await apiService.getJobApplications(job.id);
+      if (!response.success) {
+        throw new Error(response.message || "Failed to fetch applicants");
+      }
+
+      const applicants = (Array.isArray(response.data) ? response.data : []) as JobApplicationRecord[];
+      if (applicants.length === 0) {
+        toast({ title: "No applications yet", description: "No applicant data is available for this job yet." });
+        return;
+      }
+
+      const headers = [
+        "Applied At",
+        "Applicant Name",
+        "Applicant Email",
+        "Cover Letter",
+        "Portfolio URL",
+        "Resume URL",
+        "Resume Filename",
+      ];
+
+      const rows = applicants.map((application) => [
+        application.appliedAt,
+        application.applicantName,
+        application.applicantEmail,
+        application.coverLetter,
+        application.portfolioUrl,
+        application.resumeUrl,
+        application.resumeFilename,
+      ]);
+
+      const csv = [
+        headers.map(escapeCsvCell).join(","),
+        ...rows.map((row) => row.map(escapeCsvCell).join(",")),
+      ].join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const slug = job.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+      link.href = objectUrl;
+      link.download = `${slug || "job"}-applications-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+
+      toast({
+        title: "Download ready",
+        description: `Exported ${applicants.length} application${applicants.length === 1 ? "" : "s"}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to download applicant data.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingApplicantsForJobId(null);
+    }
   };
 
   const clearFilters = () => {
@@ -387,6 +554,7 @@ export default function JobsPage() {
               {filteredJobs.map(job => {
                 const isSaved = savedJobs.includes(job.id);
                 const isApplied = appliedJobs.includes(job.id);
+                const isOwnJob = isOwnPosting(job);
                 const companyName = getCompanyName(job);
                 const companyLogo = getCompanyLogo(job);
                 
@@ -428,13 +596,24 @@ export default function JobsPage() {
                           
                           <Button
                             size="sm"
-                            variant={isApplied ? "outline" : "default"}
-                            className={isApplied 
+                            variant={isOwnJob || isApplied ? "outline" : "default"}
+                            className={isOwnJob
+                              ? "border-border text-muted-foreground"
+                              : isApplied 
                               ? "border-green-500 text-green-700 hover:bg-green-50" 
                               : "bg-primary hover:bg-primary/90 text-white transform hover:scale-105 transition-transform"}
-                            onClick={() => isApplied ? openJobDetails(job) : openApplyDialog(job)}
+                            disabled={isOwnJob}
+                            onClick={() => {
+                              if (isOwnJob) return;
+                              if (isApplied) {
+                                openJobDetails(job);
+                                return;
+                              }
+
+                              void handlePrimaryApplyAction(job);
+                            }}
                           >
-                            {isApplied ? "Applied" : "Apply"}
+                            {isOwnJob ? "Your Posting" : isApplied ? "Applied" : job.applicationUrl ? "Apply External" : "Apply"}
                           </Button>
                         </div>
                       </div>
@@ -477,14 +656,28 @@ export default function JobsPage() {
                         )}
                       </div>
                       
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="text-sm"
-                        onClick={() => openJobDetails(job)}
-                      >
-                        View Details
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {isOwnJob && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-sm"
+                            disabled={downloadingApplicantsForJobId === job.id}
+                            onClick={() => void handleDownloadApplicants(job)}
+                          >
+                            {downloadingApplicantsForJobId === job.id ? "Preparing..." : "Download Applicants"}
+                          </Button>
+                        )}
+
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-sm"
+                          onClick={() => openJobDetails(job)}
+                        >
+                          View Details
+                        </Button>
+                      </div>
                     </CardFooter>
                   </Card>
                 );
@@ -567,13 +760,17 @@ export default function JobsPage() {
           job={selectedJob}
           isOpen={isJobDetailsModalOpen}
           onClose={() => setIsJobDetailsModalOpen(false)}
-          onApply={async () => {
+          onApply={async (job) => {
             setIsJobDetailsModalOpen(false);
-            openApplyDialog(selectedJob);
+            await handlePrimaryApplyAction(job);
           }}
           onSave={async () => handleToggleSaveJob(selectedJob.id)}
           isSaved={savedJobs.includes(selectedJob.id)}
           isApplied={appliedJobs.includes(selectedJob.id)}
+          canApply={!isOwnPosting(selectedJob)}
+          canDownloadApplications={canDownloadApplications(selectedJob)}
+          isDownloadingApplications={downloadingApplicantsForJobId === selectedJob.id}
+          onDownloadApplications={handleDownloadApplicants}
         />
       )}
 

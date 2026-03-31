@@ -6,7 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Send, Users, Lock, Globe } from "lucide-react";
+import { MessageSquare, Send, Users, Lock, Globe, ChevronsUpDown, Check, Link2, Copy } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import apiService from "@/services/apiService";
@@ -16,6 +18,18 @@ interface GroupDiscussionModalProps {
   readonly group: any;
   readonly isOpen: boolean;
   readonly onClose: () => void;
+}
+
+interface InvitableUser {
+  id?: string;
+  _id?: string;
+  name?: string;
+  email?: string;
+  location?: string;
+  city?: string;
+  country?: string;
+  company?: string;
+  jobTitle?: string;
 }
 
 export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupDiscussionModalProps>) {
@@ -36,6 +50,15 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
   const [loadingJoinRequests, setLoadingJoinRequests] = useState(false);
   const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null);
+  const [invitingMember, setInvitingMember] = useState(false);
+  const [invitableUsers, setInvitableUsers] = useState<InvitableUser[]>([]);
+  const [loadingInvitableUsers, setLoadingInvitableUsers] = useState(false);
+  const [inviteSearchQuery, setInviteSearchQuery] = useState("");
+  const [inviteSearchOpen, setInviteSearchOpen] = useState(false);
+  const [selectedInviteUser, setSelectedInviteUser] = useState<InvitableUser | null>(null);
+  const [creatingInviteLink, setCreatingInviteLink] = useState(false);
+  const [generatedInviteLink, setGeneratedInviteLink] = useState("");
+  const [copyingInviteLink, setCopyingInviteLink] = useState(false);
 
   const groupId = group?.id || group?._id;
   const activeGroup = groupDetails || group || {};
@@ -47,6 +70,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
 
   const normalizedRole = (currentUser?.role || '').toLowerCase();
   const isWatcher = normalizedRole === 'admin' || normalizedRole === 'super_admin' || normalizedRole === 'moderator';
+  const canManageInvites = isCurrentUserGroupAdmin || isWatcher;
 
   const isCurrentUserMember =
     isCurrentUserGroupAdmin ||
@@ -64,6 +88,26 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
       }
     }
   }, [isOpen, groupId, isCurrentUserGroupAdmin, isWatcher]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setInviteSearchOpen(false);
+      setInviteSearchQuery("");
+      setSelectedInviteUser(null);
+      setGeneratedInviteLink("");
+      setInvitableUsers([]);
+    }
+  }, [isOpen, groupId]);
+
+  useEffect(() => {
+    if (!inviteSearchOpen || !groupId || !canManageInvites || activeGroup?.privacy !== 'private') return;
+
+    const timeout = setTimeout(() => {
+      void loadInvitableUsers(inviteSearchQuery);
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [inviteSearchQuery, inviteSearchOpen, groupId, canManageInvites, activeGroup?.privacy]);
 
   const loadGroupDetails = async () => {
     if (!groupId) return;
@@ -120,6 +164,25 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
       console.error('Error loading join requests:', error);
     } finally {
       setLoadingJoinRequests(false);
+    }
+  };
+
+  const loadInvitableUsers = async (query = '') => {
+    if (!groupId || !canManageInvites) return;
+
+    try {
+      setLoadingInvitableUsers(true);
+      const response = await apiService.getInvitableUsers(groupId, query, 25);
+      if (response.success) {
+        setInvitableUsers(Array.isArray(response.data) ? response.data : []);
+      } else {
+        setInvitableUsers([]);
+      }
+    } catch (error) {
+      console.error('Error loading invitable users:', error);
+      setInvitableUsers([]);
+    } finally {
+      setLoadingInvitableUsers(false);
     }
   };
 
@@ -208,6 +271,117 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
     } finally {
       setSending(false);
     }
+  };
+
+  const getInvitableUserId = (user: InvitableUser | null) => user?.id || user?._id || '';
+
+  const getInvitableUserLabel = (user: InvitableUser | null) => {
+    if (!user) return 'Search by name, email, location, company...';
+
+    const primary = user.name || user.email || 'User';
+    const secondary = user.email ? ` (${user.email})` : '';
+    return `${primary}${secondary}`;
+  };
+
+  const handleInviteMember = async () => {
+    if (!groupId || !canManageInvites || invitingMember) return;
+
+    const inviteUserId = getInvitableUserId(selectedInviteUser);
+    if (!inviteUserId) {
+      toast({
+        title: 'Select a user',
+        description: 'Choose a user from the searchable list to send an invitation.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setInvitingMember(true);
+      const response = await apiService.inviteGroupMember(groupId, { userId: inviteUserId });
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to send invitation');
+      }
+
+      setInvitableUsers((prev) => prev.filter((user) => getInvitableUserId(user) !== inviteUserId));
+      setSelectedInviteUser(null);
+      setInviteSearchQuery('');
+      setInviteSearchOpen(false);
+      toast({
+        title: 'Invitation sent',
+        description: response.message || 'The user has been invited to this private group.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to invite user.',
+        variant: 'destructive',
+      });
+    } finally {
+      setInvitingMember(false);
+    }
+  };
+
+  const handleCreateInviteLink = async () => {
+    if (!groupId || !canManageInvites || creatingInviteLink) return;
+
+    try {
+      setCreatingInviteLink(true);
+      const response = await apiService.createGroupInviteLink(groupId);
+
+      if (!response.success || !response.data?.inviteLink) {
+        throw new Error(response.message || 'Failed to generate invite link');
+      }
+
+      setGeneratedInviteLink(response.data.inviteLink);
+      toast({
+        title: 'Invite link ready',
+        description: 'Share this link with alumni you want to invite.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to generate invite link.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCreatingInviteLink(false);
+    }
+  };
+
+  const handleCopyInviteLink = async () => {
+    if (!generatedInviteLink || copyingInviteLink) return;
+
+    try {
+      setCopyingInviteLink(true);
+      if (!navigator?.clipboard?.writeText) {
+        throw new Error('Clipboard API unavailable');
+      }
+
+      await navigator.clipboard.writeText(generatedInviteLink);
+
+      toast({
+        title: 'Copied',
+        description: 'Invite link copied to clipboard.',
+      });
+    } catch {
+      toast({
+        title: 'Copy failed',
+        description: 'Unable to copy link automatically. You can copy it manually.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCopyingInviteLink(false);
+    }
+  };
+
+  const formatInvitableUserDetails = (user: InvitableUser) => {
+    const segments = [user?.location, user?.city, user?.country, user?.company, user?.jobTitle]
+      .filter(Boolean)
+      .slice(0, 3);
+
+    return segments.length > 0 ? segments.join(' • ') : '';
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -513,6 +687,129 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
                 >
                   {savingSettings ? 'Saving...' : 'Save Settings'}
                 </Button>
+              </div>
+            )}
+
+            {canManageInvites && activeGroup?.privacy === 'private' && (
+              <div className="space-y-2 border-t pt-3">
+                <h3 className="font-semibold text-sm text-foreground">Invite Member</h3>
+                <p className="text-xs text-muted-foreground">Invited users receive a notification and can join from there.</p>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Search and invite</Label>
+                  <Popover
+                    open={inviteSearchOpen}
+                    onOpenChange={(open) => {
+                      setInviteSearchOpen(open);
+                      if (open) {
+                        void loadInvitableUsers(inviteSearchQuery);
+                      }
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={inviteSearchOpen}
+                        className="w-full justify-between"
+                      >
+                        {getInvitableUserLabel(selectedInviteUser)}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[340px] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          value={inviteSearchQuery}
+                          onValueChange={setInviteSearchQuery}
+                          placeholder="Search members..."
+                        />
+                        <CommandList>
+                          {loadingInvitableUsers ? (
+                            <div className="py-6 text-center text-sm text-muted-foreground">Searching users...</div>
+                          ) : (
+                            <>
+                              <CommandEmpty>No eligible users found.</CommandEmpty>
+                              <CommandGroup>
+                                {invitableUsers.map((user) => {
+                                  const userId = getInvitableUserId(user);
+                                  const selectedId = getInvitableUserId(selectedInviteUser);
+                                  const isSelected = userId === selectedId;
+                                  const details = formatInvitableUserDetails(user);
+
+                                  return (
+                                    <CommandItem
+                                      key={userId}
+                                      value={`${user.name || ''} ${user.email || ''} ${details}`}
+                                      onSelect={() => {
+                                        setSelectedInviteUser(user);
+                                        setInviteSearchOpen(false);
+                                      }}
+                                      className="items-start"
+                                    >
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">{user.name || user.email?.split('@')[0] || 'User'}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{user.email || 'No email available'}</p>
+                                        {details && (
+                                          <p className="text-xs text-muted-foreground truncate">{details}</p>
+                                        )}
+                                      </div>
+                                      <Check className={`ml-2 h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            </>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+
+                  <Button
+                    type="button"
+                    onClick={handleInviteMember}
+                    disabled={invitingMember || !selectedInviteUser}
+                    className="w-full"
+                  >
+                    {invitingMember ? 'Inviting...' : 'Send Invitation'}
+                  </Button>
+                </div>
+
+                <div className="space-y-2 border-t pt-3">
+                  <Label className="text-xs">Invite with link</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCreateInviteLink}
+                      disabled={creatingInviteLink}
+                      className="flex-1"
+                    >
+                      <Link2 className="h-4 w-4 mr-2" />
+                      {creatingInviteLink ? 'Generating...' : 'Generate Link'}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleCopyInviteLink}
+                      disabled={!generatedInviteLink || copyingInviteLink}
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      {copyingInviteLink ? 'Copying...' : 'Copy'}
+                    </Button>
+                  </div>
+
+                  {generatedInviteLink && (
+                    <Input value={generatedInviteLink} readOnly className="text-xs" />
+                  )}
+
+                  <p className="text-xs text-muted-foreground">
+                    Anyone signed in with this link will receive a private-group invitation notification.
+                  </p>
+                </div>
               </div>
             )}
 

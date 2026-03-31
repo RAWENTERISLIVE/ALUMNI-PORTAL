@@ -37,23 +37,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
-const API_BASE_URL = (() => {
-  if (!rawApiUrl) {
-    return '/api';
-  }
-
-  if (rawApiUrl.endsWith('/api')) {
-    return rawApiUrl;
-  }
-
-  return `${rawApiUrl.replace(/\/+$/, '')}/api`;
-})();
-
 // Post schema focusing on essential features only
 const postSchema = z.object({
   title: z.string().max(200, 'Title cannot exceed 200 characters').optional(),
-  content: z.string().min(1, 'Please share what\'s on your mind').max(2000, 'Content cannot exceed 2000 characters'),
+  content: z.string().max(2000, 'Content cannot exceed 2000 characters').optional(),
   category: z.enum(['general', 'career', 'networking', 'events', 'achievements', 'announcements']).default('general'),
   tags: z.array(z.string()).optional(),
   visibility: z.enum(['everyone', 'alumni_only', 'faculty_only']).default('everyone'),
@@ -215,32 +202,12 @@ export function CreatePostForm({
 
   // Real file upload function
   const uploadFile = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/uploads/single`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const result = await response.json();
-      if (result.success) {
-        return result.data.url; // Use the URL from the database record
-      } else {
-        throw new Error(result.message || 'Upload failed');
-      }
-    } catch (error: any) {
-      console.error('File upload error:', error);
-      throw new Error(error.message || 'Failed to upload file');
+    const result = await apiService.uploadFile(file);
+    if (!result.success || !result.data?.url) {
+      throw new Error(result.message || 'Failed to upload file');
     }
+
+    return result.data.url;
   };
 
   const onSubmit = async (data: PostFormData) => {
@@ -258,11 +225,13 @@ export function CreatePostForm({
         });
       }
 
-      // Prepare post data, ensuring content is provided
-      if (!data.content || data.content.trim() === '') {
+      const normalizedContent = (data.content || '').trim();
+
+      // Allow attachment-only posts, but require at least content or attachment.
+      if (!normalizedContent && uploadedAttachments.length === 0) {
         toast({
-          title: "Content required",
-          description: "Please add some content to your post.",
+          title: "Post content required",
+          description: "Add content or at least one attachment before publishing.",
           variant: "destructive",
         });
         return;
@@ -270,7 +239,7 @@ export function CreatePostForm({
 
       const postData = {
         title: data.title,
-        content: data.content,
+        content: normalizedContent,
         category: data.category,
         tags: data.tags,
         externalLinks: data.externalLinks,
@@ -394,7 +363,7 @@ export function CreatePostForm({
                   <div className="flex justify-between items-center">
                     <FormMessage />
                     <span className="text-sm text-muted-foreground">
-                      {field.value.length}/2000
+                      {(field.value?.length || 0)}/2000
                     </span>
                   </div>
                 </FormItem>

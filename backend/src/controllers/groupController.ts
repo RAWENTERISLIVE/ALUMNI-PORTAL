@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createNotification } from '../utils/notifications';
@@ -15,6 +16,19 @@ interface GroupSettingsPayload {
   description?: string;
   privacy?: 'public' | 'private';
   category?: string;
+}
+
+interface GroupInvitePayload {
+  email?: string;
+  userId?: string;
+}
+
+interface GroupInviteTokenPayload {
+  type: 'group_invite';
+  groupId: string;
+  inviterId: string;
+  iat?: number;
+  exp?: number;
 }
 
 const getGroupId = (req: Request) => req.params.groupId || req.params.id;
@@ -61,6 +75,21 @@ const isWatcherRole = (role?: string) => {
 };
 
 const isSuperAdminRole = (role?: string) => normalizeRole(role) === 'super_admin';
+
+const normalizeInviteEmail = (email?: string) => {
+  if (typeof email !== 'string') return '';
+  return email.trim().toLowerCase();
+};
+
+const getInviteTokenSecret = () => process.env.JWT_SECRET || 'your-secret-key';
+
+const getInviteLinkBaseUrl = () => {
+  const raw = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost';
+  return raw.replace(/\/$/, '');
+};
+
+const isGroupMemberId = (members: Array<{ id: string }>, userId: string) =>
+  members.some((member) => member.id === userId);
 
 const getNextAdminCandidateId = async (
   groupId: string,
@@ -228,6 +257,40 @@ export const joinGroup = asyncHandler(async (req: AuthRequest, res: Response): P
       }
     });
 
+    if (existingRequest?.status === 'invited') {
+      const alreadyMember = isUserMember(group.members, req.user.id);
+      if (alreadyMember) {
+        res.status(200).json({ success: true, message: 'Already a member of this group' });
+        return;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.groupJoinRequest.update({
+          where: { id: existingRequest.id },
+          data: {
+            status: 'approved',
+            reviewedById: existingRequest.reviewedById || group.creatorId,
+            reviewedAt: new Date()
+          }
+        });
+
+        await tx.group.update({
+          where: { id: groupId },
+          data: {
+            members: { connect: { id: req.user!.id } },
+            memberCount: { increment: 1 },
+            lastActivity: new Date()
+          }
+        });
+      });
+
+      const actorName = await getSafeActorName(req.user.id);
+      await createSystemMessage(groupId, req.user.id, `${actorName} joined the group`);
+
+      res.status(200).json({ success: true, message: 'Joined private group invitation' });
+      return;
+    }
+
     if (existingRequest?.status === 'pending') {
       res.status(200).json({ success: true, message: 'Join request already pending admin approval', requestStatus: 'pending' });
       return;
@@ -289,6 +352,370 @@ export const joinGroup = asyncHandler(async (req: AuthRequest, res: Response): P
   await createSystemMessage(groupId, req.user.id, `${actorName} joined the group`);
 
   res.status(200).json({ success: true, message: 'Joined group' });
+});
+
+export const inviteGroupMember = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: { members: { select: { id: true } } }
+  });
+
+  if (!group) {
+    res.status(404).json({ success: false, message: 'Group not found' });
+    return;
+  }
+
+  const canInvite = isGroupAdmin(group, req.user.id) || isWatcherRole(req.user.role);
+  if (!canInvite) {
+    res.status(403).json({ success: false, message: 'Only group admin or watcher roles can invite members' });
+    return;
+  }
+
+  if (group.privacy !== 'private') {
+    res.status(400).json({ success: false, message: 'Invites are available only for private groups' });
+    return;
+  }
+
+  const payload = req.body as GroupInvitePayload;
+  const invitedEmail = normalizeInviteEmail(payload.email);
+  const invitedUserId = typeof payload.userId === 'string' ? payload.userId.trim() : '';
+
+  if (!invitedEmail && !invitedUserId) {
+    res.status(400).json({ success: false, message: 'Provide invite email or userId' });
+    return;
+  }
+
+  const invitedUser = invitedUserId
+    ? await prisma.user.findUnique({
+        where: { id: invitedUserId },
+        select: { id: true, email: true, name: true }
+      })
+    : await prisma.user.findUnique({
+        where: { email: invitedEmail },
+        select: { id: true, email: true, name: true }
+      });
+
+  if (!invitedUser) {
+    res.status(404).json({ success: false, message: 'User not found for provided invite details' });
+    return;
+  }
+
+  if (invitedUser.id === req.user.id) {
+    res.status(400).json({ success: false, message: 'You are already part of this group' });
+    return;
+  }
+
+  if (isUserMember(group.members, invitedUser.id)) {
+    res.status(200).json({ success: true, message: `${invitedUser.name || invitedUser.email} is already a member` });
+    return;
+  }
+
+  const existingRequest = await prisma.groupJoinRequest.findUnique({
+    where: {
+      groupId_requesterId: {
+        groupId,
+        requesterId: invitedUser.id
+      }
+    }
+  });
+
+  if (existingRequest?.status === 'invited') {
+    res.status(200).json({ success: true, message: `Invitation already sent to ${invitedUser.email}` });
+    return;
+  }
+
+  if (existingRequest) {
+    await prisma.groupJoinRequest.update({
+      where: { id: existingRequest.id },
+      data: {
+        status: 'invited',
+        reviewedById: req.user.id,
+        reviewedAt: new Date()
+      }
+    });
+  } else {
+    await prisma.groupJoinRequest.create({
+      data: {
+        groupId,
+        requesterId: invitedUser.id,
+        status: 'invited',
+        reviewedById: req.user.id,
+        reviewedAt: new Date()
+      }
+    });
+  }
+
+  const inviterName = await getSafeActorName(req.user.id);
+
+  await createNotification({
+    userId: invitedUser.id,
+    title: 'Private group invitation',
+    message: `${inviterName} invited you to join ${group.name}.`,
+    type: 'group_invitation',
+    actionUrl: '/groups',
+    metadata: {
+      groupId,
+      inviterId: req.user.id,
+      invitedUserId: invitedUser.id
+    }
+  });
+
+  res.status(200).json({
+    success: true,
+    message: `Invitation sent to ${invitedUser.email}`,
+    data: {
+      invitedUser: {
+        id: invitedUser.id,
+        email: invitedUser.email,
+        name: invitedUser.name || invitedUser.email.split('@')[0]
+      }
+    }
+  });
+});
+
+export const getInvitableUsers = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: { members: { select: { id: true } } }
+  });
+
+  if (!group) {
+    res.status(404).json({ success: false, message: 'Group not found' });
+    return;
+  }
+
+  const canInvite = isGroupAdmin(group, req.user.id) || isWatcherRole(req.user.role);
+  if (!canInvite) {
+    res.status(403).json({ success: false, message: 'Only group admin or watcher roles can search invitable users' });
+    return;
+  }
+
+  const query = typeof req.query.query === 'string' ? req.query.query.trim() : '';
+  const limit = Math.min(Number.parseInt(String(req.query.limit || '20'), 10) || 20, 50);
+
+  const where: any = {
+    status: 'ACTIVE',
+    id: {
+      notIn: [req.user.id, ...group.members.map((member) => member.id)]
+    }
+  };
+
+  if (query) {
+    where.OR = [
+      { name: { contains: query, mode: 'insensitive' } },
+      { firstName: { contains: query, mode: 'insensitive' } },
+      { lastName: { contains: query, mode: 'insensitive' } },
+      { email: { contains: query, mode: 'insensitive' } },
+      { location: { contains: query, mode: 'insensitive' } },
+      { city: { contains: query, mode: 'insensitive' } },
+      { country: { contains: query, mode: 'insensitive' } },
+      { company: { contains: query, mode: 'insensitive' } },
+      { jobTitle: { contains: query, mode: 'insensitive' } }
+    ];
+  }
+
+  const users = await prisma.user.findMany({
+    where,
+    take: limit,
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      location: true,
+      city: true,
+      country: true,
+      company: true,
+      jobTitle: true,
+      profileImage: true
+    }
+  });
+
+  res.status(200).json({ success: true, data: users });
+});
+
+export const createGroupInviteLink = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const groupId = getRequiredGroupId(req, res);
+  if (!groupId) return;
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    select: {
+      id: true,
+      name: true,
+      privacy: true,
+      creatorId: true
+    }
+  });
+
+  if (!group) {
+    res.status(404).json({ success: false, message: 'Group not found' });
+    return;
+  }
+
+  const canInvite = isGroupAdmin(group, req.user.id) || isWatcherRole(req.user.role);
+  if (!canInvite) {
+    res.status(403).json({ success: false, message: 'Only group admin or watcher roles can create invite links' });
+    return;
+  }
+
+  if (group.privacy !== 'private') {
+    res.status(400).json({ success: false, message: 'Invite links are available only for private groups' });
+    return;
+  }
+
+  const inviteToken = jwt.sign(
+    {
+      type: 'group_invite',
+      groupId: group.id,
+      inviterId: req.user.id
+    } satisfies GroupInviteTokenPayload,
+    getInviteTokenSecret(),
+    { expiresIn: '7d' }
+  );
+
+  const inviteLink = `${getInviteLinkBaseUrl()}/groups?inviteToken=${encodeURIComponent(inviteToken)}`;
+
+  res.status(200).json({
+    success: true,
+    data: {
+      inviteToken,
+      inviteLink,
+      expiresInDays: 7
+    }
+  });
+});
+
+export const acceptGroupInviteLink = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user?.id) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+  if (!token) {
+    res.status(400).json({ success: false, message: 'Invite token is required' });
+    return;
+  }
+
+  let payload: GroupInviteTokenPayload;
+  try {
+    const decoded = jwt.verify(token, getInviteTokenSecret());
+    if (typeof decoded === 'string') {
+      res.status(400).json({ success: false, message: 'Invalid invite token payload' });
+      return;
+    }
+
+    const type = (decoded as { type?: string }).type;
+    const groupId = (decoded as { groupId?: string }).groupId;
+    const inviterId = (decoded as { inviterId?: string }).inviterId;
+
+    if (type !== 'group_invite' || !groupId || !inviterId) {
+      res.status(400).json({ success: false, message: 'Invalid invite token' });
+      return;
+    }
+
+    payload = {
+      type: 'group_invite',
+      groupId,
+      inviterId
+    };
+  } catch {
+    res.status(400).json({ success: false, message: 'Invite link is invalid or expired' });
+    return;
+  }
+
+  const group = await prisma.group.findUnique({
+    where: { id: payload.groupId },
+    include: { members: { select: { id: true } } }
+  });
+
+  if (!group) {
+    res.status(404).json({ success: false, message: 'Group not found for invite link' });
+    return;
+  }
+
+  if (group.privacy !== 'private') {
+    res.status(400).json({ success: false, message: 'This invite link is not applicable to a private group' });
+    return;
+  }
+
+  if (isGroupMemberId(group.members, req.user.id)) {
+    res.status(200).json({ success: true, message: 'You are already a member of this group' });
+    return;
+  }
+
+  const existingRequest = await prisma.groupJoinRequest.findUnique({
+    where: {
+      groupId_requesterId: {
+        groupId: group.id,
+        requesterId: req.user.id
+      }
+    }
+  });
+
+  if (existingRequest) {
+    await prisma.groupJoinRequest.update({
+      where: { id: existingRequest.id },
+      data: {
+        status: 'invited',
+        reviewedById: payload.inviterId,
+        reviewedAt: new Date()
+      }
+    });
+  } else {
+    await prisma.groupJoinRequest.create({
+      data: {
+        groupId: group.id,
+        requesterId: req.user.id,
+        status: 'invited',
+        reviewedById: payload.inviterId,
+        reviewedAt: new Date()
+      }
+    });
+  }
+
+  await createNotification({
+    userId: req.user.id,
+    title: 'Private group invitation',
+    message: `You have been invited to join ${group.name}.`,
+    type: 'group_invitation',
+    actionUrl: '/groups',
+    metadata: {
+      groupId: group.id,
+      inviterId: payload.inviterId,
+      invitedUserId: req.user.id,
+      source: 'invite_link'
+    }
+  });
+
+  res.status(200).json({
+    success: true,
+    message: 'Invitation accepted. Open notifications and click Join Group to enter the private group.'
+  });
 });
 
 export const leaveGroup = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {

@@ -107,7 +107,6 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     firstName,
     lastName,
     name,
-    role,
     admissionNumber,
     admissionYear,
     graduationYear,
@@ -171,22 +170,11 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  let resolvedRole: Role = Role.USER;
-  if (role === 'SUPER_ADMIN' || role === 'super_admin') {
-    resolvedRole = Role.SUPER_ADMIN;
-  } else if (role === 'ADMIN' || role === 'admin') {
-    resolvedRole = Role.ADMIN;
-  } else if (role === 'MODERATOR' || role === 'moderator') {
-    resolvedRole = 'MODERATOR' as Role;
-  } else if (role === 'USER' || role === 'user') {
-    resolvedRole = Role.USER;
-  }
-
   const user = await prisma.user.create({
     data: {
       email,
       password: hashedPassword,
-      role: resolvedRole,
+      role: Role.USER,
       name: resolvedName || email.split('@')[0],
       firstName,
       lastName,
@@ -202,23 +190,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     } as any,
   });
 
-  const { accessToken, refreshToken } = generateTokens(user.id);
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { refreshTokens: { push: refreshToken } }
-  });
-
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: REFRESH_COOKIE_MAX_AGE_MS
-  });
-
   res.status(201).json({
     success: true,
-    message: 'User registered successfully',
+    message: 'Registration submitted. Your account is pending approval.',
     user: {
       id: user.id,
       email: user.email,
@@ -232,8 +206,6 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       status: user.status.toLowerCase(),
       isVerified: user.isVerified
     },
-    accessToken,
-    refreshToken,
     data: {
       user: {
         id: user.id,
@@ -248,7 +220,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
         status: user.status.toLowerCase(),
         isVerified: user.isVerified
       },
-      accessToken
+      requiresApproval: true
     }
   });
 });

@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import apiService from "@/services/apiService";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { useSearchParams } from "react-router-dom";
 
 const groupCategories = [
   { id: 'all', name: 'All Groups', active: true },
@@ -105,6 +106,7 @@ const checkMembership = (member: any, userId: string | undefined): boolean => {
 export default function GroupsPage() {
   const { toast } = useToast();
   const { currentUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
@@ -112,6 +114,7 @@ export default function GroupsPage() {
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingInviteToken, setProcessingInviteToken] = useState(false);
 
   const normalizedRole = (currentUser?.role || '').toLowerCase();
   const isWatcher = normalizedRole === 'admin' || normalizedRole === 'super_admin' || normalizedRole === 'moderator';
@@ -120,6 +123,42 @@ export default function GroupsPage() {
   useEffect(() => {
     loadGroups();
   }, []);
+
+  useEffect(() => {
+    const inviteToken = searchParams.get('inviteToken');
+    if (!inviteToken || processingInviteToken || !currentUser?.id) return;
+
+    const acceptInviteToken = async () => {
+      try {
+        setProcessingInviteToken(true);
+        const response = await apiService.acceptGroupInviteLink(inviteToken);
+
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to accept invite link');
+        }
+
+        toast({
+          title: 'Invite accepted',
+          description: response.message || 'You have been invited. Open the group notification to join.',
+        });
+
+        await loadGroups();
+      } catch (error: any) {
+        toast({
+          title: 'Invite link invalid',
+          description: error?.message || 'This invite link is invalid or expired.',
+          variant: 'destructive',
+        });
+      } finally {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('inviteToken');
+        setSearchParams(nextParams, { replace: true });
+        setProcessingInviteToken(false);
+      }
+    };
+
+    void acceptInviteToken();
+  }, [searchParams, setSearchParams, toast, currentUser?.id, processingInviteToken]);
 
   const loadGroups = async () => {
     try {

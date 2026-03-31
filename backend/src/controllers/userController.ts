@@ -9,6 +9,47 @@ interface AuthRequest extends Request {
   user?: any;
 }
 
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
+
+const parsePositiveInt = (value: unknown, fallback: number) => {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(`${value}`, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const parsePagination = (pageInput: unknown, limitInput: unknown, fallbackLimit = DEFAULT_PAGE_SIZE) => {
+  const page = parsePositiveInt(pageInput, 1);
+  const limit = Math.min(parsePositiveInt(limitInput, fallbackLimit), MAX_PAGE_SIZE);
+  const skip = (page - 1) * limit;
+  return { page, limit, skip };
+};
+
+const adminUserSelect = {
+  id: true,
+  email: true,
+  name: true,
+  firstName: true,
+  lastName: true,
+  profileImage: true,
+  role: true,
+  status: true,
+  admissionNumber: true,
+  admissionYear: true,
+  accountType: true,
+  hasPremiumBadge: true,
+  facultyIdCardUrl: true,
+  needsManualVerification: true,
+  verificationDetails: true,
+  isVerified: true,
+  createdAt: true,
+  updatedAt: true,
+  lastLogin: true
+} as const;
+
 const normalizeRole = (role?: string) => (role || '').toUpperCase();
 const normalizeStatus = (status?: string) => (status || '').toUpperCase();
 
@@ -34,13 +75,14 @@ const getTargetUserId = (req: Request): string | undefined => {
 };
 
 const getAuthenticatedUserId = (req: AuthRequest): string | undefined => {
-  const user = req.user as any;
+  const user = req.user;
   return user?.id || user?._id;
 };
 
 const isMissingDirectMessageTableError = (error: unknown): boolean => {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    return error.code === 'P2021' && String(error.meta?.table || '').includes('DirectMessage');
+    const tableName = typeof error.meta?.table === 'string' ? error.meta.table : '';
+    return error.code === 'P2021' && tableName.includes('DirectMessage');
   }
 
   if (error instanceof Error) {
@@ -51,16 +93,16 @@ const isMissingDirectMessageTableError = (error: unknown): boolean => {
 };
 
 export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
-  const page = Number.parseInt(req.query.page as string) || 1;
-  const limit = Number.parseInt(req.query.limit as string) || 10;
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query.page, req.query.limit);
 
   const { role, status, search } = req.query;
+  const roleFilter = typeof role === 'string' ? role : undefined;
+  const statusFilter = typeof status === 'string' ? status : undefined;
 
   const where: any = {};
   where.email = notHiddenSystemAccountsFilter();
-  if (role) where.role = normalizeRole(String(role)) as Role;
-  if (status) where.status = normalizeStatus(String(status)) as Status;
+  if (roleFilter) where.role = normalizeRole(roleFilter) as Role;
+  if (statusFilter) where.status = normalizeStatus(statusFilter) as Status;
   if (search) {
     where.OR = [
       { email: { contains: search as string, mode: 'insensitive' } },
@@ -74,7 +116,8 @@ export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
     prisma.user.findMany({
       where,
       skip, take: limit,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      select: adminUserSelect
     }),
     prisma.user.count({ where })
   ]);
@@ -88,9 +131,7 @@ export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getPublicAlumni = asyncHandler(async (req: Request, res: Response) => {
-  const page = Number.parseInt(req.query.page as string) || 1;
-  const limit = Number.parseInt(req.query.limit as string) || 20;
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query.page, req.query.limit, 20);
 
   const { search, graduationYear, company, location } = req.query;
   const authReq = req as AuthRequest;
@@ -175,17 +216,23 @@ export const getPublicAlumni = asyncHandler(async (req: Request, res: Response) 
 
   const alumniWithConnectionStatus = alumni
     .filter((user) => user.id !== currentUserId)
-    .map((user) => ({
-      ...user,
-      connectionStatus: connectedUserIds.has(user.id)
-        ? 'connected'
-        : pendingIncomingUserIds.has(user.id)
-          ? 'incoming'
-          : pendingSentUserIds.has(user.id)
-            ? 'pending'
-            : 'none',
-      isFollowing: followingUserIds.has(user.id)
-    }));
+    .map((user) => {
+      let connectionStatus: 'none' | 'pending' | 'incoming' | 'connected' = 'none';
+
+      if (connectedUserIds.has(user.id)) {
+        connectionStatus = 'connected';
+      } else if (pendingIncomingUserIds.has(user.id)) {
+        connectionStatus = 'incoming';
+      } else if (pendingSentUserIds.has(user.id)) {
+        connectionStatus = 'pending';
+      }
+
+      return {
+        ...user,
+        connectionStatus,
+        isFollowing: followingUserIds.has(user.id)
+      };
+    });
 
   res.status(200).json({
     success: true, data: alumniWithConnectionStatus,
@@ -202,7 +249,36 @@ export const getUserById = asyncHandler(async (req: Request, res: Response) => {
 
   const user = await prisma.user.findUnique({
     where: { id },
-    include: {
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      firstName: true,
+      lastName: true,
+      profileImage: true,
+      bio: true,
+      headline: true,
+      city: true,
+      country: true,
+      company: true,
+      jobTitle: true,
+      contactEmail: true,
+      contactPhone: true,
+      linkedInProfile: true,
+      location: true,
+      admissionNumber: true,
+      admissionYear: true,
+      accountType: true,
+      role: true,
+      status: true,
+      isVerified: true,
+      isAvailableAsMentor: true,
+      notificationSettings: true,
+      privacySettings: true,
+      experiences: true,
+      educations: true,
+      skills: true,
+      interests: true,
       mentorshipProfile: {
         select: {
           id: true,
@@ -360,10 +436,11 @@ export const approveUser = asyncHandler(async (req: AuthRequest, res: Response) 
 
   const user = await prisma.user.update({
     where: { id },
-    data: { status: Status.ACTIVE }
+    data: { status: Status.ACTIVE },
+    select: adminUserSelect
   });
 
-  res.status(200).json({ success: true, data: user });
+  res.status(200).json({ success: true, data: serializeUser(user) });
 });
 
 export const rejectUser = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -386,10 +463,11 @@ export const rejectUser = asyncHandler(async (req: AuthRequest, res: Response) =
 
   const user = await prisma.user.update({
     where: { id },
-    data: { status: Status.DELETED }
+    data: { status: Status.DELETED },
+    select: adminUserSelect
   });
 
-  res.status(200).json({ success: true, data: user });
+  res.status(200).json({ success: true, data: serializeUser(user) });
 });
 
 export const blockUser = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -412,10 +490,11 @@ export const blockUser = asyncHandler(async (req: AuthRequest, res: Response) =>
 
   const user = await prisma.user.update({
     where: { id },
-    data: { status: Status.SUSPENDED }
+    data: { status: Status.SUSPENDED },
+    select: adminUserSelect
   });
 
-  res.status(200).json({ success: true, data: user });
+  res.status(200).json({ success: true, data: serializeUser(user) });
 });
 
 export const deleteUser = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -500,7 +579,7 @@ export const connectUser = asyncHandler(async (req: AuthRequest, res: Response) 
     select: { id: true, status: true, email: true }
   });
 
-  if (!targetUser || targetUser.status !== Status.ACTIVE || isHiddenSystemAccountEmail(targetUser.email)) {
+  if (targetUser?.status !== Status.ACTIVE || (targetUser.email && isHiddenSystemAccountEmail(targetUser.email))) {
     res.status(404).json({ success: false, message: 'Target user not found or inactive' });
     return;
   }
@@ -779,7 +858,7 @@ export const followUser = asyncHandler(async (req: AuthRequest, res: Response) =
     select: { id: true, status: true, email: true }
   });
 
-  if (!targetUser || targetUser.status !== Status.ACTIVE || isHiddenSystemAccountEmail(targetUser.email)) {
+  if (targetUser?.status !== Status.ACTIVE || (targetUser.email && isHiddenSystemAccountEmail(targetUser.email))) {
     res.status(404).json({ success: false, message: 'Target user not found or inactive' });
     return;
   }
@@ -916,7 +995,7 @@ export const getDirectConversations = asyncHandler(async (req: AuthRequest, res:
   const conversations = [...conversationMap.values()]
     .map((conversation) => {
       const participant = participantById.get(conversation.userId);
-      if (!participant || participant.status !== Status.ACTIVE || isHiddenSystemAccountEmail(participant.email)) {
+      if (participant?.status !== Status.ACTIVE || (participant.email && isHiddenSystemAccountEmail(participant.email))) {
         return null;
       }
 
@@ -1191,11 +1270,11 @@ export const getConnectionSuggestions = asyncHandler(async (req: AuthRequest, re
       if (candidate.headline || candidate.jobTitle) score += 2;
       if (candidate.bio) score += 1;
 
-      if (currentUser.company && candidate.company && currentUser.company.toLowerCase() === candidate.company.toLowerCase()) {
+      if (currentUser.company?.toLowerCase() === candidate.company?.toLowerCase()) {
         score += 5;
       }
 
-      if (currentUser.location && candidate.location && currentUser.location.toLowerCase() === candidate.location.toLowerCase()) {
+      if (currentUser.location?.toLowerCase() === candidate.location?.toLowerCase()) {
         score += 4;
       }
 
@@ -1220,9 +1299,7 @@ export const searchAlumni = asyncHandler(async (_req: Request, res: Response) =>
 });
 
 export const getPendingUsers = asyncHandler(async (req: Request, res: Response) => {
-  const page = Number.parseInt(req.query.page as string) || 1;
-  const limit = Number.parseInt(req.query.limit as string) || 10;
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query.page, req.query.limit);
 
   const where = { status: Status.PENDING, email: notHiddenSystemAccountsFilter() };
 
@@ -1231,7 +1308,8 @@ export const getPendingUsers = asyncHandler(async (req: Request, res: Response) 
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      select: adminUserSelect
     }),
     prisma.user.count({ where })
   ]);
@@ -1268,10 +1346,11 @@ export const reactivateUser = asyncHandler(async (req: AuthRequest, res: Respons
 
   const user = await prisma.user.update({
     where: { id },
-    data: { status: Status.ACTIVE }
+    data: { status: Status.ACTIVE },
+    select: adminUserSelect
   });
 
-  res.status(200).json({ success: true, data: user });
+  res.status(200).json({ success: true, data: serializeUser(user) });
 });
 
 export const promoteToAdmin = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -1294,10 +1373,11 @@ export const promoteToAdmin = asyncHandler(async (req: AuthRequest, res: Respons
 
   const user = await prisma.user.update({
     where: { id },
-    data: { role: Role.ADMIN }
+    data: { role: Role.ADMIN },
+    select: adminUserSelect
   });
 
-  res.status(200).json({ success: true, data: user });
+  res.status(200).json({ success: true, data: serializeUser(user) });
 });
 
 export const promoteToModerator = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -1320,10 +1400,11 @@ export const promoteToModerator = asyncHandler(async (req: AuthRequest, res: Res
 
   const user = await prisma.user.update({
     where: { id },
-    data: { role: 'MODERATOR' as Role }
+    data: { role: 'MODERATOR' as Role },
+    select: adminUserSelect
   });
 
-  res.status(200).json({ success: true, data: user });
+  res.status(200).json({ success: true, data: serializeUser(user) });
 });
 
 export const demoteAdmin = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -1349,10 +1430,11 @@ export const demoteAdmin = asyncHandler(async (req: AuthRequest, res: Response) 
 
   const user = await prisma.user.update({
     where: { id },
-    data: { role: nextRole }
+    data: { role: nextRole },
+    select: adminUserSelect
   });
 
-  res.status(200).json({ success: true, data: user });
+  res.status(200).json({ success: true, data: serializeUser(user) });
 });
 
 export const setPremiumBadge = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -1378,6 +1460,7 @@ export const setPremiumBadge = asyncHandler(async (req: AuthRequest, res: Respon
   const user = await prisma.user.update({
     where: { id },
     data: { hasPremiumBadge: enabled } as any,
+    select: adminUserSelect
   });
 
   res.status(200).json({ success: true, data: serializeUser(user) });

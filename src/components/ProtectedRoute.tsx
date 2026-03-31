@@ -39,7 +39,7 @@ export const ProtectedRoute = ({
 
   // For routes that should not be accessed when authenticated (like login page)
   if (!requireAuth && isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={hasAdminAccess ? '/admin' : '/dashboard'} replace />;
   }
 
   return <>{children}</>;

@@ -4,9 +4,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.respondToRequest = exports.requestMentorship = exports.getMentorshipProfile = exports.becomeMentor = exports.getMentors = void 0;
+const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const notifications_1 = require("../utils/notifications");
 const getAuthUserId = (req) => req.user?.id || req.user?._id;
+const isMentorshipRequestTableMissing = (error) => error instanceof client_1.Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2021' &&
+    error.meta?.modelName === 'MentorshipRequest';
 const DEFAULT_AVAILABILITY = {
     monthlyAvailability: '2-3 hours/month',
     sessionMode: 'chat',
@@ -214,30 +218,45 @@ const becomeMentor = async (req, res) => {
             res.status(404).json({ success: false, message: 'User not found' });
             return;
         }
+        const normalizedExpertise = Array.isArray(profileData.expertise)
+            ? profileData.expertise.filter((value) => typeof value === 'string' && value.trim().length > 0)
+            : [];
+        const normalizedPreferredMenteeLevel = Array.isArray(profileData.preferredMenteeLevel)
+            ? profileData.preferredMenteeLevel.filter((value) => typeof value === 'string' && value.trim().length > 0)
+            : ['new_graduate'];
+        const normalizedExperience = typeof profileData.experience === 'string' ? profileData.experience : '';
+        const normalizedIndustry = typeof profileData.industry === 'string' ? profileData.industry : '';
+        const normalizedBio = typeof profileData.bio === 'string' ? profileData.bio : '';
+        const normalizedYears = Number.isFinite(Number(profileData.yearsOfExperience))
+            ? Number(profileData.yearsOfExperience)
+            : 0;
+        const normalizedMaxMentees = Number.isFinite(Number(profileData.maxMentees))
+            ? Number(profileData.maxMentees)
+            : 3;
+        const normalizedCurrentMentees = Number.isFinite(Number(profileData.currentMentees))
+            ? Number(profileData.currentMentees)
+            : 0;
+        const upsertData = {
+            isMentor: true,
+            isActive: true,
+            expertise: normalizedExpertise,
+            experience: normalizedExperience,
+            industry: normalizedIndustry,
+            yearsOfExperience: normalizedYears,
+            bio: normalizedBio,
+            availability: availabilityPayload,
+            preferredMenteeLevel: normalizedPreferredMenteeLevel,
+            maxMentees: normalizedMaxMentees,
+            currentMentees: normalizedCurrentMentees,
+            communicationPreferences: communicationPreferences.length > 0 ? communicationPreferences : ['email', sessionMode]
+        };
         const profile = await prisma_1.default.mentorshipProfile.upsert({
             where: { userId },
             create: {
                 userId,
-                isMentor: true,
-                isActive: true,
-                expertise: profileData.expertise || [],
-                experience: profileData.experience || '',
-                industry: profileData.industry || '',
-                yearsOfExperience: profileData.yearsOfExperience || 0,
-                bio: profileData.bio || '',
-                availability: availabilityPayload,
-                preferredMenteeLevel: profileData.preferredMenteeLevel || ['new_graduate'],
-                maxMentees: profileData.maxMentees || 3,
-                currentMentees: profileData.currentMentees || 0,
-                communicationPreferences: communicationPreferences.length > 0 ? communicationPreferences : ['email', sessionMode]
+                ...upsertData,
             },
-            update: {
-                ...profileData,
-                availability: availabilityPayload,
-                communicationPreferences: communicationPreferences.length > 0 ? communicationPreferences : ['email', sessionMode],
-                isMentor: true,
-                isActive: true
-            }
+            update: upsertData
         });
         await prisma_1.default.user.update({
             where: { id: userId },
@@ -283,48 +302,60 @@ const getMentorshipProfile = async (req, res) => {
                 }
             }
         });
-        const requests = await prisma_1.default.mentorshipRequest.findMany({
-            where: {
-                menteeId: userId,
-                status: 'accepted'
-            },
-            include: {
-                mentor: {
-                    include: {
-                        user: {
-                            select: {
-                                id: true,
-                                name: true,
-                                jobTitle: true,
-                                profileImage: true
+        let requests = [];
+        let incomingRequestsRaw = [];
+        try {
+            requests = await prisma_1.default.mentorshipRequest.findMany({
+                where: {
+                    menteeId: userId,
+                    status: 'accepted'
+                },
+                include: {
+                    mentor: {
+                        include: {
+                            user: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    jobTitle: true,
+                                    profileImage: true
+                                }
                             }
                         }
                     }
-                }
-            },
-            orderBy: { updatedAt: 'desc' }
-        });
-        const incomingRequestsRaw = await prisma_1.default.mentorshipRequest.findMany({
-            where: {
-                status: 'pending',
-                mentor: {
-                    userId,
                 },
-            },
-            include: {
-                mentee: {
-                    select: {
-                        id: true,
-                        name: true,
-                        jobTitle: true,
-                        profileImage: true,
-                        admissionYear: true,
-                        company: true,
+                orderBy: { updatedAt: 'desc' }
+            });
+            incomingRequestsRaw = await prisma_1.default.mentorshipRequest.findMany({
+                where: {
+                    status: 'pending',
+                    mentor: {
+                        userId,
                     },
                 },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+                include: {
+                    mentee: {
+                        select: {
+                            id: true,
+                            name: true,
+                            jobTitle: true,
+                            profileImage: true,
+                            admissionYear: true,
+                            company: true,
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+        }
+        catch (error) {
+            if (isMentorshipRequestTableMissing(error)) {
+                console.warn('MentorshipRequest table is missing. Returning empty mentorship request lists.');
+            }
+            else {
+                throw error;
+            }
+        }
         const formattedRequests = requests.map((request) => ({
             id: request.id,
             nextSession: request.updatedAt,

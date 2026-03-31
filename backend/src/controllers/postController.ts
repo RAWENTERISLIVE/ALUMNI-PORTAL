@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { Role } from '@prisma/client';
 import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createNotification } from '../utils/notifications';
@@ -15,7 +14,47 @@ interface LinkedInImportPostInput {
   publishedAt?: string;
 }
 
-const postInclude = {
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 50;
+
+const parsePositiveInt = (value: unknown, fallback: number) => {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(`${value}`, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const parsePagination = (pageInput: unknown, limitInput: unknown, fallbackLimit = DEFAULT_PAGE_SIZE) => {
+  const page = parsePositiveInt(pageInput, 1);
+  const limit = Math.min(parsePositiveInt(limitInput, fallbackLimit), MAX_PAGE_SIZE);
+  const skip = (page - 1) * limit;
+  return { page, limit, skip };
+};
+
+const isAdminRole = (role: unknown) => {
+  const normalized = typeof role === 'string' ? role.toLowerCase() : '';
+  return normalized === 'admin' || normalized === 'super_admin' || normalized === 'moderator';
+};
+
+const postSelect = {
+  id: true,
+  title: true,
+  content: true,
+  authorId: true,
+  category: true,
+  isFeatured: true,
+  isSchoolUpdate: true,
+  visibility: true,
+  tags: true,
+  attachments: true,
+  externalLinks: true,
+  sharedPostId: true,
+  shareType: true,
+  shareCount: true,
+  createdAt: true,
+  updatedAt: true,
   author: {
     select: {
       id: true,
@@ -25,37 +64,93 @@ const postInclude = {
       admissionYear: true
     }
   },
-  reactions: {
-    select: {
-      userId: true,
-      type: true
-    }
-  },
-  bookmarks: {
-    select: {
-      id: true
-    }
-  },
   _count: {
     select: {
-      comments: true
+      comments: true,
+      bookmarks: true,
+      reactions: {
+        where: {
+          type: 'like'
+        }
+      }
     }
   }
 } as const;
 
-const normalizePost = (post: any, currentUserId?: string) => ({
+const normalizePost = (
+  post: any,
+  viewerState: {
+    isLiked?: boolean;
+    isBookmarked?: boolean;
+  } = {}
+) => ({
   ...post,
   author: {
     ...post.author,
     role: typeof post.author?.role === 'string' ? post.author.role.toLowerCase() : post.author?.role,
     classYear: post.author?.admissionYear ? Number.parseInt(post.author.admissionYear, 10) : undefined
   },
-  bookmarks: (post.bookmarks || []).map((bookmarkUser: { id: string }) => bookmarkUser.id),
+  reactions: [],
+  bookmarks: [],
+  reactionCount: post._count?.reactions ?? 0,
+  bookmarkCount: post._count?.bookmarks ?? 0,
   commentCount: post._count?.comments ?? 0,
   shareCount: post.shareCount ?? 0,
-  isLiked: currentUserId ? (post.reactions || []).some((reaction: { userId: string; type: string }) => reaction.userId === currentUserId && reaction.type === 'like') : false,
-  isBookmarked: currentUserId ? (post.bookmarks || []).some((bookmarkUser: { id: string }) => bookmarkUser.id === currentUserId) : false,
+  isLiked: Boolean(viewerState.isLiked),
+  isBookmarked: Boolean(viewerState.isBookmarked)
 });
+
+const enrichPostsWithViewerState = async (
+  posts: any[],
+  currentUserId?: string,
+  options: { allAreBookmarked?: boolean } = {}
+) => {
+  if (!Array.isArray(posts) || posts.length === 0) {
+    return [];
+  }
+
+  if (!currentUserId) {
+    return posts.map((post) => normalizePost(post));
+  }
+
+  const postIds = posts.map((post) => post.id);
+
+  const [likes, bookmarks] = await Promise.all([
+    prisma.postReaction.findMany({
+      where: {
+        postId: { in: postIds },
+        userId: currentUserId,
+        type: 'like'
+      },
+      select: {
+        postId: true
+      }
+    }),
+    options.allAreBookmarked
+      ? Promise.resolve(postIds.map((id) => ({ id })))
+      : prisma.post.findMany({
+          where: {
+            id: { in: postIds },
+            bookmarks: {
+              some: { id: currentUserId }
+            }
+          },
+          select: {
+            id: true
+          }
+        })
+  ]);
+
+  const likedPostIds = new Set(likes.map((item) => item.postId));
+  const bookmarkedPostIds = new Set(bookmarks.map((item) => item.id));
+
+  return posts.map((post) =>
+    normalizePost(post, {
+      isLiked: likedPostIds.has(post.id),
+      isBookmarked: bookmarkedPostIds.has(post.id)
+    })
+  );
+};
 
 export const createPost = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { content, title, category, visibility, tags, attachments, externalLinks, originalPostId, shareType } = req.body;
@@ -82,17 +177,15 @@ export const createPost = asyncHandler(async (req: AuthRequest, res: Response) =
       sharedPostId: originalPostId || null,
       shareType: shareType || null
     },
-    include: postInclude
+    select: postSelect
   });
 
-  const normalizedPost = normalizePost(newPost, req.user.id);
+  const normalizedPost = normalizePost(newPost, { isLiked: false, isBookmarked: false });
   res.status(201).json({ success: true, data: normalizedPost, post: normalizedPost });
 });
 
-export const getAllPosts = asyncHandler(async (req: Request, res: Response) => {
-  const page = Number.parseInt(req.query.page as string) || 1;
-  const limit = Number.parseInt(req.query.limit as string) || 10;
-  const skip = (page - 1) * limit;
+export const getAllPosts = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { page, limit, skip } = parsePagination(req.query.page, req.query.limit);
 
   const { category, search, tags, authorId, visibility } = req.query;
 
@@ -111,12 +204,12 @@ export const getAllPosts = asyncHandler(async (req: Request, res: Response) => {
       where,
       orderBy: { createdAt: 'desc' },
       skip, take: limit,
-      include: postInclude
+      select: postSelect
     }),
     prisma.post.count({ where })
   ]);
 
-  const normalizedPosts = posts.map((post) => normalizePost(post));
+  const normalizedPosts = await enrichPostsWithViewerState(posts, req.user?.id);
 
   res.status(200).json({
     success: true,
@@ -135,7 +228,7 @@ export const getPostById = asyncHandler(async (req: Request, res: Response) => {
 
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    include: postInclude
+    select: postSelect
   });
 
   if (!post) {
@@ -163,7 +256,7 @@ export const updatePost = asyncHandler(async (req: AuthRequest, res: Response) =
     return;
   }
 
-  if (post.authorId !== req.user.id && req.user.role !== Role.ADMIN) {
+  if (post.authorId !== req.user.id && !isAdminRole(req.user.role)) {
     res.status(403).json({ success: false, message: 'Not authorized' });
     return;
   }
@@ -180,10 +273,10 @@ export const updatePost = asyncHandler(async (req: AuthRequest, res: Response) =
       attachments: attachments ?? post.attachments,
       externalLinks: externalLinks ?? post.externalLinks
     },
-    include: postInclude
+    select: postSelect
   });
 
-  const normalizedPost = normalizePost(updatedPost, req.user.id);
+  const normalizedPost = normalizePost(updatedPost, { isLiked: false, isBookmarked: false });
   res.status(200).json({ success: true, data: normalizedPost, post: normalizedPost });
 });
 
@@ -205,7 +298,7 @@ export const deletePost = asyncHandler(async (req: AuthRequest, res: Response) =
     return;
   }
 
-  if (post.authorId !== req.user.id && req.user.role !== Role.ADMIN) {
+  if (post.authorId !== req.user.id && !isAdminRole(req.user.role)) {
     res.status(403).json({ success: false, message: 'Not authorized' });
     return;
   }
@@ -244,6 +337,7 @@ export const likePost = asyncHandler(async (req: AuthRequest, res: Response) => 
 
   let message = '';
   let shouldNotifyAuthor = false;
+  let resultingReactionType: string | null = null;
   if (existingReaction) {
     if (existingReaction.type === reactionType) {
       await prisma.postReaction.delete({
@@ -257,11 +351,13 @@ export const likePost = asyncHandler(async (req: AuthRequest, res: Response) => 
       });
       message = 'Post reaction updated';
       shouldNotifyAuthor = true;
+      resultingReactionType = reactionType;
     }
   } else {
     await prisma.postReaction.create({ data: { postId, userId: req.user.id, type: reactionType } });
     message = 'Post reacted';
     shouldNotifyAuthor = true;
+    resultingReactionType = reactionType;
   }
 
   if (shouldNotifyAuthor && post.authorId !== req.user.id) {
@@ -287,10 +383,25 @@ export const likePost = asyncHandler(async (req: AuthRequest, res: Response) => 
 
   const updatedPost = await prisma.post.findUnique({
     where: { id: postId },
-    include: postInclude
+    select: postSelect
   });
 
-  const normalizedPost = updatedPost ? normalizePost(updatedPost, req.user.id) : undefined;
+  const isBookmarked = await prisma.post.findFirst({
+    where: {
+      id: postId,
+      bookmarks: {
+        some: { id: req.user.id }
+      }
+    },
+    select: { id: true }
+  });
+
+  const normalizedPost = updatedPost
+    ? normalizePost(updatedPost, {
+        isLiked: resultingReactionType === 'like',
+        isBookmarked: Boolean(isBookmarked)
+      })
+    : undefined;
 
   res.status(200).json({ success: true, message, data: normalizedPost, post: normalizedPost });
 });
@@ -304,6 +415,16 @@ export const bookmarkPost = asyncHandler(async (req: AuthRequest, res: Response)
 
   if (!req.user) {
     res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { id: true }
+  });
+
+  if (!post) {
+    res.status(404).json({ success: false, message: 'Post not found' });
     return;
   }
 
@@ -332,7 +453,27 @@ export const bookmarkPost = asyncHandler(async (req: AuthRequest, res: Response)
     message = 'Post bookmarked';
   }
 
-  res.status(200).json({ success: true, message });
+  const postSnapshot = await prisma.post.findUnique({
+    where: { id: postId },
+    select: {
+      id: true,
+      _count: {
+        select: {
+          bookmarks: true
+        }
+      }
+    }
+  });
+
+  res.status(200).json({
+    success: true,
+    message,
+    data: {
+      postId,
+      isBookmarked: !existingBookmark,
+      bookmarkCount: postSnapshot?._count?.bookmarks ?? 0
+    }
+  });
 });
 
 export const sharePost = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -362,10 +503,10 @@ export const sharePost = asyncHandler(async (req: AuthRequest, res: Response) =>
       sharedPostId: originalPostId,
       shareType: shareType || 'simple'
     },
-    include: postInclude
+    select: postSelect
   });
 
-  const normalizedPost = normalizePost(newPost, req.user.id);
+  const normalizedPost = normalizePost(newPost, { isLiked: false, isBookmarked: false });
   await prisma.post.update({
     where: { id: originalPostId },
     data: { shareCount: { increment: 1 } }
@@ -432,10 +573,10 @@ export const importLinkedInPosts = asyncHandler(async (req: AuthRequest, res: Re
         ],
         ...(hasValidPublishedDate ? { createdAt: parsedPublishedDate } : {})
       },
-      include: postInclude
+      select: postSelect
     });
 
-    createdPosts.push(normalizePost(createdPost, req.user.id));
+    createdPosts.push(normalizePost(createdPost, { isLiked: false, isBookmarked: false }));
   }
 
   res.status(201).json({
@@ -449,20 +590,18 @@ export const importLinkedInPosts = asyncHandler(async (req: AuthRequest, res: Re
 
 export const getFeedPosts = asyncHandler(async (req: AuthRequest, res: Response) => {
   // Simple fallback feed, returning recent posts
-  const page = Number.parseInt(req.query.page as string) || 1;
-  const limit = Number.parseInt(req.query.limit as string) || 10;
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query.page, req.query.limit);
 
   const [posts, total] = await Promise.all([
     prisma.post.findMany({
       orderBy: { createdAt: 'desc' },
       skip, take: limit,
-      include: postInclude
+      select: postSelect
     }),
     prisma.post.count()
   ]);
 
-  const normalizedPosts = posts.map((post) => normalizePost(post, req.user?.id));
+  const normalizedPosts = await enrichPostsWithViewerState(posts, req.user?.id);
 
   res.status(200).json({
     success: true,
@@ -478,9 +617,7 @@ export const getBookmarkedPosts = asyncHandler(async (req: AuthRequest, res: Res
     return;
   }
 
-  const page = Number.parseInt(req.query.page as string) || 1;
-  const limit = Number.parseInt(req.query.limit as string) || 10;
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query.page, req.query.limit);
 
   const posts = await prisma.post.findMany({
     where: {
@@ -488,7 +625,7 @@ export const getBookmarkedPosts = asyncHandler(async (req: AuthRequest, res: Res
         some: { id: req.user.id }
       }
     },
-    include: postInclude,
+    select: postSelect,
     orderBy: { createdAt: 'desc' },
     skip, take: limit
   });
@@ -501,7 +638,7 @@ export const getBookmarkedPosts = asyncHandler(async (req: AuthRequest, res: Res
     }
   });
 
-  const normalizedPosts = posts.map((post) => normalizePost(post, req.user.id));
+  const normalizedPosts = await enrichPostsWithViewerState(posts, req.user.id, { allAreBookmarked: true });
 
   res.status(200).json({
     success: true,
@@ -511,25 +648,33 @@ export const getBookmarkedPosts = asyncHandler(async (req: AuthRequest, res: Res
   });
 });
 
-export const getFeaturedPosts = asyncHandler(async (_req: Request, res: Response) => {
+export const getFeaturedPosts = asyncHandler(async (req: Request, res: Response) => {
+  const requestedLimit = parsePositiveInt(req.query.limit, 10);
+  const limit = Math.min(requestedLimit, 25);
+
   const posts = await prisma.post.findMany({
     where: { isFeatured: true },
-    take: 10,
+    take: limit,
     orderBy: { createdAt: 'desc' },
-    include: postInclude
+    select: postSelect
   });
 
+  res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
   res.status(200).json({ success: true, data: posts.map((post) => normalizePost(post)) });
 });
 
-export const getSchoolUpdates = asyncHandler(async (_req: Request, res: Response) => {
+export const getSchoolUpdates = asyncHandler(async (req: Request, res: Response) => {
+  const requestedLimit = parsePositiveInt(req.query.limit, 20);
+  const limit = Math.min(requestedLimit, 40);
+
   const posts = await prisma.post.findMany({
     where: { isSchoolUpdate: true },
-    take: 20,
+    take: limit,
     orderBy: { createdAt: 'desc' },
-    include: postInclude
+    select: postSelect
   });
 
+  res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
   res.status(200).json({ success: true, data: posts.map((post) => normalizePost(post)) });
 });
 
@@ -549,8 +694,8 @@ export const toggleFeaturePost = asyncHandler(async (req: AuthRequest, res: Resp
   const updatedPost = await prisma.post.update({
     where: { id: postId },
     data: { isFeatured: !post.isFeatured },
-    include: postInclude
+    select: postSelect
   });
 
-  res.status(200).json({ success: true, data: normalizePost(updatedPost, req.user?.id) });
+  res.status(200).json({ success: true, data: normalizePost(updatedPost) });
 });

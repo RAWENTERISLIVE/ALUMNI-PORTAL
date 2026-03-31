@@ -83,7 +83,7 @@ const generateTokens = (userId) => {
     return { accessToken, refreshToken };
 };
 exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const { email, password, firstName, lastName, name, role, admissionNumber, admissionYear, graduationYear, needsManualVerification, forgotAdmissionNumber, verificationDetails, accountType, facultyIdCardUrl, } = req.body;
+    const { email, password, firstName, lastName, name, admissionNumber, admissionYear, graduationYear, needsManualVerification, forgotAdmissionNumber, verificationDetails, accountType, facultyIdCardUrl, } = req.body;
     const normalizedAdmissionNumber = typeof admissionNumber === 'string' ? admissionNumber.trim() : '';
     const normalizedVerificationDetails = typeof verificationDetails === 'string' ? verificationDetails.trim() : '';
     const normalizedFacultyIdCardUrl = typeof facultyIdCardUrl === 'string' ? facultyIdCardUrl.trim() : '';
@@ -125,24 +125,11 @@ exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
         return;
     }
-    let resolvedRole = client_1.Role.USER;
-    if (role === 'SUPER_ADMIN' || role === 'super_admin') {
-        resolvedRole = client_1.Role.SUPER_ADMIN;
-    }
-    else if (role === 'ADMIN' || role === 'admin') {
-        resolvedRole = client_1.Role.ADMIN;
-    }
-    else if (role === 'MODERATOR' || role === 'moderator') {
-        resolvedRole = 'MODERATOR';
-    }
-    else if (role === 'USER' || role === 'user') {
-        resolvedRole = client_1.Role.USER;
-    }
     const user = await prisma_1.default.user.create({
         data: {
             email,
             password: hashedPassword,
-            role: resolvedRole,
+            role: client_1.Role.USER,
             name: resolvedName || email.split('@')[0],
             firstName,
             lastName,
@@ -157,20 +144,9 @@ exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             status: client_1.Status.PENDING,
         },
     });
-    const { accessToken, refreshToken } = generateTokens(user.id);
-    await prisma_1.default.user.update({
-        where: { id: user.id },
-        data: { refreshTokens: { push: refreshToken } }
-    });
-    res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: REFRESH_COOKIE_MAX_AGE_MS
-    });
     res.status(201).json({
         success: true,
-        message: 'User registered successfully',
+        message: 'Registration submitted. Your account is pending approval.',
         user: {
             id: user.id,
             email: user.email,
@@ -184,8 +160,6 @@ exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
             status: user.status.toLowerCase(),
             isVerified: user.isVerified
         },
-        accessToken,
-        refreshToken,
         data: {
             user: {
                 id: user.id,
@@ -200,7 +174,7 @@ exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
                 status: user.status.toLowerCase(),
                 isVerified: user.isVerified
             },
-            accessToken
+            requiresApproval: true
         }
     });
 });

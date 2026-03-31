@@ -17,6 +17,10 @@ router.route('/:groupId')
     .delete(auth_1.authMiddleware, groupController_1.deleteGroup);
 router.route('/:groupId/join').post(auth_1.authMiddleware, groupController_1.joinGroup);
 router.route('/:groupId/leave').post(auth_1.authMiddleware, groupController_1.leaveGroup);
+router.route('/:groupId/invite').post(auth_1.authMiddleware, groupController_1.inviteGroupMember);
+router.route('/:groupId/invite-link').post(auth_1.authMiddleware, groupController_1.createGroupInviteLink);
+router.route('/:groupId/invitable-users').get(auth_1.authMiddleware, groupController_1.getInvitableUsers);
+router.route('/invite/accept').post(auth_1.authMiddleware, groupController_1.acceptGroupInviteLink);
 router.route('/:groupId/join-requests').get(auth_1.authMiddleware, groupController_1.getGroupJoinRequests);
 router.route('/:groupId/join-requests/:requestId/respond').patch(auth_1.authMiddleware, groupController_1.respondToGroupJoinRequest);
 router.route('/:groupId/messages')

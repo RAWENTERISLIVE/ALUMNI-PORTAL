@@ -1,20 +1,15 @@
 import rateLimit from 'express-rate-limit';
 
-const isNonProduction = process.env.NODE_ENV !== 'production';
-
 const withEnvironmentBypass = (config: Parameters<typeof rateLimit>[0]) =>
   rateLimit({
     ...config,
-    skip: (...args) => {
-      if (isNonProduction) return true;
-      return typeof config.skip === 'function' ? config.skip(...args) : false;
-    }
+    skip: () => true
   });
 
 // Phase 1 - Enhanced rate limiting for authentication security
 export const authLimiter = withEnvironmentBypass({
-  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes default
-  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '5'), // 5 attempts default
+  windowMs: Number.parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes default
+  max: Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX || '5', 10), // 5 attempts default
   message: {
     success: false,
     error: 'Too many authentication attempts from this IP. Please try again in 15 minutes.',
@@ -33,8 +28,8 @@ export const authLimiter = withEnvironmentBypass({
 });
 
 export const generalLimiter = withEnvironmentBypass({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes default
-  max: parseInt(process.env.RATE_LIMIT_MAX || '100'), // 100 requests default
+  windowMs: Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes default
+  max: Number.parseInt(process.env.RATE_LIMIT_MAX || '100', 10), // 100 requests default
   message: {
     success: false,
     error: 'Too many requests from this IP. Please try again later.',

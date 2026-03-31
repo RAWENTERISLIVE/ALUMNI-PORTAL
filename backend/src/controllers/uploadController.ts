@@ -2,9 +2,18 @@ import { NextFunction, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
+import { Prisma } from '@prisma/client';
 import { asyncHandler } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/prisma';
+
+const isMissingFileTableError = (error: unknown): boolean => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code === 'P2021' && String(error.meta?.table || '').includes('File');
+  }
+
+  return error instanceof Error && error.message.includes('File') && error.message.includes('does not exist');
+};
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -105,24 +114,34 @@ export const uploadFile = asyncHandler(async (req: AuthRequest, res: Response): 
 
   const fileUrl = `/api/uploads/${req.file.filename}`;
   
-  // Save file metadata to database
-  const fileRecord = await prisma.file.create({
-    data: {
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
-      path: req.file.path,
-      url: fileUrl,
-      uploadedById: req.user._id || req.user.id
+  let fileRecord: { id: string } | null = null;
+  try {
+    // Save file metadata when the File table is available.
+    fileRecord = await prisma.file.create({
+      data: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path,
+        url: fileUrl,
+        uploadedById: req.user._id || req.user.id
+      },
+      select: { id: true }
+    });
+  } catch (error) {
+    if (!isMissingFileTableError(error)) {
+      throw error;
     }
-  });
+
+    console.warn('File table missing. Continuing upload without metadata record.');
+  }
   
   res.json({
     success: true,
     message: 'File uploaded successfully',
     data: {
-      id: fileRecord.id,
+      id: fileRecord?.id || null,
       url: fileUrl,
       filename: req.file.filename,
       originalName: req.file.originalname,
@@ -157,21 +176,30 @@ export const uploadMultipleFiles = asyncHandler(async (req: AuthRequest, res: Re
   for (const file of files) {
     const fileUrl = `/api/uploads/${file.filename}`;
     
-    // Save file metadata to database
-    const fileRecord = await prisma.file.create({
-      data: {
-        filename: file.filename,
-        originalName: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        path: file.path,
-        url: fileUrl,
-        uploadedById: req.user._id || req.user.id
+    let fileRecord: { id: string } | null = null;
+    try {
+      fileRecord = await prisma.file.create({
+        data: {
+          filename: file.filename,
+          originalName: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          path: file.path,
+          url: fileUrl,
+          uploadedById: req.user._id || req.user.id
+        },
+        select: { id: true }
+      });
+    } catch (error) {
+      if (!isMissingFileTableError(error)) {
+        throw error;
       }
-    });
+
+      console.warn('File table missing. Continuing multi-upload without metadata record.');
+    }
 
     uploadedFiles.push({
-      id: fileRecord.id,
+      id: fileRecord?.id || null,
       url: fileUrl,
       filename: file.filename,
       originalName: file.originalname,

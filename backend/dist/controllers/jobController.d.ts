@@ -10,6 +10,7 @@ export declare const getSavedJobs: (req: Request, res: Response, next: import("e
 export declare const getAppliedJobs: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const toggleSaveJob: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const incrementApplicationCount: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const getJobApplications: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const searchJobs: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getJobStats: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 //# sourceMappingURL=jobController.d.ts.map

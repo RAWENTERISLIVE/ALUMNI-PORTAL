@@ -356,10 +356,6 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     try {
       await logout();
-      toast({ 
-        title: "Logged Out", 
-        description: "You have been successfully logged out." 
-      });
     } catch (error: any) {
       console.error("Error logging out:", error);
       toast({ 

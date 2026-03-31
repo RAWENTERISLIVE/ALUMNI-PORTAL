@@ -18,7 +18,6 @@ import {
 } from '../controllers/authController';
 import { upload } from '../controllers/uploadController';
 import { authMiddleware } from '../middleware/auth';
-import { authLimiter, registrationLimiter, passwordResetLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validation';
 
 const router = express.Router();
@@ -114,15 +113,15 @@ const privacySettingsValidation = [
   body('allowProfileSearch').optional().isBoolean()
 ];
 
-// Auth routes with enhanced rate limiting for Phase 1
+// Auth routes
 router.post('/upload-verification-id', upload.single('file') as any, uploadVerificationId);
-router.post('/register', registrationLimiter, registerValidation, validate, register);
-router.post('/login', authLimiter, loginValidation, validate, login);
+router.post('/register', registerValidation, validate, register);
+router.post('/login', loginValidation, validate, login);
 router.post('/refresh-token', refreshToken);
 router.post('/logout', authMiddleware, logout);
 router.get('/me', authMiddleware, getMe);
-router.post('/forgot-password', passwordResetLimiter, forgotPasswordValidation, validate, forgotPassword);
-router.post('/reset-password', passwordResetLimiter, resetPasswordValidation, validate, resetPassword);
+router.post('/forgot-password', forgotPasswordValidation, validate, forgotPassword);
+router.post('/reset-password', resetPasswordValidation, validate, resetPassword);
 
 // Password change endpoint
 router.patch('/change-password', authMiddleware, changePasswordValidation, validate, changePassword);

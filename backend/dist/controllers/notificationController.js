@@ -12,11 +12,18 @@ const getNotifications = async (req, res) => {
             res.status(401).json({ success: false, message: 'Authentication required' });
             return;
         }
-        const limit = Math.min(Number(req.query.limit) || 20, 100);
-        const [notifications, unseenCount] = await Promise.all([
+        const pageValue = typeof req.query.page === 'string' ? req.query.page : undefined;
+        const limitValue = typeof req.query.limit === 'string' ? req.query.limit : undefined;
+        const pageRaw = pageValue ? Number.parseInt(pageValue, 10) : 1;
+        const limitRaw = limitValue ? Number.parseInt(limitValue, 10) : 20;
+        const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+        const limit = Math.min(Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 20, 100);
+        const skip = (page - 1) * limit;
+        const [notifications, unseenCount, total] = await Promise.all([
             prisma_1.default.notification.findMany({
                 where: { userId },
                 orderBy: { createdAt: 'desc' },
+                skip,
                 take: limit,
                 select: {
                     id: true,
@@ -24,6 +31,7 @@ const getNotifications = async (req, res) => {
                     message: true,
                     type: true,
                     actionUrl: true,
+                    metadata: true,
                     isSeen: true,
                     createdAt: true
                 }
@@ -33,9 +41,24 @@ const getNotifications = async (req, res) => {
                     userId,
                     isSeen: false
                 }
+            }),
+            prisma_1.default.notification.count({
+                where: {
+                    userId
+                }
             })
         ]);
-        res.json({ success: true, data: notifications, unseenCount });
+        res.json({
+            success: true,
+            data: notifications,
+            unseenCount,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
     }
     catch (error) {
         console.error('Error fetching notifications:', error);

@@ -24,6 +24,7 @@ router.post('/:id/save', auth_1.authMiddleware, jobController_1.saveJob);
 router.delete('/:id/save', auth_1.authMiddleware, jobController_1.unsaveJob);
 router.post('/:id/save-toggle', auth_1.authMiddleware, jobController_1.toggleSaveJob);
 router.post('/:id/apply', auth_1.authMiddleware, jobController_1.incrementApplicationCount);
+router.get('/:id/applications', auth_1.authMiddleware, jobController_1.getJobApplications);
 router.get('/:id', jobController_1.getJobById);
 exports.default = router;
 //# sourceMappingURL=jobs.js.map

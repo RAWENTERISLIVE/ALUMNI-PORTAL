@@ -6,6 +6,10 @@ import {
   getGroup,
   updateGroup,
   deleteGroup,
+  inviteGroupMember,
+  getInvitableUsers,
+  createGroupInviteLink,
+  acceptGroupInviteLink,
   joinGroup,
   leaveGroup,
   getGroupJoinRequests,
@@ -34,6 +38,10 @@ router.route('/:groupId') // Corrected to use a consistent parameter name
 
 router.route('/:groupId/join').post(protect, joinGroup);
 router.route('/:groupId/leave').post(protect, leaveGroup);
+router.route('/:groupId/invite').post(protect, inviteGroupMember);
+router.route('/:groupId/invite-link').post(protect, createGroupInviteLink);
+router.route('/:groupId/invitable-users').get(protect, getInvitableUsers);
+router.route('/invite/accept').post(protect, acceptGroupInviteLink);
 router.route('/:groupId/join-requests').get(protect, getGroupJoinRequests);
 router.route('/:groupId/join-requests/:requestId/respond').patch(protect, respondToGroupJoinRequest);
 

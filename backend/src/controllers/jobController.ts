@@ -17,6 +17,36 @@ const isAdminRole = (role?: string) => {
   return normalized === 'moderator' || normalized === 'admin' || normalized === 'super_admin' || String(role) === 'MODERATOR' || role === Role.ADMIN || role === Role.SUPER_ADMIN;
 };
 
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
+const SORTABLE_JOB_FIELDS = new Set(['createdAt', 'applicationDeadline', 'applicationCount', 'title', 'company']);
+
+const parsePositiveInt = (value: unknown, fallback: number) => {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(`${value}`, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const parsePagination = (pageInput: unknown, limitInput: unknown, fallbackLimit = DEFAULT_PAGE_SIZE) => {
+  const page = parsePositiveInt(pageInput, 1);
+  const limit = Math.min(parsePositiveInt(limitInput, fallbackLimit), MAX_PAGE_SIZE);
+  const skip = (page - 1) * limit;
+  return { page, limit, skip };
+};
+
+const jobInclude = {
+  postedBy: {
+    select: {
+      id: true,
+      name: true,
+      profileImage: true
+    }
+  }
+} as const;
+
 const formatJob = (job: any) => ({
   ...job,
   salaryRange:
@@ -55,10 +85,15 @@ const isValidResumeUrl = (value: string): boolean => {
   return isHttpUrl(value);
 };
 
+const readMetadataString = (metadata: Record<string, unknown>, key: string): string | undefined => {
+  const value = metadata[key];
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 export const getJobs = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const page = Number.parseInt(req.query.page as string, 10) || 1;
-  const limit = Number.parseInt(req.query.limit as string, 10) || 10;
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query.page, req.query.limit);
 
   const {
     type,
@@ -83,25 +118,17 @@ export const getJobs = asyncHandler(async (req: AuthenticatedRequest, res: Respo
     where.tags = { hasSome: tagArray };
   }
 
-  const orderBy: any = {};
-  if (sortBy) orderBy[sortBy as string] = sortOrder === 'asc' ? 'asc' : 'desc';
+  const requestedSortBy = typeof sortBy === 'string' ? sortBy : 'createdAt';
+  const resolvedSortBy = SORTABLE_JOB_FIELDS.has(requestedSortBy) ? requestedSortBy : 'createdAt';
+  const resolvedSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
 
   const [jobs, total] = await Promise.all([
     prisma.job.findMany({
       where,
-      orderBy: Object.keys(orderBy).length > 0 ? orderBy : { createdAt: 'desc' },
+      orderBy: { [resolvedSortBy]: resolvedSortOrder },
       skip,
       take: limit,
-      include: {
-        postedBy: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImage: true
-          }
-        }
-      }
+      include: jobInclude
     }),
     prisma.job.count({ where })
   ]);
@@ -124,16 +151,7 @@ export const getJobById = asyncHandler(async (req: AuthenticatedRequest, res: Re
 
   const job = await prisma.job.findUnique({
     where: { id },
-    include: {
-      postedBy: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          profileImage: true
-        }
-      }
-    }
+    include: jobInclude
   });
 
   if (!job) {
@@ -181,16 +199,7 @@ export const createJob = asyncHandler(async (req: AuthenticatedRequest, res: Res
 
   const job = await prisma.job.create({
     data: jobData,
-    include: {
-      postedBy: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          profileImage: true
-        }
-      }
-    }
+    include: jobInclude
   });
 
   res.status(201).json({ success: true, data: formatJob(job) });
@@ -245,16 +254,7 @@ export const updateJob = asyncHandler(async (req: AuthenticatedRequest, res: Res
   const updatedJob = await prisma.job.update({
     where: { id },
     data: dataToUpdate,
-    include: {
-      postedBy: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          profileImage: true
-        }
-      }
-    }
+    include: jobInclude
   });
 
   res.status(200).json({ success: true, data: formatJob(updatedJob) });
@@ -349,6 +349,8 @@ export const getSavedJobs = asyncHandler(async (req: AuthenticatedRequest, res: 
     return;
   }
 
+  const { page, limit, skip } = parsePagination(req.query.page, req.query.limit, 20);
+
   const jobs = await prisma.job.findMany({
     where: {
       savedBy: {
@@ -358,19 +360,26 @@ export const getSavedJobs = asyncHandler(async (req: AuthenticatedRequest, res: 
       }
     },
     orderBy: { createdAt: 'desc' },
-    include: {
-      postedBy: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          profileImage: true
+    skip,
+    take: limit,
+    include: jobInclude
+  });
+
+  const total = await prisma.job.count({
+    where: {
+      savedBy: {
+        some: {
+          id: req.user.id
         }
       }
     }
   });
 
-  res.status(200).json({ success: true, data: jobs.map(formatJob) });
+  res.status(200).json({
+    success: true,
+    data: jobs.map(formatJob),
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
 
 export const getAppliedJobs = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -379,17 +388,26 @@ export const getAppliedJobs = asyncHandler(async (req: AuthenticatedRequest, res
     return;
   }
 
-  const applicationNotifications = await prisma.notification.findMany({
-    where: {
-      userId: req.user.id,
-      type: 'job_application_submitted'
-    },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      metadata: true,
-      createdAt: true
-    }
-  });
+  const { page, limit, skip } = parsePagination(req.query.page, req.query.limit, 20);
+
+  const where = {
+    userId: req.user.id,
+    type: 'job_application_submitted'
+  } as const;
+
+  const [applicationNotifications, total] = await Promise.all([
+    prisma.notification.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+      select: {
+        metadata: true,
+        createdAt: true
+      }
+    }),
+    prisma.notification.count({ where })
+  ]);
 
   const jobIds = applicationNotifications
     .map((notification) => {
@@ -399,7 +417,11 @@ export const getAppliedJobs = asyncHandler(async (req: AuthenticatedRequest, res
     .filter((jobId): jobId is string => Boolean(jobId));
 
   if (jobIds.length === 0) {
-    res.status(200).json({ success: true, data: [] });
+    res.status(200).json({
+      success: true,
+      data: [],
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    });
     return;
   }
 
@@ -407,16 +429,7 @@ export const getAppliedJobs = asyncHandler(async (req: AuthenticatedRequest, res
 
   const jobs = await prisma.job.findMany({
     where: { id: { in: uniqueJobIds } },
-    include: {
-      postedBy: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          profileImage: true
-        }
-      }
-    }
+    include: jobInclude
   });
 
   const jobsById = new Map(jobs.map((job) => [job.id, job]));
@@ -424,7 +437,11 @@ export const getAppliedJobs = asyncHandler(async (req: AuthenticatedRequest, res
     .map((jobId) => jobsById.get(jobId))
     .filter((job): job is NonNullable<typeof job> => Boolean(job));
 
-  res.status(200).json({ success: true, data: orderedJobs.map(formatJob) });
+  res.status(200).json({
+    success: true,
+    data: orderedJobs.map(formatJob),
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
 
 export const toggleSaveJob = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -624,6 +641,84 @@ export const incrementApplicationCount = asyncHandler(async (req: AuthenticatedR
   });
 });
 
+export const getJobApplications = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ success: false, message: 'Job ID is required' });
+    return;
+  }
+
+  const job = await prisma.job.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      title: true,
+      postedById: true
+    }
+  });
+
+  if (!job) {
+    res.status(404).json({ success: false, message: 'Job not found' });
+    return;
+  }
+
+  if (job.postedById !== req.user.id && !isAdminRole(req.user.role)) {
+    res.status(403).json({ success: false, message: 'Not authorized to view job applications' });
+    return;
+  }
+
+  const applicationNotifications = await prisma.notification.findMany({
+    where: {
+      userId: job.postedById,
+      type: 'job_application_received',
+      metadata: {
+        path: ['jobId'],
+        equals: id
+      }
+    },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      createdAt: true,
+      metadata: true
+    }
+  });
+
+  const applications = applicationNotifications.map((notification) => {
+    const metadata =
+      notification.metadata && typeof notification.metadata === 'object' && !Array.isArray(notification.metadata)
+        ? (notification.metadata as Record<string, unknown>)
+        : {};
+
+    return {
+      id: notification.id,
+      applicantId: readMetadataString(metadata, 'applicantId') || '',
+      applicantName: readMetadataString(metadata, 'applicantName') || 'Unknown applicant',
+      applicantEmail: readMetadataString(metadata, 'applicantEmail') || '',
+      coverLetter: readMetadataString(metadata, 'coverLetter') || '',
+      resumeUrl: readMetadataString(metadata, 'resumeUrl') || '',
+      resumeFilename: readMetadataString(metadata, 'resumeFilename') || '',
+      portfolioUrl: readMetadataString(metadata, 'portfolioUrl') || '',
+      appliedAt: readMetadataString(metadata, 'appliedAt') || notification.createdAt.toISOString()
+    };
+  });
+
+  res.status(200).json({
+    success: true,
+    data: applications,
+    meta: {
+      jobId: job.id,
+      jobTitle: job.title,
+      total: applications.length
+    }
+  });
+});
+
 export const searchJobs = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const rawQuery = req.query.query;
   const query = typeof rawQuery === 'string' ? rawQuery.trim() : '';
@@ -634,6 +729,7 @@ export const searchJobs = asyncHandler(async (req: AuthenticatedRequest, res: Re
 
   const jobs = await prisma.job.findMany({
     where: {
+      isActive: true,
       OR: [
         { title: { contains: query, mode: 'insensitive' } },
         { company: { contains: query, mode: 'insensitive' } },
@@ -642,16 +738,7 @@ export const searchJobs = asyncHandler(async (req: AuthenticatedRequest, res: Re
       ]
     },
     orderBy: { createdAt: 'desc' },
-    include: {
-      postedBy: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          profileImage: true
-        }
-      }
-    },
+    include: jobInclude,
     take: 20
   });
 

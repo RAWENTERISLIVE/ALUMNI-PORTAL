@@ -122,6 +122,12 @@ model User {
   reportsReviewed   Report[]           @relation("ReviewedBy")
   filesUploaded     File[]             @relation("FileUploader")
   notifications     Notification[]     @relation("UserNotifications")
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([role, createdAt])
+  @@index([accountType, status])
+  @@index([admissionYear, status])
 }
 
 model Notification {
@@ -222,6 +228,13 @@ model Post {
   bookmarks User[]         @relation("BookmarkedPosts")
   comments  Comment[]      @relation("PostComments")
   mentions  User[]         @relation("PostMentions")
+
+  @@index([createdAt])
+  @@index([authorId, createdAt])
+  @@index([category, createdAt])
+  @@index([visibility, createdAt])
+  @@index([isFeatured, createdAt])
+  @@index([isSchoolUpdate, createdAt])
 }
 
 model PostReaction {
@@ -233,6 +246,7 @@ model PostReaction {
   type   String @default("like") // 'like', 'love', 'celebrate', etc.
 
   @@unique([postId, userId]) // User can only react once per post
+  @@index([userId, postId, type])
 }
 
 model Comment {
@@ -281,6 +295,11 @@ model Job {
   updatedAt DateTime @updatedAt
 
   savedBy User[] @relation("SavedJobs")
+
+  @@index([createdAt])
+  @@index([isActive, createdAt])
+  @@index([postedById, createdAt])
+  @@index([type, createdAt])
 }
 
 model MentorshipProfile {

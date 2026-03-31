@@ -51,7 +51,9 @@ interface PostCardProps {
       userId: string;
       type: string;
     }>;
+    reactionCount?: number;
     bookmarks?: string[];
+    bookmarkCount?: number;
     commentCount?: number;
     shareCount?: number;
     isLiked?: boolean;
@@ -72,8 +74,8 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCard
   const { currentUser } = useAuth();
 
   const isAuthor = currentUser?.id === post.author.id;
-  const likeCount = post.reactions?.filter(r => r.type === 'like').length || 0;
-  const bookmarkCount = post.bookmarks?.length || 0;
+  const likeCount = post.reactionCount ?? (post.reactions?.filter(r => r.type === 'like').length || 0);
+  const bookmarkCount = post.bookmarkCount ?? (post.bookmarks?.length || 0);
 
   const handleLike = async () => {
     if (isLiking) return;
@@ -106,11 +108,15 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCard
     try {
       const response = await apiService.bookmarkPost(post.id, !post.isBookmarked);
       if (response.success) {
+        const wasBookmarked = Boolean(post.isBookmarked);
+        const nextBookmarkCount = Math.max(0, bookmarkCount + (wasBookmarked ? -1 : 1));
+
         // Update the post locally
         const updatedPost = {
           ...post,
-          isBookmarked: !post.isBookmarked,
-          bookmarks: post.isBookmarked 
+          isBookmarked: !wasBookmarked,
+          bookmarkCount: nextBookmarkCount,
+          bookmarks: wasBookmarked 
             ? post.bookmarks?.filter(id => id !== currentUser?.id) 
             : [...(post.bookmarks || []), currentUser?.id]
         };
@@ -146,7 +152,7 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCard
         title: 'Link copied',
         description: 'App link copied. You can paste it in any app.',
       });
-    } catch (error) {
+    } catch {
       toast({
         title: 'Copy failed',
         description: 'Unable to copy the link right now.',

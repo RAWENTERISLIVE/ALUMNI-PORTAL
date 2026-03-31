@@ -174,7 +174,11 @@ export default function EventsPage() {
   };
 
   const handleCreateEvent = async () => {
-    if (!newEvent.title.trim() || !newEvent.description.trim() || !newEvent.date || !newEvent.time) {
+    const title = newEvent.title.trim();
+    const description = newEvent.description.trim();
+    const location = newEvent.location.trim();
+
+    if (!title || !description || !newEvent.date || !newEvent.time) {
       toast({
         title: "Missing fields",
         description: "Please fill title, description, date, and time.",
@@ -183,7 +187,25 @@ export default function EventsPage() {
       return;
     }
 
-    const hasLocation = newEvent.location.trim().length > 0;
+    if (title.length < 3 || title.length > 200) {
+      toast({
+        title: "Invalid title",
+        description: "Title must be between 3 and 200 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (description.length < 10 || description.length > 2000) {
+      toast({
+        title: "Invalid description",
+        description: "Description must be between 10 and 2000 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const hasLocation = location.length > 0;
     if (!newEvent.isVirtual && !hasLocation) {
       toast({
         title: "Missing location",
@@ -193,10 +215,33 @@ export default function EventsPage() {
       return;
     }
 
-    const eventLocation = newEvent.isVirtual ? "Virtual" : newEvent.location;
+    if (!newEvent.isVirtual && (location.length < 3 || location.length > 200)) {
+      toast({
+        title: "Invalid location",
+        description: "Location must be between 3 and 200 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      newEvent.maxAttendees !== undefined &&
+      (!Number.isInteger(newEvent.maxAttendees) || newEvent.maxAttendees < 1 || newEvent.maxAttendees > 10000)
+    ) {
+      toast({
+        title: "Invalid max attendees",
+        description: "Max attendees must be between 1 and 10000.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const eventLocation = newEvent.isVirtual ? "Virtual" : location;
 
     const payload = {
       ...newEvent,
+      title,
+      description,
       location: eventLocation,
       maxAttendees: newEvent.maxAttendees || undefined,
     };

@@ -6,10 +6,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
-const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const path_1 = __importDefault(require("path"));
-const fs_1 = __importDefault(require("fs"));
+const node_path_1 = __importDefault(require("node:path"));
+const node_fs_1 = __importDefault(require("node:fs"));
+const compression_1 = __importDefault(require("compression"));
 const errorHandler_1 = require("./middleware/errorHandler");
 require("./middleware/auth");
 const auth_1 = __importDefault(require("./routes/auth"));
@@ -27,13 +27,19 @@ const notifications_1 = __importDefault(require("./routes/notifications"));
 const linkedin_1 = __importDefault(require("./routes/linkedin"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const PORT = parseInt(process.env.PORT || '5000', 10);
+const PORT = Number.parseInt(process.env.PORT || '5000', 10);
 const PORT_RETRY_DELAY_MS = 400;
 const MAX_PORT_RETRIES = 15;
+const TRUST_PROXY_HOPS = Number.parseInt(process.env.TRUST_PROXY_HOPS || '1', 10);
+const REQUEST_BODY_LIMIT = process.env.REQUEST_BODY_LIMIT || '1mb';
+const URL_ENCODED_BODY_LIMIT = process.env.URL_ENCODED_BODY_LIMIT || '1mb';
+const KEEP_ALIVE_TIMEOUT_MS = Number.parseInt(process.env.KEEP_ALIVE_TIMEOUT_MS || '65000', 10);
+const HEADERS_TIMEOUT_MS = Number.parseInt(process.env.HEADERS_TIMEOUT_MS || '66000', 10);
+const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10);
 let activeServer = null;
-const uploadsDir = path_1.default.join(__dirname, '../uploads');
-if (!fs_1.default.existsSync(uploadsDir)) {
-    fs_1.default.mkdirSync(uploadsDir, { recursive: true });
+const uploadsDir = node_path_1.default.join(__dirname, '../uploads');
+if (!node_fs_1.default.existsSync(uploadsDir)) {
+    node_fs_1.default.mkdirSync(uploadsDir, { recursive: true });
     console.log('📁 Created uploads directory:', uploadsDir);
 }
 const initializeApp = async () => {
@@ -48,6 +54,8 @@ const initializeApp = async () => {
     }
 };
 initializeApp();
+app.set('trust proxy', TRUST_PROXY_HOPS);
+app.disable('x-powered-by');
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
@@ -65,20 +73,10 @@ app.use((0, cors_1.default)({
     },
     credentials: true
 }));
-const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
-const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ||
-    (process.env.NODE_ENV === 'production' ? 300 : 2000));
-const limiter = (0, express_rate_limit_1.default)({
-    windowMs: RATE_LIMIT_WINDOW_MS,
-    max: RATE_LIMIT_MAX,
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => process.env.NODE_ENV !== 'production' || req.path === '/api/health' || req.path.startsWith('/api/status')
-});
-app.use(limiter);
-app.use(express_1.default.json());
-app.use(express_1.default.urlencoded({ extended: true }));
-app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../uploads')));
+app.use((0, compression_1.default)());
+app.use(express_1.default.json({ limit: REQUEST_BODY_LIMIT }));
+app.use(express_1.default.urlencoded({ extended: true, limit: URL_ENCODED_BODY_LIMIT }));
+app.use('/uploads', express_1.default.static(node_path_1.default.join(__dirname, '../uploads')));
 app.use('/api/status', status_1.default);
 app.use('/api/auth', auth_1.default);
 app.use('/api/users', users_1.default);
@@ -107,6 +105,9 @@ const startServer = (port, attempt = 0) => {
     const server = app.listen(port);
     server.on('listening', () => {
         activeServer = server;
+        server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS;
+        server.headersTimeout = HEADERS_TIMEOUT_MS;
+        server.requestTimeout = REQUEST_TIMEOUT_MS;
         console.log(`Server running on port ${port}`);
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`API base URL: http://localhost:${port}/api`);

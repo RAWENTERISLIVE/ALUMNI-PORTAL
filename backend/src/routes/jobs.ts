@@ -20,6 +20,7 @@ import {
   getSavedJobs,
   getAppliedJobs,
   incrementApplicationCount,
+  getJobApplications,
   getJobStats
 } from '../controllers/jobController';
 
@@ -39,6 +40,7 @@ router.post('/:id/save', authMiddleware, saveJob);
 router.delete('/:id/save', authMiddleware, unsaveJob);
 router.post('/:id/save-toggle', authMiddleware, toggleSaveJob);
 router.post('/:id/apply', authMiddleware, incrementApplicationCount);
+router.get('/:id/applications', authMiddleware, getJobApplications);
 router.get('/:id', getJobById);
 
 export default router;

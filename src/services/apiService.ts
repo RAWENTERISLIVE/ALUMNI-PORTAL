@@ -75,6 +75,13 @@ class ApiService {
     localStorage.setItem('accessToken', token);
   }
 
+  clearAuthState() {
+    this.accessToken = null;
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -130,12 +137,12 @@ class ApiService {
           if (refreshed) {
             return this.request(endpoint, options);
           } else {
-            this.handleLogout();
+            this.handleSessionExpired();
             throw new Error('Session expired. Please login again.');
           }
         }
-        
-        const error = data?.message || data?.error || `HTTP error! status: ${response.status}`;
+
+        const error = this.extractApiErrorMessage(data, response.status);
         throw new Error(error);
       }
 
@@ -149,6 +156,17 @@ class ApiService {
       
       throw error;
     }
+  }
+
+  private extractApiErrorMessage(data: any, status: number): string {
+    const fallback = data?.message || data?.error || `HTTP error! status: ${status}`;
+    if (fallback !== 'Validation error') return fallback;
+
+    if (!Array.isArray(data?.errors) || data.errors.length === 0) {
+      return fallback;
+    }
+
+    return data.errors[0]?.msg || data.errors[0]?.message || fallback;
   }
 
   private async refreshToken(): Promise<boolean> {
@@ -183,10 +201,11 @@ class ApiService {
   }
 
   private handleLogout() {
-    this.accessToken = null;
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+    this.clearAuthState();
+  }
+
+  private handleSessionExpired() {
+    this.clearAuthState();
     window.location.href = '/login';
   }
 
@@ -245,7 +264,7 @@ class ApiService {
   // Post methods
   async createPost(postData: {
     title?: string;
-    content: string;
+    content?: string;
     category?: string;
     visibility?: string;
     tags?: string[];
@@ -1431,6 +1450,18 @@ class ApiService {
     }
   }
 
+  async getJobApplications(jobId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/jobs/${jobId}/applications`);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch job applications.',
+        data: []
+      };
+    }
+  }
+
   async getJobStats(): Promise<ApiResponse> {
     try {
       return await this.request('/jobs/stats');
@@ -1704,6 +1735,50 @@ class ApiService {
       });
     } catch (error: any) {
       return { success: false, message: error.message || `Failed to ${action} join request.` };
+    }
+  }
+
+  async inviteGroupMember(groupId: string, payload: { email?: string; userId?: string }): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}/invite`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to invite user to group.' };
+    }
+  }
+
+  async getInvitableUsers(groupId: string, query = '', limit = 20): Promise<ApiResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (query.trim()) queryParams.append('query', query.trim());
+      queryParams.append('limit', String(limit));
+
+      return await this.request(`/groups/${groupId}/invitable-users?${queryParams.toString()}`);
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to search users for invitation.', data: [] };
+    }
+  }
+
+  async createGroupInviteLink(groupId: string): Promise<ApiResponse> {
+    try {
+      return await this.request(`/groups/${groupId}/invite-link`, {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to generate invite link.' };
+    }
+  }
+
+  async acceptGroupInviteLink(token: string): Promise<ApiResponse> {
+    try {
+      return await this.request('/groups/invite/accept', {
+        method: 'POST',
+        body: JSON.stringify({ token })
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to accept invite link.' };
     }
   }
 

@@ -5,18 +5,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.passwordResetLimiter = exports.registrationLimiter = exports.generalLimiter = exports.authLimiter = void 0;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
-const isNonProduction = process.env.NODE_ENV !== 'production';
 const withEnvironmentBypass = (config) => (0, express_rate_limit_1.default)({
     ...config,
-    skip: (...args) => {
-        if (isNonProduction)
-            return true;
-        return typeof config.skip === 'function' ? config.skip(...args) : false;
-    }
+    skip: () => true
 });
 exports.authLimiter = withEnvironmentBypass({
-    windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000'),
-    max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '5'),
+    windowMs: Number.parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000', 10),
+    max: Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX || '5', 10),
     message: {
         success: false,
         error: 'Too many authentication attempts from this IP. Please try again in 15 minutes.',
@@ -34,8 +29,8 @@ exports.authLimiter = withEnvironmentBypass({
     }
 });
 exports.generalLimiter = withEnvironmentBypass({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
-    max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
+    windowMs: Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
+    max: Number.parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
     message: {
         success: false,
         error: 'Too many requests from this IP. Please try again later.',

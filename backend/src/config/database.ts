@@ -2,7 +2,7 @@
 // See /backend/src/config/prisma.ts for Prisma client setup
 // Prisma handles all database connections and migrations automatically
 
-import { prisma } from './prisma';
+import prisma from './prisma';
 
 export const connectDB = async (): Promise<void> => {
   try {

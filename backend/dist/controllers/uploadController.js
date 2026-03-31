@@ -7,8 +7,15 @@ exports.serveFile = exports.uploadMultipleFiles = exports.uploadFile = exports.h
 const multer_1 = __importDefault(require("multer"));
 const node_path_1 = __importDefault(require("node:path"));
 const node_fs_1 = __importDefault(require("node:fs"));
+const client_1 = require("@prisma/client");
 const errorHandler_1 = require("../middleware/errorHandler");
 const prisma_1 = __importDefault(require("../config/prisma"));
+const isMissingFileTableError = (error) => {
+    if (error instanceof client_1.Prisma.PrismaClientKnownRequestError) {
+        return error.code === 'P2021' && String(error.meta?.table || '').includes('File');
+    }
+    return error instanceof Error && error.message.includes('File') && error.message.includes('does not exist');
+};
 const storage = multer_1.default.diskStorage({
     destination: (_req, _file, cb) => {
         const uploadDir = node_path_1.default.join(__dirname, '../../uploads');
@@ -89,22 +96,32 @@ exports.uploadFile = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         return;
     }
     const fileUrl = `/api/uploads/${req.file.filename}`;
-    const fileRecord = await prisma_1.default.file.create({
-        data: {
-            filename: req.file.filename,
-            originalName: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.size,
-            path: req.file.path,
-            url: fileUrl,
-            uploadedById: req.user._id || req.user.id
+    let fileRecord = null;
+    try {
+        fileRecord = await prisma_1.default.file.create({
+            data: {
+                filename: req.file.filename,
+                originalName: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                path: req.file.path,
+                url: fileUrl,
+                uploadedById: req.user._id || req.user.id
+            },
+            select: { id: true }
+        });
+    }
+    catch (error) {
+        if (!isMissingFileTableError(error)) {
+            throw error;
         }
-    });
+        console.warn('File table missing. Continuing upload without metadata record.');
+    }
     res.json({
         success: true,
         message: 'File uploaded successfully',
         data: {
-            id: fileRecord.id,
+            id: fileRecord?.id || null,
             url: fileUrl,
             filename: req.file.filename,
             originalName: req.file.originalname,
@@ -132,19 +149,29 @@ exports.uploadMultipleFiles = (0, errorHandler_1.asyncHandler)(async (req, res) 
     const uploadedFiles = [];
     for (const file of files) {
         const fileUrl = `/api/uploads/${file.filename}`;
-        const fileRecord = await prisma_1.default.file.create({
-            data: {
-                filename: file.filename,
-                originalName: file.originalname,
-                mimetype: file.mimetype,
-                size: file.size,
-                path: file.path,
-                url: fileUrl,
-                uploadedById: req.user._id || req.user.id
+        let fileRecord = null;
+        try {
+            fileRecord = await prisma_1.default.file.create({
+                data: {
+                    filename: file.filename,
+                    originalName: file.originalname,
+                    mimetype: file.mimetype,
+                    size: file.size,
+                    path: file.path,
+                    url: fileUrl,
+                    uploadedById: req.user._id || req.user.id
+                },
+                select: { id: true }
+            });
+        }
+        catch (error) {
+            if (!isMissingFileTableError(error)) {
+                throw error;
             }
-        });
+            console.warn('File table missing. Continuing multi-upload without metadata record.');
+        }
         uploadedFiles.push({
-            id: fileRecord.id,
+            id: fileRecord?.id || null,
             url: fileUrl,
             filename: file.filename,
             originalName: file.originalname,

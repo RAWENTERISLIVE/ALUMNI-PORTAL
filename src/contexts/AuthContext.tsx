@@ -91,38 +91,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkExistingSession = async () => {
       try {
         const accessToken = localStorage.getItem('accessToken');
-        const storedUser = localStorage.getItem('user');
-        
-        if (accessToken && storedUser) {
-          const user = JSON.parse(storedUser);
-          setCurrentUser(user);
-          setUserProfile(user);
-          
-          // Verify token is still valid
-          try {
-            const response = await apiService.getCurrentUser();
-            if (response.success && response.user) {
-              const updatedUser = response.user;
-              setCurrentUser(updatedUser);
-              setUserProfile(updatedUser);
-              localStorage.setItem('user', JSON.stringify(updatedUser));
-            }
-          } catch (error) {
-            console.error('Token validation failed:', error);
-            // Token is invalid, clear storage
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('user');
-            setCurrentUser(null);
-            setUserProfile(null);
-          }
+
+        if (!accessToken) {
+          apiService.clearAuthState();
+          setCurrentUser(null);
+          setUserProfile(null);
+          return;
         }
+
+        const response = await apiService.getCurrentUser();
+        if (response.success && response.user) {
+          const updatedUser = response.user;
+          setCurrentUser(updatedUser);
+          setUserProfile(updatedUser);
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          return;
+        }
+
+        throw new Error('Session validation failed');
       } catch (error) {
         console.error('Error checking existing session:', error);
-        // Clear invalid data
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
+        apiService.clearAuthState();
+        setCurrentUser(null);
+        setUserProfile(null);
       } finally {
         setIsLoading(false);
       }
@@ -147,11 +138,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Attempting login for email:', email);
       
       const response = await apiService.login(email, password);
+      const responseData = response.data as { user?: ExtendedUser } | undefined;
+      let user = (response.user as ExtendedUser | undefined) || responseData?.user;
+
+      if (response.success && !user) {
+        const meResponse = await apiService.getCurrentUser();
+        if (meResponse.success && meResponse.user) {
+          user = meResponse.user as ExtendedUser;
+        }
+      }
       
-      if (response.success && response.user) {
-        const user = response.user;
+      if (response.success && user) {
         setCurrentUser(user);
         setUserProfile(user);
+        localStorage.setItem('user', JSON.stringify(user));
         
         toast({
           title: "Login successful",
@@ -205,28 +205,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await apiService.register(userData);
       
       if (response.success) {
-        // Check if user is super admin (gets auto-logged in)
-        if (response.user && response.accessToken) {
-          const user = response.user;
-          setCurrentUser(user);
-          setUserProfile(user);
-          
-          toast({
-            title: "Registration successful",
-            description: "Super admin account created successfully!",
-          });
-          
-          navigate('/admin');
-        } else {
-          toast({
-            title: "Registration successful",
-            description: userData.needsManualVerification 
-              ? "Your account is pending manual verification. You'll receive an email once approved."
-              : "Your account is pending approval. You'll receive an email once approved.",
-          });
-          
-          navigate('/login');
-        }
+        // Registration should never create an authenticated session.
+        apiService.clearAuthState();
+        setCurrentUser(null);
+        setUserProfile(null);
         return response;
       } else {
         throw new Error(response.message || 'Registration failed');
@@ -247,31 +229,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await apiService.logout();
-      
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      apiService.clearAuthState();
       setCurrentUser(null);
       setUserProfile(null);
-      
+
       toast({
         title: "Logged out",
         description: "You've been successfully logged out.",
       });
-      
-      navigate('/');
-    } catch (error) {
-      console.error("Logout error:", error);
-      // Even if logout request fails, clear local state
-      setCurrentUser(null);
-      setUserProfile(null);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      
-      toast({
-        title: "Logged out",
-        description: "You've been logged out.",
-      });
-      
-      navigate('/');
+
+      navigate('/login', { replace: true });
     }
   };
 

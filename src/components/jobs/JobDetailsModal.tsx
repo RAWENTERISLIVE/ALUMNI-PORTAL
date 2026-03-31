@@ -1,19 +1,22 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, Building, MapPin, ExternalLink, Bookmark, BookmarkPlus, Clock, DollarSign, Calendar } from "lucide-react";
+import { Briefcase, Building, MapPin, ExternalLink, Bookmark, BookmarkPlus, Clock, DollarSign, Calendar, Download } from "lucide-react";
 import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
 import { Job } from "@/types";
 
 export interface JobDetailsModalProps {
   job: Job | null;
   isOpen: boolean;
   onClose: () => void;
-  onApply: (jobId: string) => Promise<void>;
+  onApply: (job: Job) => Promise<void>;
   onSave: (jobId: string) => Promise<void>;
   isSaved?: boolean;
   isApplied?: boolean;
+  canApply?: boolean;
+  canDownloadApplications?: boolean;
+  isDownloadingApplications?: boolean;
+  onDownloadApplications?: (job: Job) => Promise<void>;
 }
 
 export function JobDetailsModal({ 
@@ -23,11 +26,14 @@ export function JobDetailsModal({
   onApply, 
   onSave, 
   isSaved = false, 
-  isApplied = false 
+  isApplied = false,
+  canApply = true,
+  canDownloadApplications = false,
+  isDownloadingApplications = false,
+  onDownloadApplications
 }: JobDetailsModalProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const { toast } = useToast();
   
   if (!job) return null;
 
@@ -38,13 +44,29 @@ export function JobDetailsModal({
   const handleApply = async () => {
     try {
       setIsApplying(true);
-      await onApply(job.id);
+      await onApply(job);
     } catch (error) {
       console.error('Error applying to job:', error);
     } finally {
       setIsApplying(false);
     }
   };
+
+  const handleDownloadApplications = async () => {
+    if (!onDownloadApplications) return;
+
+    try {
+      await onDownloadApplications(job);
+    } catch (error) {
+      console.error('Error downloading applications:', error);
+    }
+  };
+
+  const applyLabel = appliedByCurrentUser
+    ? 'Applied'
+    : job.applicationUrl
+    ? 'Apply External'
+    : 'Apply';
 
   const handleToggleSave = async () => {
     try {
@@ -175,37 +197,27 @@ export function JobDetailsModal({
             {savedByCurrentUser ? <Bookmark className="h-4 w-4" /> : <BookmarkPlus className="h-4 w-4" />}
             {isSaving ? "Saving..." : (savedByCurrentUser ? "Saved" : "Save Job")}
           </Button>
+
+          {canDownloadApplications && (
+            <Button
+              onClick={handleDownloadApplications}
+              variant="outline"
+              disabled={isDownloadingApplications}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              {isDownloadingApplications ? 'Preparing...' : 'Download Applicants'}
+            </Button>
+          )}
           
-          {job.applicationUrl ? (
-            <Button 
-              onClick={() => {
-                handleApply();
-                window.open(job.applicationUrl, '_blank');
-              }}
-              disabled={isApplying}
-              className="flex-1 flex items-center gap-2"
-            >
-              <ExternalLink className="h-4 w-4" />
-              {isApplying ? "Applying..." : "Apply External"}
-            </Button>
-          ) : job.contactEmail ? (
-            <Button 
-              onClick={() => {
-                handleApply();
-                window.location.href = `mailto:${job.contactEmail}?subject=Application for ${job.title}`;
-              }}
-              disabled={isApplying}
-              className="flex-1"
-            >
-              {isApplying ? "Applying..." : "Contact to Apply"}
-            </Button>
-          ) : (
+          {canApply && (
             <Button 
               onClick={handleApply}
-              disabled={isApplying || !job.isActive}
-              className="flex-1"
+              disabled={isApplying || appliedByCurrentUser || !job.isActive}
+              className="flex-1 flex items-center gap-2"
             >
-              {isApplying ? "Applying..." : "Apply"}
+              {job.applicationUrl && !appliedByCurrentUser && <ExternalLink className="h-4 w-4" />}
+              {isApplying ? 'Applying...' : applyLabel}
             </Button>
           )}
         </div>

@@ -5,6 +5,10 @@ export declare const getGroupById: (req: Request, res: Response, next: import("e
 export declare const updateGroup: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const deleteGroup: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const joinGroup: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const inviteGroupMember: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const getInvitableUsers: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const createGroupInviteLink: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
+export declare const acceptGroupInviteLink: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const leaveGroup: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getGroup: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;
 export declare const getGroupJoinRequests: (req: Request, res: Response, next: import("express").NextFunction) => Promise<any>;

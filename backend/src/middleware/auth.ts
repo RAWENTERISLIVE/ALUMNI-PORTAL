@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import UserModel, { IUser, UserRole, User as NamedUser } from '../models/User';
-
-const User: any = (UserModel as any)?.findOne ? UserModel : (NamedUser as any);
+import { UserRole } from '../models/User';
+import type { IUser } from '../models/User';
+import prisma from '../config/prisma';
 
 export interface AuthRequest extends Request {
   user?: IUser;
@@ -22,8 +22,39 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { userId: string };
-    const user = await User.findById(decoded.userId)
-      .select('-password -refreshTokens -passwordResetToken -emailVerificationToken');
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        status: true,
+        isVerified: true,
+        admissionNumber: true,
+        admissionYear: true,
+        accountType: true,
+        hasPremiumBadge: true,
+        profileImage: true,
+        bio: true,
+        headline: true,
+        city: true,
+        country: true,
+        company: true,
+        jobTitle: true,
+        contactEmail: true,
+        contactPhone: true,
+        linkedInProfile: true,
+        location: true,
+        needsManualVerification: true,
+        notificationSettings: true,
+        privacySettings: true,
+        createdAt: true,
+        updatedAt: true,
+        lastLogin: true
+      }
+    });
 
     if (!user) {
       res.status(401).json({ 
@@ -35,7 +66,9 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
     }
 
     // Enhanced status checks for Phase 1
-    if (user.status === 'suspended') {
+    const normalizedStatus = String(user.status || '').toLowerCase();
+
+    if (normalizedStatus === 'suspended') {
       res.status(403).json({ 
         success: false,
         message: 'Account has been suspended. Please contact administrator.',
@@ -44,7 +77,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       return;
     }
 
-    if (user.status === 'deleted') {
+    if (normalizedStatus === 'deleted') {
       res.status(403).json({ 
         success: false,
         message: 'Account no longer exists',
@@ -53,7 +86,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       return;
     }
 
-    if (user.status === 'pending') {
+    if (normalizedStatus === 'pending') {
       res.status(403).json({ 
         success: false,
         message: 'Account is pending approval',
@@ -62,7 +95,12 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       return;
     }
 
-    req.user = user;
+    req.user = {
+      ...(user as unknown as IUser),
+      _id: user.id,
+      role: String(user.role || '').toLowerCase(),
+      status: normalizedStatus
+    };
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
@@ -100,7 +138,10 @@ export const requireRole = (roles: UserRole[]) => {
       return;
     }
 
-    if (!roles.includes(req.user.role)) {
+    const normalizedUserRole = String(req.user.role || '').toLowerCase();
+    const allowedRoles = roles.map((role) => String(role).toLowerCase());
+
+    if (!allowedRoles.includes(normalizedUserRole)) {
       res.status(403).json({ message: 'Insufficient permissions' });
       return;
     }

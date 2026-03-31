@@ -158,7 +158,8 @@ const DETAILED_SECTION_FORM_CONFIG: Record<DetailedSectionKey, DetailedSectionFo
   services: {
     helperText: 'Set up services with offerings, location, and pricing.',
     fields: [
-      { key: 'servicesOffered', label: 'Services provided', type: 'multiselect', required: true, options: ['Ad Design', 'Brand Design', 'Graphic Design', 'Logo Design', 'Video Editing', 'Video Production', 'Web Design', 'Software Testing', 'Web Development'] },
+      { key: 'servicesOffered', label: 'Services provided', type: 'multiselect', required: true, options: ['Ad Design', 'Brand Design', 'Graphic Design', 'Logo Design', 'Video Editing', 'Video Production', 'Web Design', 'Software Testing', 'Web Development', 'Other'] },
+      { key: 'otherServiceDetails', label: 'Other services', type: 'text', placeholder: 'Describe additional services you provide' },
       { key: 'serviceDescription', label: 'About', type: 'textarea', rows: 4, placeholder: 'Describe your services and value.' },
       { key: 'workLocation', label: 'Work location', type: 'text', placeholder: 'e.g. Pushkar, Rajasthan' },
       { key: 'workRemote', label: 'Available to work remotely', type: 'checkbox' },
@@ -434,6 +435,7 @@ export default function ProfilePage() {
   const [currentExperience, setCurrentExperience] = useState<ExperienceItem | null>(null);
   const [currentEducation, setCurrentEducation] = useState<EducationItem | null>(null);
   const [newSkill, setNewSkill] = useState("");
+  const [skillEditorMode, setSkillEditorMode] = useState<'skills' | 'interests'>('skills');
   const [experiences, setExperiences] = useState<ExperienceItem[]>([]);
   const [educations, setEducations] = useState<EducationItem[]>([]);
   const [skills, setSkills] = useState<string[]>([]);
@@ -578,10 +580,10 @@ export default function ProfilePage() {
         location: profile.location || profile.city || "",
         city: profile.city || "",
         country: profile.country || "",
-        website: profile.website || "",
+        website: profile.website || profile?.privacySettings?.website || "",
         linkedin: profile.linkedInProfile || "",
-        twitter: profile.twitterHandle || "",
-        github: profile.githubHandle || "",
+        twitter: profile.twitterHandle || profile?.privacySettings?.twitterHandle || "",
+        github: profile.githubHandle || profile?.privacySettings?.githubHandle || "",
         availableAsMentor: profile.isAvailableAsMentor || false,
       });
 
@@ -766,6 +768,15 @@ export default function ProfilePage() {
       url: valueFor(sectionConfig.summaryMap.url),
       extraData: detailedFormData.extraData,
     };
+
+    if (activeDetailedSection === 'services') {
+      const otherDetails = valueFor('otherServiceDetails');
+      if (otherDetails) {
+        payload.description = [payload.description, `Other services: ${otherDetails}`]
+          .filter(Boolean)
+          .join('\n');
+      }
+    }
 
     if (!payload.title) {
       payload.title = activeDetailedSectionMeta?.label || 'Profile entry';
@@ -1061,8 +1072,9 @@ export default function ProfilePage() {
 
   // Handle skills and interests
   const handleAddSkill = async () => {
-    if (newSkill && !skills.includes(newSkill)) {
-      const nextSkills = [...skills, newSkill.trim()];
+    const normalized = newSkill.trim();
+    if (normalized && !skills.some((skill) => skill.toLowerCase() === normalized.toLowerCase())) {
+      const nextSkills = [...skills, normalized];
       setSkills(nextSkills);
       setNewSkill("");
 
@@ -1070,7 +1082,23 @@ export default function ProfilePage() {
 
       toast({
         title: "Skill added",
-        description: `"${newSkill}" has been added to your skills.`
+        description: `"${normalized}" has been added to your skills.`
+      });
+    }
+  };
+
+  const handleAddInterest = async () => {
+    const normalized = newSkill.trim();
+    if (normalized && !interests.some((interest) => interest.toLowerCase() === normalized.toLowerCase())) {
+      const nextInterests = [...interests, normalized];
+      setInterests(nextInterests);
+      setNewSkill("");
+
+      await saveProfileSections(experiences, educations, skills, nextInterests);
+
+      toast({
+        title: "Interest added",
+        description: `"${normalized}" has been added to your interests.`
       });
     }
   };
@@ -1085,6 +1113,12 @@ export default function ProfilePage() {
     const nextInterests = interests.filter((interest) => interest !== interestToRemove);
     setInterests(nextInterests);
     await saveProfileSections(experiences, educations, skills, nextInterests);
+  };
+
+  const openSkillsEditor = (mode: 'skills' | 'interests') => {
+    setSkillEditorMode(mode);
+    setNewSkill('');
+    setIsSkillsModalOpen(true);
   };
   
   if (isLoading && !profile) {
@@ -1310,10 +1344,17 @@ export default function ProfilePage() {
                   </div>
                 )}
                 
-                {profile.website && (
+                {(profile.website || profile?.privacySettings?.website) && (
                   <div className="flex items-center gap-2">
                     <Globe className="h-4 w-4 text-muted-foreground" />
-                    <a href={profile.website} target="_blank" rel="noopener noreferrer" className="text-foreground/90 hover:underline">{profile.website}</a>
+                    <a
+                      href={profile.website || profile?.privacySettings?.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-foreground/90 hover:underline"
+                    >
+                      {profile.website || profile?.privacySettings?.website}
+                    </a>
                   </div>
                 )}
                 
@@ -1376,15 +1417,14 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
       
-      {isOwnProfile && (
-        <div>
+      <div>
           <Tabs defaultValue="profile" className="mt-6">
             <TabsList className="bg-muted/30 p-1 rounded-lg w-full">
               <TabsTrigger 
                 value="profile"
                 className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white hover:text-foreground"
               >
-                Edit Profile
+                {isOwnProfile ? 'Edit Profile' : 'Profile'}
               </TabsTrigger>
               <TabsTrigger 
                 value="experiences"
@@ -1414,47 +1454,85 @@ export default function ProfilePage() {
             <TabsContent value="profile" className="mt-4">
               <Card>
                 <CardContent className="pt-6">
-                  <div className="flex justify-end mb-4 gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsAddToProfileModalOpen(true)}
-                    >
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add to Profile
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsLinkedInModalOpen(true)}
-                    >
-                      Import from LinkedIn
-                    </Button>
-                  </div>
+                  {isOwnProfile && (
+                    <div className="flex justify-end mb-4 gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsAddToProfileModalOpen(true)}
+                      >
+                        <PlusCircle className="h-4 w-4 mr-2" />
+                        Add to Profile
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsLinkedInModalOpen(true)}
+                      >
+                        Import from LinkedIn
+                      </Button>
+                    </div>
+                  )}
                   
                   <Form {...form}>
-                    <form onSubmit={form.handleSubmit((data) => {
-                      if (isOwnProfile && profile) {
-                        apiService.updateUserProfile(profile.id || profile._id, data)
-                          .then((response) => {
-                            const updatedProfile = response.user || response.data;
-                            if (updatedProfile) {
-                              setProfile((previous: any) => ({
-                                ...previous,
-                                ...updatedProfile,
-                                id: updatedProfile.id || previous?.id,
-                              }));
-                            }
-                            toast({
-                              title: "Profile updated",
-                              description: "Your profile has been updated successfully."
-                            });
-                          })
-                          .catch((error) => {
-                            toast({
-                              title: "Update failed",
-                              description: error.message || "Failed to update profile",
-                              variant: "destructive"
-                            });
+                    <form onSubmit={form.handleSubmit(async (data) => {
+                      if (!isOwnProfile || !profile) return;
+
+                      try {
+                        const basePrivacySettings =
+                          profile.privacySettings && typeof profile.privacySettings === 'object'
+                            ? profile.privacySettings
+                            : {};
+
+                        const payload = {
+                          name: data.name,
+                          email: data.email,
+                          bio: data.bio,
+                          headline: data.headline,
+                          contactEmail: data.contactEmail,
+                          contactPhone: data.contactPhone,
+                          company: data.company,
+                          jobTitle: data.position,
+                          location: data.location,
+                          city: data.city,
+                          country: data.country,
+                          linkedInProfile: data.linkedin,
+                          isAvailableAsMentor: data.availableAsMentor,
+                          privacySettings: {
+                            ...basePrivacySettings,
+                            website: data.website,
+                            twitterHandle: data.twitter,
+                            githubHandle: data.github,
+                          },
+                        };
+
+                        const response = await apiService.updateUserProfile(profile.id || profile._id, payload);
+                        if (!response.success) {
+                          toast({
+                            title: "Update failed",
+                            description: response.message || "Failed to update profile",
+                            variant: "destructive"
                           });
+                          return;
+                        }
+
+                        const updatedProfile = response.user || response.data;
+                        if (updatedProfile) {
+                          setProfile((previous: any) => ({
+                            ...previous,
+                            ...updatedProfile,
+                            id: updatedProfile.id || previous?.id,
+                          }));
+                        }
+
+                        toast({
+                          title: "Profile updated",
+                          description: "Your profile has been updated successfully."
+                        });
+                      } catch (error: any) {
+                        toast({
+                          title: "Update failed",
+                          description: error?.message || "Failed to update profile",
+                          variant: "destructive"
+                        });
                       }
                     })} className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1795,7 +1873,7 @@ export default function ProfilePage() {
                         {isOwnProfile && (
                           <Button
                             className="bg-primary hover:bg-primary/90 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
-                            onClick={() => setIsSkillsModalOpen(true)}
+                            onClick={() => openSkillsEditor('skills')}
                           >
                             + Add Skills
                           </Button>
@@ -1830,7 +1908,7 @@ export default function ProfilePage() {
                         {isOwnProfile && (
                           <Button
                             className="bg-primary hover:bg-primary/90 text-white rounded-lg transform hover:scale-105 hover:shadow-lg transition-all duration-300"
-                            onClick={() => setIsSkillsModalOpen(true)}
+                            onClick={() => openSkillsEditor('interests')}
                           >
                             + Add Interests
                           </Button>
@@ -1875,10 +1953,12 @@ export default function ProfilePage() {
                       <h3 className="text-lg font-medium">Detailed Profile Sections</h3>
                       <p className="text-sm text-muted-foreground">Build a richer profile with achievements, projects, credentials, and more.</p>
                     </div>
-                    <Button variant="outline" onClick={() => setIsAddToProfileModalOpen(true)}>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Add to Profile
-                    </Button>
+                    {isOwnProfile && (
+                      <Button variant="outline" onClick={() => setIsAddToProfileModalOpen(true)}>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Add to Profile
+                      </Button>
+                    )}
                   </div>
 
                   {DETAILED_SECTION_CONFIG.map((config) => {
@@ -1890,9 +1970,11 @@ export default function ProfilePage() {
                             <h4 className="font-semibold">{config.label}</h4>
                             <p className="text-xs text-muted-foreground">{config.hint}</p>
                           </div>
-                          <Button variant="outline" size="sm" onClick={() => openDetailedItemModal(config.key)}>
-                            + Add
-                          </Button>
+                          {isOwnProfile && (
+                            <Button variant="outline" size="sm" onClick={() => openDetailedItemModal(config.key)}>
+                              + Add
+                            </Button>
+                          )}
                         </div>
 
                         {entries.length === 0 ? (
@@ -1916,10 +1998,12 @@ export default function ProfilePage() {
                                       </a>
                                     )}
                                   </div>
-                                  <div className="flex gap-2 shrink-0">
-                                    <Button variant="outline" size="sm" onClick={() => openDetailedItemModal(config.key, entry)}>Edit</Button>
-                                    <Button variant="outline" size="sm" className="text-red-500" onClick={() => handleDeleteDetailedItem(config.key, entry.id)}>Delete</Button>
-                                  </div>
+                                  {isOwnProfile && (
+                                    <div className="flex gap-2 shrink-0">
+                                      <Button variant="outline" size="sm" onClick={() => openDetailedItemModal(config.key, entry)}>Edit</Button>
+                                      <Button variant="outline" size="sm" className="text-red-500" onClick={() => handleDeleteDetailedItem(config.key, entry.id)}>Delete</Button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -1933,7 +2017,6 @@ export default function ProfilePage() {
             </TabsContent>
           </Tabs>
         </div>
-      )}
 
       {hasDetailedSectionEntries && (
         <Card className="mt-6">
@@ -1979,41 +2062,44 @@ export default function ProfilePage() {
         />
       )}
 
-      <Dialog open={isAddToProfileModalOpen} onOpenChange={setIsAddToProfileModalOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add to profile</DialogTitle>
-            <DialogDescription>
-              Start with core details, then add recommended and additional sections to build a complete profile.
-            </DialogDescription>
-          </DialogHeader>
+      {isOwnProfile && (
+        <Dialog open={isAddToProfileModalOpen} onOpenChange={setIsAddToProfileModalOpen}>
+          <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add to profile</DialogTitle>
+              <DialogDescription>
+                Start with core details, then add recommended and additional sections to build a complete profile.
+              </DialogDescription>
+            </DialogHeader>
 
-          {(['Core', 'Recommended', 'Additional'] as DetailedSectionGroup[]).map((group) => {
-            const sections = DETAILED_SECTION_CONFIG.filter((section) => section.group === group);
-            return (
-              <div key={group} className="border rounded-lg p-3">
-                <h4 className="font-semibold mb-2">{group}</h4>
-                <div className="space-y-2">
-                  {sections.map((section) => (
-                    <div key={section.key} className="flex items-start justify-between gap-3 py-2 border-b last:border-b-0">
-                      <div>
-                        <p className="font-medium">Add {section.label}</p>
-                        <p className="text-xs text-muted-foreground">{section.hint}</p>
+            {(['Core', 'Recommended', 'Additional'] as DetailedSectionGroup[]).map((group) => {
+              const sections = DETAILED_SECTION_CONFIG.filter((section) => section.group === group);
+              return (
+                <div key={group} className="border rounded-lg p-3">
+                  <h4 className="font-semibold mb-2">{group}</h4>
+                  <div className="space-y-2">
+                    {sections.map((section) => (
+                      <div key={section.key} className="flex items-start justify-between gap-3 py-2 border-b last:border-b-0">
+                        <div>
+                          <p className="font-medium">Add {section.label}</p>
+                          <p className="text-xs text-muted-foreground">{section.hint}</p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => openDetailedItemModal(section.key)}>
+                          Add
+                        </Button>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => openDetailedItemModal(section.key)}>
-                        Add
-                      </Button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </DialogContent>
-      </Dialog>
+              );
+            })}
+          </DialogContent>
+        </Dialog>
+      )}
 
-      <Dialog open={isDetailedItemModalOpen} onOpenChange={setIsDetailedItemModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+      {isOwnProfile && (
+        <Dialog open={isDetailedItemModalOpen} onOpenChange={setIsDetailedItemModalOpen}>
+          <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>{currentDetailedItem ? `Edit ${activeDetailedSectionMeta?.label || 'entry'}` : `Add ${activeDetailedSectionMeta?.label || 'entry'}`}</DialogTitle>
             <DialogDescription>
@@ -2023,6 +2109,14 @@ export default function ProfilePage() {
 
           <div className="grid gap-4 py-4">
             {activeDetailedFormConfig.fields.map((field) => {
+              if (activeDetailedSection === 'services' && field.key === 'otherServiceDetails') {
+                const selectedServices = detailedFormData.extraData.servicesOffered;
+                const hasOtherSelected = Array.isArray(selectedServices) && selectedServices.includes('Other');
+                if (!hasOtherSelected) {
+                  return null;
+                }
+              }
+
               const fieldId = `detail-${field.key}`;
               const fieldValue = detailedFormData.extraData[field.key];
 
@@ -2119,8 +2213,9 @@ export default function ProfilePage() {
             <Button variant="outline" onClick={() => setIsDetailedItemModalOpen(false)}>Cancel</Button>
             <Button className="bg-primary hover:bg-primary/90" onClick={handleSaveDetailedItem}>Save</Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
       
       {/* Experience Modal */}
       <Dialog open={isExperienceModalOpen} onOpenChange={setIsExperienceModalOpen}>
@@ -2305,25 +2400,33 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="bg-card rounded-lg shadow-lg w-full max-w-md p-6">
             <h3 className="text-lg font-medium mb-4">
-              {newSkill ? "Add New Skill" : "Manage Skills"}
+              {newSkill
+                ? `Add New ${skillEditorMode === 'skills' ? 'Skill' : 'Interest'}`
+                : `Manage ${skillEditorMode === 'skills' ? 'Skills' : 'Interests'}`}
             </h3>
             
             <form 
               onSubmit={async (e) => {
                 e.preventDefault();
-                await handleAddSkill();
+                if (skillEditorMode === 'skills') {
+                  await handleAddSkill();
+                } else {
+                  await handleAddInterest();
+                }
               }} 
               className="space-y-4"
             >
               <div>
-                <label htmlFor="new-skill" className="block text-sm font-medium text-foreground/80">Skill</label>
+                <label htmlFor="new-skill" className="block text-sm font-medium text-foreground/80">
+                  {skillEditorMode === 'skills' ? 'Skill' : 'Interest'}
+                </label>
                 <input
                   id="new-skill"
                   type="text"
                   value={newSkill}
                   onChange={(e) => setNewSkill(e.target.value)}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
-                  placeholder="e.g. Python"
+                  placeholder={skillEditorMode === 'skills' ? 'e.g. Python' : 'e.g. Product Design'}
                   required
                 />
               </div>
@@ -2341,17 +2444,19 @@ export default function ProfilePage() {
                   type="submit"
                   className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300 w-full sm:w-auto"
                 >
-                  Add Skill
+                  {skillEditorMode === 'skills' ? 'Add Skill' : 'Add Interest'}
                 </Button>
               </div>
             </form>
             
             <div className="mt-4">
-              <h4 className="text-sm font-medium text-foreground/80 mb-2">Existing Skills</h4>
+              <h4 className="text-sm font-medium text-foreground/80 mb-2">
+                Existing {skillEditorMode === 'skills' ? 'Skills' : 'Interests'}
+              </h4>
               <div className="flex flex-wrap gap-2">
-                {skills.map((skill) => (
-                  <Badge key={skill} className="bg-primary/10 text-foreground/90 hover:bg-primary/20 px-3 py-1 rounded-lg">
-                    {skill}
+                {(skillEditorMode === 'skills' ? skills : interests).map((value) => (
+                  <Badge key={value} className="bg-primary/10 text-foreground/90 hover:bg-primary/20 px-3 py-1 rounded-lg">
+                    {value}
                   </Badge>
                 ))}
               </div>

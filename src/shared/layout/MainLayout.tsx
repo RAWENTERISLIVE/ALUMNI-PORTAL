@@ -11,6 +11,7 @@ import { Bell, MessageCircle, X } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useEffect, useMemo, useState } from "react";
 import apiService from "@/services/apiService";
+import { useToast } from "@/hooks/use-toast";
 import {
   Sheet,
   SheetContent,
@@ -25,6 +26,7 @@ interface NotificationItem {
   message: string;
   type?: string;
   actionUrl?: string;
+  metadata?: Record<string, unknown>;
   isSeen: boolean;
   createdAt: string;
 }
@@ -37,6 +39,8 @@ export const MainLayout = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unseenCount, setUnseenCount] = useState(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [joiningInviteNotificationId, setJoiningInviteNotificationId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const showAdminButton = currentUser?.role === "admin" || currentUser?.role === "super_admin";
 
@@ -120,6 +124,52 @@ export const MainLayout = () => {
     setIsNotificationOpen(false);
     if (notification.actionUrl) {
       navigate(notification.actionUrl);
+    }
+  };
+
+  const getInvitationGroupId = (notification: NotificationItem): string | null => {
+    if (!notification.metadata || typeof notification.metadata !== 'object') return null;
+
+    const rawGroupId = notification.metadata.groupId;
+    if (typeof rawGroupId !== 'string' || !rawGroupId.trim()) return null;
+    return rawGroupId;
+  };
+
+  const handleJoinGroupFromNotification = async (notification: NotificationItem) => {
+    const groupId = getInvitationGroupId(notification);
+    if (!groupId) {
+      toast({
+        title: 'Invalid invitation',
+        description: 'This invitation does not include a valid group reference.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setJoiningInviteNotificationId(notification.id);
+      await handleMarkSeen(notification);
+
+      const response = await apiService.joinGroup(groupId);
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to join group from invitation');
+      }
+
+      toast({
+        title: 'Joined group',
+        description: response.message || 'You have joined the private group.',
+      });
+
+      setIsNotificationOpen(false);
+      navigate('/groups');
+    } catch (error: any) {
+      toast({
+        title: 'Join failed',
+        description: error?.message || 'Could not join the group from invitation.',
+        variant: 'destructive',
+      });
+    } finally {
+      setJoiningInviteNotificationId(null);
     }
   };
 
@@ -224,6 +274,21 @@ export const MainLayout = () => {
                           <X className="h-3.5 w-3.5" />
                         </Button>
                       </div>
+
+                      {notification.type === 'group_invitation' && getInvitationGroupId(notification) && (
+                        <div className="mt-2 flex justify-end">
+                          <Button
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleJoinGroupFromNotification(notification);
+                            }}
+                            disabled={joiningInviteNotificationId === notification.id}
+                          >
+                            {joiningInviteNotificationId === notification.id ? 'Joining...' : 'Join Group'}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

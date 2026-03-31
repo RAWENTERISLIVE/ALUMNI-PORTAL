@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteComment = exports.unlikeComment = exports.likeComment = exports.getCommentReplies = exports.getPostComments = exports.createComment = void 0;
 const prisma_1 = __importDefault(require("../config/prisma"));
+const notifications_1 = require("../utils/notifications");
 const includeAuthor = {
     author: {
         select: {
@@ -27,6 +28,21 @@ const createComment = async (req, res) => {
         if (!post) {
             return res.status(404).json({ success: false, message: 'Post not found' });
         }
+        let parentCommentAuthorId = null;
+        if (parentCommentId) {
+            const parentComment = await prisma_1.default.comment.findUnique({
+                where: { id: parentCommentId },
+                select: { id: true, authorId: true, postId: true }
+            });
+            if (!parentComment || parentComment.postId !== postId) {
+                return res.status(404).json({ success: false, message: 'Parent comment not found' });
+            }
+            parentCommentAuthorId = parentComment.authorId;
+        }
+        const actor = await prisma_1.default.user.findUnique({
+            where: { id: userId },
+            select: { name: true }
+        });
         const created = await prisma_1.default.comment.create({
             data: {
                 content,
@@ -40,6 +56,33 @@ const createComment = async (req, res) => {
             where: { id: postId },
             data: { commentCount: { increment: 1 } }
         });
+        const actorName = actor?.name || 'Someone';
+        const recipients = new Set();
+        if (post.authorId && post.authorId !== userId) {
+            recipients.add(post.authorId);
+        }
+        if (parentCommentAuthorId && parentCommentAuthorId !== userId) {
+            recipients.add(parentCommentAuthorId);
+        }
+        await Promise.all([...recipients].map((recipientId) => {
+            const isReplyTarget = parentCommentAuthorId === recipientId;
+            return (0, notifications_1.createNotification)({
+                userId: recipientId,
+                title: isReplyTarget ? 'New reply to your comment' : 'New comment on your post',
+                message: isReplyTarget
+                    ? `${actorName} replied to your comment.`
+                    : `${actorName} commented on your post.`,
+                type: 'post',
+                actionUrl: `/posts/${postId}`,
+                metadata: {
+                    postId,
+                    commentId: created.id,
+                    parentCommentId: parentCommentId || null,
+                    actorId: userId,
+                    event: isReplyTarget ? 'comment_reply' : 'post_comment'
+                }
+            });
+        }));
         return res.status(201).json({
             success: true,
             message: 'Comment added successfully',
@@ -146,6 +189,25 @@ const likeComment = async (req, res) => {
             data: { likes: { connect: { id: userId } } },
             include: { likes: { select: { id: true } } }
         });
+        if (comment.authorId !== userId) {
+            const actor = await prisma_1.default.user.findUnique({
+                where: { id: userId },
+                select: { name: true }
+            });
+            await (0, notifications_1.createNotification)({
+                userId: comment.authorId,
+                title: 'Your comment got a like',
+                message: `${actor?.name || 'Someone'} liked your comment.`,
+                type: 'post',
+                actionUrl: `/posts/${comment.postId}`,
+                metadata: {
+                    postId: comment.postId,
+                    commentId,
+                    actorId: userId,
+                    event: 'comment_like'
+                }
+            });
+        }
         return res.status(200).json({
             success: true,
             message: 'Comment liked successfully',

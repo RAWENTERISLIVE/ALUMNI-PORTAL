@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/prisma';
 import { createNotification } from '../utils/notifications';
 
@@ -10,6 +11,11 @@ interface AuthRequest extends Request {
 }
 
 const getAuthUserId = (req: AuthRequest): string | undefined => req.user?.id || req.user?._id;
+
+const isMentorshipRequestTableMissing = (error: unknown): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === 'P2021' &&
+  (error.meta as { modelName?: string } | undefined)?.modelName === 'MentorshipRequest';
 
 type SessionMode = 'chat' | 'video' | 'meet';
 
@@ -365,49 +371,60 @@ export const getMentorshipProfile = async (req: AuthRequest, res: Response): Pro
       }
     });
 
-    const requests = await prisma.mentorshipRequest.findMany({
-      where: {
-        menteeId: userId,
-        status: 'accepted'
-      },
-      include: {
-        mentor: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                jobTitle: true,
-                profileImage: true
+    let requests: any[] = [];
+    let incomingRequestsRaw: any[] = [];
+
+    try {
+      requests = await prisma.mentorshipRequest.findMany({
+        where: {
+          menteeId: userId,
+          status: 'accepted'
+        },
+        include: {
+          mentor: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  jobTitle: true,
+                  profileImage: true
+                }
               }
             }
           }
-        }
-      },
-      orderBy: { updatedAt: 'desc' }
-    });
-
-    const incomingRequestsRaw = await prisma.mentorshipRequest.findMany({
-      where: {
-        status: 'pending',
-        mentor: {
-          userId,
         },
-      },
-      include: {
-        mentee: {
-          select: {
-            id: true,
-            name: true,
-            jobTitle: true,
-            profileImage: true,
-            admissionYear: true,
-            company: true,
+        orderBy: { updatedAt: 'desc' }
+      });
+
+      incomingRequestsRaw = await prisma.mentorshipRequest.findMany({
+        where: {
+          status: 'pending',
+          mentor: {
+            userId,
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        include: {
+          mentee: {
+            select: {
+              id: true,
+              name: true,
+              jobTitle: true,
+              profileImage: true,
+              admissionYear: true,
+              company: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      if (isMentorshipRequestTableMissing(error)) {
+        console.warn('MentorshipRequest table is missing. Returning empty mentorship request lists.');
+      } else {
+        throw error;
+      }
+    }
 
     const formattedRequests = requests.map((request) => ({
       id: request.id,
