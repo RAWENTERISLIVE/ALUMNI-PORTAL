@@ -174,7 +174,7 @@ export const MainLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header - Fixed Top */}
       <header className="h-14 bg-background border-b border-border fixed top-0 left-0 right-0 z-50">
         <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4">
@@ -324,7 +324,7 @@ export const MainLayout = () => {
       </header>
 
       {/* Main Layout */}
-      <div className="flex pt-14">
+      <div className="flex flex-1 pt-14">
         {/* Left Sidebar */}
         {!isMobile && <Sidebar />}
         
@@ -338,6 +338,10 @@ export const MainLayout = () => {
         {/* Right Sidebar - Will be added later for specific pages */}
       </div>
       
+      <footer className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground mb-16 sm:mb-0">
+        this app is made by raghav agarwal
+      </footer>
+
       {/* Mobile Navigation */}
       {isMobile && <MobileNavbar />}
     </div>

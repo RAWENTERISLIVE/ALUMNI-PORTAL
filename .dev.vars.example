@@ -1,0 +1,8 @@
+# Cloudflare local runtime variables (used by `wrangler pages dev`)
+# Copy to `.dev.vars` and adjust as needed.
+
+# Optional: proxy non-migrated API routes to existing Express backend.
+API_PROXY_ORIGIN=http://localhost:5000/api
+
+# Optional app environment label surfaced by /api/health.
+APP_ENV=development

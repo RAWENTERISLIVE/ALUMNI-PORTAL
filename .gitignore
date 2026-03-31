@@ -1,2 +1,4 @@
 node_modules
 backend/.postgres-data/*
+cloudflare_docs/
+.wrangler/

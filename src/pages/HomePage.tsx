@@ -323,6 +323,7 @@ export default function HomePage() {
               <Link to="/contact" className="text-muted-foreground hover:text-foreground">Contact Us</Link>
             </div>
             <p>&copy; {new Date().getFullYear()} AlumniConnect. All rights reserved.</p>
+            <p className="mt-2">this app is made by raghav agarwal</p>
           </div>
         </div>
       </footer>

@@ -1,6 +1,6 @@
 # Alma Connect Sphere - Complete Documentation Index
 
-**Last Updated**: March 13, 2026
+**Last Updated**: April 1, 2026
 
 This is your comprehensive documentation for the entire Alma Connect Sphere project. All aspects are covered in detail with code examples, best practices, and troubleshooting guides.
 
@@ -25,6 +25,7 @@ This is your comprehensive documentation for the entire Alma Connect Sphere proj
 | [04_API_REFERENCE.md](04_API_REFERENCE.md) | Complete REST API endpoint documentation | Frontend & Backend Developers |
 | [05_UI_UX_GUIDELINES.md](05_UI_UX_GUIDELINES.md) | Design system, color palette, components, accessibility | Frontend Developers, Designers |
 | [06_DEPLOYMENT_AND_TESTING.md](06_DEPLOYMENT_AND_TESTING.md) | Deployment instructions, testing setup, CI/CD | DevOps, QA Engineers |
+| [16_CLOUDFLARE_DEPLOYMENT.md](16_CLOUDFLARE_DEPLOYMENT.md) | Cloudflare Pages/Workers runtime deployment with D1 and R2 | DevOps, Platform Engineers |
 | [10_SETUP_INSTALLATION_GUIDE.md](10_SETUP_INSTALLATION_GUIDE.md) | Local development setup, first-time installation | New Developers |
 
 ---
@@ -173,7 +174,7 @@ This is your comprehensive documentation for the entire Alma Connect Sphere proj
 
 ## 📐 Key Metrics
 
-- **Total Documentation**: 15 files, ~4,400 lines
+- **Total Documentation**: 16 files, ~4,600 lines
 - **Code Examples**: 200+ real-world snippets
 - **Coverage**: 100% of system features
 - **Audience**: Developers, DevOps, Managers, QA

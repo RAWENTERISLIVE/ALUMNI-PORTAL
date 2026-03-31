@@ -6,6 +6,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import compression from 'compression';
 import { errorHandler } from './middleware/errorHandler';
+import { ensureDefaultSuperAdmins } from './config/bootstrapSystemUsers';
 // Import middleware
 import './middleware/auth';
 
@@ -51,18 +52,11 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Phase 1 - Enhanced app initialization
 const initializeApp = async () => {
-  try {
-    console.log('🚀 Starting Alma Connect Sphere Backend...');
-    console.log('📋 Phase 1: Core Authentication & Security + Profiles');
-    
-    console.log('✅ Application initialized successfully');
-  } catch (error) {
-    console.error('❌ Failed to initialize application:', error);
-    process.exit(1);
-  }
+  console.log('🚀 Starting Alma Connect Sphere Backend...');
+  console.log('📋 Phase 1: Core Authentication & Security + Profiles');
+  await ensureDefaultSuperAdmins();
+  console.log('✅ Application initialized successfully');
 };
-
-initializeApp();
 
 // Security middleware
 app.set('trust proxy', TRUST_PROXY_HOPS);
@@ -190,6 +184,13 @@ process.on('uncaughtException', (error) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-startServer(PORT);
+initializeApp()
+  .then(() => {
+    startServer(PORT);
+  })
+  .catch((error) => {
+    console.error('❌ Failed to initialize application:', error);
+    process.exit(1);
+  });
 
 export default app;

@@ -1,0 +1,34 @@
+{
+	"name": "alumni-portal",
+	"compatibility_date": "2026-03-31",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"pages_build_output_dir": "./dist",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "alumni-portal-db",
+			"database_id": "dd939e76-bdb7-4731-9ad3-14689801686e",
+			"migrations_dir": "./cloudflare/d1/migrations"
+		},
+		{
+			"binding": "alumni_portal_db",
+			"database_name": "alumni-portal-db",
+			"database_id": "dd939e76-bdb7-4731-9ad3-14689801686e"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "UPLOADS_BUCKET",
+			"bucket_name": "alumni-portal-uploads"
+		},
+		{
+			"bucket_name": "alumni-portal-uploads",
+			"binding": "alumni_portal_uploads"
+		}
+	],
+	"vars": {
+		"APP_ENV": "production"
+	}
+}

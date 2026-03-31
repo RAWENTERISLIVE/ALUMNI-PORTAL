@@ -12,6 +12,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/AuthPages/LoginPage";
 import RegisterPage from "./pages/AuthPages/RegisterPage";
+import PublicInfoPage from "./pages/PublicInfoPage";
 import NotFound from "./pages/NotFound";
 
 // Protected Pages
@@ -56,6 +57,12 @@ function App() {
                   <RegisterPage />
                 </ProtectedRoute>
               } />
+              <Route path="/about" element={<PublicInfoPage pageKey="about" />} />
+              <Route path="/news" element={<PublicInfoPage pageKey="news" />} />
+              <Route path="/donate" element={<PublicInfoPage pageKey="donate" />} />
+              <Route path="/privacy" element={<PublicInfoPage pageKey="privacy" />} />
+              <Route path="/terms" element={<PublicInfoPage pageKey="terms" />} />
+              <Route path="/contact" element={<PublicInfoPage pageKey="contact" />} />
 
               {/* Protected routes with layout */}
               <Route element={

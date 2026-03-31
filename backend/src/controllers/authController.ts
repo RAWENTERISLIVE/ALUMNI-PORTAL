@@ -37,6 +37,11 @@ const getAccountTypeLabel = (user: unknown) => {
 
 const hasPremiumBadge = (user: unknown) => Boolean((user as { hasPremiumBadge?: boolean } | undefined)?.hasPremiumBadge);
 
+const normalizeEmail = (value: unknown) => {
+  if (typeof value !== 'string') return '';
+  return value.trim().toLowerCase();
+};
+
 const extractRefreshToken = (req: Request): string | null => {
   const cookieToken = req.cookies?.refreshToken;
   const bodyToken = typeof req.body?.refreshToken === 'string' ? req.body.refreshToken : null;
@@ -117,6 +122,12 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     facultyIdCardUrl,
   } = req.body;
 
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    res.status(400).json({ success: false, message: 'Email is required' });
+    return;
+  }
+
   const normalizedAdmissionNumber =
     typeof admissionNumber === 'string' ? admissionNumber.trim() : '';
 
@@ -144,7 +155,14 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      email: {
+        equals: normalizedEmail,
+        mode: 'insensitive'
+      }
+    }
+  });
   if (existingUser) {
     res.status(400).json({ success: false, message: 'Email already registered' });
     return;
@@ -172,10 +190,10 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
   const user = await prisma.user.create({
     data: {
-      email,
+      email: normalizedEmail,
       password: hashedPassword,
       role: Role.USER,
-      name: resolvedName || email.split('@')[0],
+      name: resolvedName || normalizedEmail.split('@')[0],
       firstName,
       lastName,
       admissionNumber: normalizedAdmissionNumber || 'MANUAL_VERIFICATION',
@@ -228,8 +246,19 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  const user = await prisma.user.findUnique({
-    where: { email }
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail || typeof password !== 'string' || password.length === 0) {
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
+    return;
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      email: {
+        equals: normalizedEmail,
+        mode: 'insensitive'
+      }
+    }
   });
 
   if (!user) {
@@ -596,12 +625,12 @@ export const uploadVerificationId = asyncHandler(async (req: Request & { file?: 
   });
 });
 
-export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+export const forgotPassword = asyncHandler(async (_req: Request, res: Response) => {
   // Stub for forgotten password logic
   res.status(200).json({ success: true, message: 'Password reset email sent' });
 });
 
-export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+export const resetPassword = asyncHandler(async (_req: Request, res: Response) => {
   // Stub for reset password logic
   res.status(200).json({ success: true, message: 'Password has been reset' });
 });
