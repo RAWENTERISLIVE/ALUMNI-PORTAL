@@ -43,6 +43,7 @@ async function seedSystemUsers() {
     await prisma.user.upsert({
       where: { email: account.email },
       update: {
+        password: hashedPassword,
         role: Role.SUPER_ADMIN,
         status: Status.ACTIVE,
         isVerified: true,

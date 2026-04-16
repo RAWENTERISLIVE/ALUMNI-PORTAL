@@ -1903,7 +1903,7 @@ export const adminEditUser = asyncHandler(async (req: AuthRequest, res: Response
   const { email, firstName, lastName, name, admissionNumber, admissionYear, accountType, contactEmail, contactPhone, city, country, company, jobTitle, location, isAvailableAsMentor, bio, headline, linkedInProfile, skills, status, role, isVerified, hasPremiumBadge } = req.body;
 
   const updateData: any = {};
-  const isSuperAdmin = req.user.role === 'SUPER_ADMIN';
+  const isSuperAdmin = isSuperAdminRole(req.user.role);
 
   // Validate and add fields to update
   if (email !== undefined) {
@@ -1929,19 +1929,19 @@ export const adminEditUser = asyncHandler(async (req: AuthRequest, res: Response
   }
 
   if (firstName !== undefined) {
-    if (firstName !== null && (typeof firstName !== 'string' || firstName.trim().length === 0)) {
-      res.status(400).json({ success: false, message: 'First name must be non-empty string or null' });
+    if (firstName !== null && typeof firstName !== 'string') {
+      res.status(400).json({ success: false, message: 'First name must be string or null' });
       return;
     }
-    updateData.firstName = firstName || null;
+    updateData.firstName = typeof firstName === 'string' ? firstName.trim() || null : null;
   }
 
   if (lastName !== undefined) {
-    if (lastName !== null && (typeof lastName !== 'string' || lastName.trim().length === 0)) {
-      res.status(400).json({ success: false, message: 'Last name must be non-empty string or null' });
+    if (lastName !== null && typeof lastName !== 'string') {
+      res.status(400).json({ success: false, message: 'Last name must be string or null' });
       return;
     }
-    updateData.lastName = lastName || null;
+    updateData.lastName = typeof lastName === 'string' ? lastName.trim() || null : null;
   }
 
   if (admissionNumber !== undefined) {
@@ -1969,13 +1969,21 @@ export const adminEditUser = asyncHandler(async (req: AuthRequest, res: Response
   }
 
   if (contactEmail !== undefined) {
-    if (contactEmail !== null && typeof contactEmail === 'string') {
-      if (!contactEmail.includes('@')) {
+    if (contactEmail !== null && typeof contactEmail !== 'string') {
+      res.status(400).json({ success: false, message: 'Contact email must be string or null' });
+      return;
+    }
+
+    if (typeof contactEmail === 'string') {
+      const normalizedContactEmail = contactEmail.trim();
+      if (normalizedContactEmail.length > 0 && !normalizedContactEmail.includes('@')) {
         res.status(400).json({ success: false, message: 'Invalid contact email format' });
         return;
       }
+      updateData.contactEmail = normalizedContactEmail || null;
+    } else {
+      updateData.contactEmail = null;
     }
-    updateData.contactEmail = contactEmail || null;
   }
 
   if (contactPhone !== undefined) {
@@ -1987,43 +1995,43 @@ export const adminEditUser = asyncHandler(async (req: AuthRequest, res: Response
   }
 
   if (city !== undefined) {
-    if (city !== null && (typeof city !== 'string' || city.trim().length === 0)) {
-      res.status(400).json({ success: false, message: 'City must be non-empty string or null' });
+    if (city !== null && typeof city !== 'string') {
+      res.status(400).json({ success: false, message: 'City must be string or null' });
       return;
     }
-    updateData.city = city || null;
+    updateData.city = typeof city === 'string' ? city.trim() || null : null;
   }
 
   if (country !== undefined) {
-    if (country !== null && (typeof country !== 'string' || country.trim().length === 0)) {
-      res.status(400).json({ success: false, message: 'Country must be non-empty string or null' });
+    if (country !== null && typeof country !== 'string') {
+      res.status(400).json({ success: false, message: 'Country must be string or null' });
       return;
     }
-    updateData.country = country || null;
+    updateData.country = typeof country === 'string' ? country.trim() || null : null;
   }
 
   if (company !== undefined) {
-    if (company !== null && (typeof company !== 'string' || company.trim().length === 0)) {
-      res.status(400).json({ success: false, message: 'Company must be non-empty string or null' });
+    if (company !== null && typeof company !== 'string') {
+      res.status(400).json({ success: false, message: 'Company must be string or null' });
       return;
     }
-    updateData.company = company || null;
+    updateData.company = typeof company === 'string' ? company.trim() || null : null;
   }
 
   if (jobTitle !== undefined) {
-    if (jobTitle !== null && (typeof jobTitle !== 'string' || jobTitle.trim().length === 0)) {
-      res.status(400).json({ success: false, message: 'Job title must be non-empty string or null' });
+    if (jobTitle !== null && typeof jobTitle !== 'string') {
+      res.status(400).json({ success: false, message: 'Job title must be string or null' });
       return;
     }
-    updateData.jobTitle = jobTitle || null;
+    updateData.jobTitle = typeof jobTitle === 'string' ? jobTitle.trim() || null : null;
   }
 
   if (location !== undefined) {
-    if (location !== null && (typeof location !== 'string' || location.trim().length === 0)) {
-      res.status(400).json({ success: false, message: 'Location must be non-empty string or null' });
+    if (location !== null && typeof location !== 'string') {
+      res.status(400).json({ success: false, message: 'Location must be string or null' });
       return;
     }
-    updateData.location = location || null;
+    updateData.location = typeof location === 'string' ? location.trim() || null : null;
   }
 
   if (isAvailableAsMentor !== undefined) {
@@ -2036,19 +2044,19 @@ export const adminEditUser = asyncHandler(async (req: AuthRequest, res: Response
 
   // Additional fields for professional/personal information
   if (bio !== undefined) {
-    if (bio !== null && (typeof bio !== 'string' || bio.trim().length === 0)) {
-      res.status(400).json({ success: false, message: 'Bio must be non-empty string or null' });
+    if (bio !== null && typeof bio !== 'string') {
+      res.status(400).json({ success: false, message: 'Bio must be string or null' });
       return;
     }
-    updateData.bio = bio || null;
+    updateData.bio = typeof bio === 'string' ? bio.trim() || null : null;
   }
 
   if (headline !== undefined) {
-    if (headline !== null && (typeof headline !== 'string' || headline.trim().length === 0)) {
-      res.status(400).json({ success: false, message: 'Headline must be non-empty string or null' });
+    if (headline !== null && typeof headline !== 'string') {
+      res.status(400).json({ success: false, message: 'Headline must be string or null' });
       return;
     }
-    updateData.headline = headline || null;
+    updateData.headline = typeof headline === 'string' ? headline.trim() || null : null;
   }
 
   if (linkedInProfile !== undefined) {

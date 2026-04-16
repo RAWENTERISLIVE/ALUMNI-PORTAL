@@ -26,7 +26,9 @@ const router = express.Router();
 const registerValidation = [
   body('email')
     .isEmail()
-    .normalizeEmail()
+    .customSanitizer((value) =>
+      typeof value === 'string' ? value.trim().toLowerCase() : value
+    )
     .withMessage('Please provide a valid email'),
   body('password')
     .isLength({ min: 8 })
@@ -61,7 +63,9 @@ const registerValidation = [
 const loginValidation = [
   body('email')
     .isEmail()
-    .normalizeEmail()
+    .customSanitizer((value) =>
+      typeof value === 'string' ? value.trim().toLowerCase() : value
+    )
     .withMessage('Please provide a valid email'),
   body('password')
     .notEmpty()
@@ -71,7 +75,9 @@ const loginValidation = [
 const forgotPasswordValidation = [
   body('email')
     .isEmail()
-    .normalizeEmail()
+    .customSanitizer((value) =>
+      typeof value === 'string' ? value.trim().toLowerCase() : value
+    )
     .withMessage('Please provide a valid email')
 ];
 

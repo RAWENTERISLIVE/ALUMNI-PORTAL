@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   database:
@@ -32,7 +30,7 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@database:5432/${DB_NAME:-alumni_portal}
-      PORT: ${BACKEND_PORT:-5000}
+      PORT: 5000
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       FRONTEND_URL: http://localhost:${FRONTEND_PORT:-8080}
@@ -52,14 +50,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: /api
     container_name: ${PROJECT_NAME:-alumni-portal}-web
     restart: unless-stopped
-    environment:
-      VITE_API_URL: http://localhost:${BACKEND_PORT:-5000}/api
     ports:
       - "${FRONTEND_PORT:-8080}:8080"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - alumni-network
 

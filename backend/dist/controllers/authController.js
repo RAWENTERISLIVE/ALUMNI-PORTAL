@@ -32,6 +32,11 @@ const getAccountTypeLabel = (user) => {
     return (value || 'ALUMNI').toLowerCase();
 };
 const hasPremiumBadge = (user) => Boolean(user?.hasPremiumBadge);
+const normalizeEmail = (value) => {
+    if (typeof value !== 'string')
+        return '';
+    return value.trim().toLowerCase();
+};
 const extractRefreshToken = (req) => {
     const cookieToken = req.cookies?.refreshToken;
     const bodyToken = typeof req.body?.refreshToken === 'string' ? req.body.refreshToken : null;
@@ -84,6 +89,11 @@ const generateTokens = (userId) => {
 };
 exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { email, password, firstName, lastName, name, admissionNumber, admissionYear, graduationYear, needsManualVerification, forgotAdmissionNumber, verificationDetails, accountType, facultyIdCardUrl, } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) {
+        res.status(400).json({ success: false, message: 'Email is required' });
+        return;
+    }
     const normalizedAdmissionNumber = typeof admissionNumber === 'string' ? admissionNumber.trim() : '';
     const normalizedVerificationDetails = typeof verificationDetails === 'string' ? verificationDetails.trim() : '';
     const normalizedFacultyIdCardUrl = typeof facultyIdCardUrl === 'string' ? facultyIdCardUrl.trim() : '';
@@ -104,7 +114,14 @@ exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
         return;
     }
-    const existingUser = await prisma_1.default.user.findUnique({ where: { email } });
+    const existingUser = await prisma_1.default.user.findFirst({
+        where: {
+            email: {
+                equals: normalizedEmail,
+                mode: 'insensitive'
+            }
+        }
+    });
     if (existingUser) {
         res.status(400).json({ success: false, message: 'Email already registered' });
         return;
@@ -127,10 +144,10 @@ exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     }
     const user = await prisma_1.default.user.create({
         data: {
-            email,
+            email: normalizedEmail,
             password: hashedPassword,
             role: client_1.Role.USER,
-            name: resolvedName || email.split('@')[0],
+            name: resolvedName || normalizedEmail.split('@')[0],
             firstName,
             lastName,
             admissionNumber: normalizedAdmissionNumber || 'MANUAL_VERIFICATION',
@@ -180,8 +197,18 @@ exports.register = (0, errorHandler_1.asyncHandler)(async (req, res) => {
 });
 exports.login = (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { email, password } = req.body;
-    const user = await prisma_1.default.user.findUnique({
-        where: { email }
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || typeof password !== 'string' || password.length === 0) {
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
+        return;
+    }
+    const user = await prisma_1.default.user.findFirst({
+        where: {
+            email: {
+                equals: normalizedEmail,
+                mode: 'insensitive'
+            }
+        }
     });
     if (!user) {
         res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -494,10 +521,10 @@ exports.uploadVerificationId = (0, errorHandler_1.asyncHandler)(async (req, res)
         }
     });
 });
-exports.forgotPassword = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+exports.forgotPassword = (0, errorHandler_1.asyncHandler)(async (_req, res) => {
     res.status(200).json({ success: true, message: 'Password reset email sent' });
 });
-exports.resetPassword = (0, errorHandler_1.asyncHandler)(async (req, res) => {
+exports.resetPassword = (0, errorHandler_1.asyncHandler)(async (_req, res) => {
     res.status(200).json({ success: true, message: 'Password has been reset' });
 });
 exports.changePassword = (0, errorHandler_1.asyncHandler)(async (req, res) => {

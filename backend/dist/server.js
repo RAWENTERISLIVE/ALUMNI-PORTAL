@@ -11,6 +11,7 @@ const node_path_1 = __importDefault(require("node:path"));
 const node_fs_1 = __importDefault(require("node:fs"));
 const compression_1 = __importDefault(require("compression"));
 const errorHandler_1 = require("./middleware/errorHandler");
+const bootstrapSystemUsers_1 = require("./config/bootstrapSystemUsers");
 require("./middleware/auth");
 const auth_1 = __importDefault(require("./routes/auth"));
 const users_1 = __importDefault(require("./routes/users"));
@@ -45,17 +46,11 @@ if (!node_fs_1.default.existsSync(uploadsDir)) {
     console.log('📁 Created uploads directory:', uploadsDir);
 }
 const initializeApp = async () => {
-    try {
-        console.log('🚀 Starting Alma Connect Sphere Backend...');
-        console.log('📋 Phase 1: Core Authentication & Security + Profiles');
-        console.log('✅ Application initialized successfully');
-    }
-    catch (error) {
-        console.error('❌ Failed to initialize application:', error);
-        process.exit(1);
-    }
+    console.log('🚀 Starting Alma Connect Sphere Backend...');
+    console.log('📋 Phase 1: Core Authentication & Security + Profiles');
+    await (0, bootstrapSystemUsers_1.ensureDefaultSuperAdmins)();
+    console.log('✅ Application initialized successfully');
 };
-initializeApp();
 app.set('trust proxy', TRUST_PROXY_HOPS);
 app.disable('x-powered-by');
 app.use((0, helmet_1.default)());
@@ -151,6 +146,13 @@ process.on('uncaughtException', (error) => {
 });
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
-startServer(PORT);
+initializeApp()
+    .then(() => {
+    startServer(PORT);
+})
+    .catch((error) => {
+    console.error('❌ Failed to initialize application:', error);
+    process.exit(1);
+});
 exports.default = app;
 //# sourceMappingURL=server.js.map
