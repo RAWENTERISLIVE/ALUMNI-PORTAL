@@ -322,7 +322,7 @@ export default function HomePage() {
               <Link to="/terms" className="text-muted-foreground hover:text-foreground">Terms of Service</Link>
               <Link to="/contact" className="text-muted-foreground hover:text-foreground">Contact Us</Link>
             </div>
-            <p>&copy; {new Date().getFullYear()} AlumniConnect. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} MPS Ajmer Connect. All rights reserved.</p>
             <p className="mt-2">this app is made by raghav agarwal</p>
           </div>
         </div>

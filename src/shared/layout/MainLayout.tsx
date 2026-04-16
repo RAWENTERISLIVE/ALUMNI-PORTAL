@@ -180,9 +180,11 @@ export const MainLayout = () => {
         <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo */}
           <div className="flex items-center shrink-0">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">AC</span>
-            </div>
+            <img 
+              src="/school_logo.png" 
+              alt="MPS Ajmer Connect" 
+              className="h-8 w-8 rounded-lg object-cover"
+            />
           </div>
           
           {/* Global Search - Center */}

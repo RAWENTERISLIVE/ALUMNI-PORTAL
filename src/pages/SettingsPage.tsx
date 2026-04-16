@@ -427,7 +427,7 @@ export default function SettingsPage() {
     const body = encodeURIComponent(
       `Hi Support Team,\n\nI need help with my account settings.\n\nUser: ${currentUser?.email || ""}\n\nThanks.`
     );
-    globalThis.open(`mailto:support@alumniconnect.com?subject=${subject}&body=${body}`, "_self");
+    globalThis.open(`mailto:support@mpsajmerconnect.com?subject=${subject}&body=${body}`, "_self");
   };
 
   const renderSessionsContent = () => {
