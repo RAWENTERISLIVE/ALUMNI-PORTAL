@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   Alumni Portal - Local Server Setup   ║${NC}"
+echo -e "${BLUE}║   MPSAJMER CONNECT - Local Server Setup   ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -22,7 +22,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-echo -e "${YELLOW}This script will set up Alumni Portal on your local server${NC}"
+echo -e "${YELLOW}This script will set up MPSAJMER CONNECT on your local server${NC}"
 echo ""
 
 # Get server information
@@ -57,8 +57,8 @@ chmod +x /usr/local/bin/docker-compose
 
 # Step 4: Create application directory
 echo -e "${YELLOW}[4/8] Creating application directory...${NC}"
-mkdir -p /opt/alumni-portal
-cd /opt/alumni-portal
+mkdir -p /opt/mpsajmer-connect
+cd /opt/mpsajmer-connect
 
 # Step 5: Clone repository
 echo -e "${YELLOW}[5/8] Cloning repository...${NC}"
@@ -128,11 +128,11 @@ docker-compose exec -T backend npx prisma db seed 2>/dev/null || true
 
 # Create backup script
 echo -e "${YELLOW}Setting up automatic backups...${NC}"
-mkdir -p /backups/alumni-portal
+mkdir -p /backups/mpsajmer-connect
 
 cat > /etc/cron.daily/alumni-backup << 'CRON_EOF'
 #!/bin/bash
-BACKUP_DIR="/backups/alumni-portal"
+BACKUP_DIR="/backups/mpsajmer-connect"
 mkdir -p $BACKUP_DIR
 DATE=$(date +%Y%m%d_%H%M%S)
 docker exec alumni-db pg_dump -U postgres alumni_portal | gzip > $BACKUP_DIR/backup_${DATE}.sql.gz
@@ -167,13 +167,13 @@ echo -e "${YELLOW}Services Running:${NC}"
 docker-compose ps
 echo ""
 echo -e "${BLUE}Useful Commands:${NC}"
-echo "  cd /opt/alumni-portal"
+echo "  cd /opt/mpsajmer-connect"
 echo "  docker-compose logs -f"
 echo "  docker-compose restart"
 echo "  docker-compose down && docker-compose up -d"
 echo ""
 echo -e "${YELLOW}Backup Information:${NC}"
-echo "  Location: /backups/alumni-portal"
+echo "  Location: /backups/mpsajmer-connect"
 echo "  Frequency: Daily (via cron)"
 echo "  Retention: 30 days"
 echo ""

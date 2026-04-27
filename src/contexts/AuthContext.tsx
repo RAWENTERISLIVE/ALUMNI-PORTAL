@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         toast({
           title: "Login successful",
-          description: "Welcome back to AlumniConnect!",
+          description: "Welcome back to MPSAJMER CONNECT!",
         });
 
         // Navigate based on role and status

@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║  Alumni Portal - DigitalOcean Setup  ║${NC}"
+echo -e "${BLUE}║  MPSAJMER CONNECT - DigitalOcean Setup  ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -42,8 +42,8 @@ apt install -y nodejs
 
 # Step 4: Create application directory
 echo -e "${YELLOW}[4/8] Creating application directory...${NC}"
-mkdir -p /opt/alumni-portal
-cd /opt/alumni-portal
+mkdir -p /opt/mpsajmer-connect
+cd /opt/mpsajmer-connect
 
 # Step 5: Clone repository
 echo -e "${YELLOW}[5/8] Cloning repository...${NC}"

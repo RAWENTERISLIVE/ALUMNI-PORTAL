@@ -171,7 +171,7 @@ export default function RegisterPage() {
 
       <div className="w-full max-w-md mx-auto space-y-5 sm:space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl sm:text-4xl font-bold text-foreground/90">Alumni Connect</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tighter text-primary">MPSAJMER CONNECT</h1>
           <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-2">Create an Account</h2>
           <p className="text-muted-foreground">
             Join the Alumni Network to connect with your peers

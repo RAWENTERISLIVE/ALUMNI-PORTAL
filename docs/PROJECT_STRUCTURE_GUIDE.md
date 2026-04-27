@@ -1,4 +1,4 @@
-# 📁 Alumni Portal - Complete Project Structure
+# 📁 MPSAJMER CONNECT - Complete Project Structure
 
 This document outlines the new organized project structure.
 

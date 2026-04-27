@@ -58,6 +58,13 @@ const getApiSuffix = (pathname) => {
 };
 
 const proxyApiRequest = async (request, env) => {
+  // If we have a service binding, use it!
+  if (env.BACKEND) {
+    const url = new URL(request.url);
+    console.log(`Using Service Binding for ${request.method} ${url.pathname}`);
+    return env.BACKEND.fetch(request);
+  }
+
   const origin = env.API_PROXY_ORIGIN;
   const incomingUrl = new URL(request.url);
 
@@ -128,6 +135,35 @@ const proxyApiRequest = async (request, env) => {
   }
 
   const response = await fetch(upstreamUrl.toString(), init);
+  console.log(`Proxied ${request.method} ${incomingUrl.pathname} -> ${upstreamUrl.toString()} [${response.status}]`);
+
+  const responseContentType = (response.headers.get("content-type") || "").toLowerCase();
+  if (response.status === 530 && responseContentType.includes("text/html")) {
+    const upstreamBody = await response.text();
+    const isOriginDnsError = /origin dns error|error\s*1016|trycloudflare\.com/i.test(
+      upstreamBody
+    );
+
+    if (isOriginDnsError) {
+      return json(
+        {
+          success: false,
+          message:
+            "Legacy API upstream DNS failed. Update API_PROXY_ORIGIN to a stable backend URL (for example https://api.example.com/api) and redeploy."
+        },
+        502
+      );
+    }
+
+    return json(
+      {
+        success: false,
+        message: "Legacy API upstream returned HTML error page with status 530."
+      },
+      502
+    );
+  }
+
   const responseHeaders = copyHeaders(response.headers);
   responseHeaders.set("x-proxied-by", "cloudflare-worker");
 
@@ -140,7 +176,7 @@ const proxyApiRequest = async (request, env) => {
 const handleHealth = (env) =>
   json({
     success: true,
-    message: "Alumni Portal Cloudflare Worker is healthy",
+    message: "MPSAJMER CONNECT Cloudflare Worker is healthy",
     data: {
       runtime: "cloudflare-workers",
       appEnv: env.APP_ENV || "unknown",

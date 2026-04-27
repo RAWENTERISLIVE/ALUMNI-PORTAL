@@ -1,13 +1,13 @@
 # 📁 Project Structure Guide
 
-Comprehensive overview of the Alumni Portal project structure optimized for single-server deployment.
+Comprehensive overview of the MPSAJMER CONNECT project structure optimized for single-server deployment.
 
 ---
 
 ## Root-Level Files
 
 ```
-alumni-portal/
+mpsajmer-connect/
 ├── 📄 Makefile                     # 🎯 All build/deploy commands
 ├── 📄 MAKEFILE_GUIDE.md            # Complete command documentation
 ├── 📄 QUICK_START.md               # 5-minute setup guide

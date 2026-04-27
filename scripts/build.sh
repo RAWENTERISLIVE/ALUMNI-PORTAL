@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║  Alumni Portal - Production Build  ║${NC}"
+echo -e "${BLUE}║  MPSAJMER CONNECT - Production Build  ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -63,6 +63,6 @@ echo "  2. Run: make start                   # Start production"
 echo "  3. Open: http://localhost:8080"
 echo ""
 echo -e "${YELLOW}For Docker:${NC}"
-echo "  docker build -t alumni-portal:latest ."
+echo "  docker build -t mpsajmer-connect:latest ."
 echo "  docker-compose -f docker-compose.full.yml up -d"
 echo ""

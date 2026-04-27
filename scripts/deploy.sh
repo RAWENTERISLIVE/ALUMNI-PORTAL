@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ##############################################
-# Alumni Portal - Quick Deployment Script   #
+# MPSAJMER CONNECT - Quick Deployment Script   #
 # For single-server deployment              #
 ##############################################
 
@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║  Alumni Portal - Deployment Script  ║${NC}"
+echo -e "${BLUE}║  MPSAJMER CONNECT - Deployment Script  ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 

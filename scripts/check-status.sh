@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# System Status Checker for Alumni Portal
+# System Status Checker for MPSAJMER CONNECT
 # This script checks if all components are running properly
 
 echo "======================================"
-echo "Alumni Portal - System Status Check"
+echo "MPSAJMER CONNECT - System Status Check"
 echo "======================================"
 echo ""
 

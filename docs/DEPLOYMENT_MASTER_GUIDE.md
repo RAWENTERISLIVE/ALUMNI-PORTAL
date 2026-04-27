@@ -1,6 +1,6 @@
 # 📖 DEPLOYMENT & HOSTING MASTER GUIDE
 
-Your complete guide to deploying Alumni Portal anywhere - local servers, cloud platforms, or commercial hosting.
+Your complete guide to deploying MPSAJMER CONNECT anywhere - local servers, cloud platforms, or commercial hosting.
 
 ---
 

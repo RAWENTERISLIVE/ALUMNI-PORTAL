@@ -14,14 +14,14 @@ type PublicInfoContent = {
 
 const PAGE_CONTENT: Record<PublicInfoKey, PublicInfoContent> = {
   about: {
-    title: "About AlumniConnect",
+    title: "About MPSAJMER CONNECT",
     subtitle:
       "We help alumni, students, and faculty stay connected through mentorship, opportunities, and meaningful community engagement.",
     sections: [
       {
         heading: "Our Mission",
         paragraphs: [
-          "AlumniConnect is built to strengthen long-term relationships across graduating batches and departments.",
+          "MPSAJMER CONNECT is built to strengthen long-term relationships across graduating batches and departments.",
           "We make it easier to share knowledge, discover opportunities, and support one another through every career stage.",
         ],
       },
@@ -108,7 +108,7 @@ const PAGE_CONTENT: Record<PublicInfoKey, PublicInfoContent> = {
   terms: {
     title: "Terms of Service",
     subtitle:
-      "By using AlumniConnect, you agree to follow community standards and applicable platform rules.",
+      "By using MPSAJMER CONNECT, you agree to follow community standards and applicable platform rules.",
     lastUpdated: "31 March 2026",
     sections: [
       {

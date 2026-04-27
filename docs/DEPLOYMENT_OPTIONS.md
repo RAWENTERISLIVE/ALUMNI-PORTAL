@@ -180,7 +180,7 @@ bash <(curl -s https://raw.githubusercontent.com/futurist-raghav/ALUMNI-PORTAL/m
 ```bash
 npm install -g heroku
 heroku login
-heroku create alumni-portal-yourname
+heroku create mpsajmer-connect-yourname
 git push heroku main
 ```
 

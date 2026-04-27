@@ -1,6 +1,6 @@
 # 🚀 Quick Start Guide
 
-Get the Alumni Portal running in minutes using the Makefile-based workflow.
+Get the MPSAJMER CONNECT running in minutes using the Makefile-based workflow.
 
 ---
 
@@ -82,7 +82,7 @@ See [MAKEFILE_GUIDE.md](./MAKEFILE_GUIDE.md) for detailed command documentation.
 make generate-docker
 
 # Build Docker images
-docker build -t alumni-portal:latest .
+docker build -t mpsajmer-connect:latest .
 
 # Start everything
 docker-compose -f docker-compose.full.yml up -d
@@ -111,7 +111,7 @@ FRONTEND_URL="https://yourdomain.com"
 ## 📦 Project Structure
 
 ```
-alumni-portal/
+mpsajmer-connect/
 ├── Makefile                 # 🎯 All build commands here
 ├── MAKEFILE_GUIDE.md        # Command documentation
 ├── DEPLOYMENT_GUIDE.md      # Full deployment instructions

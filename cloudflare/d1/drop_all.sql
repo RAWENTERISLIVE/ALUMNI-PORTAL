@@ -1,0 +1,24 @@
+
+DROP TABLE IF EXISTS event_attendees;
+DROP TABLE IF EXISTS group_members;
+DROP TABLE IF EXISTS saved_jobs;
+DROP TABLE IF EXISTS bookmarked_posts;
+DROP TABLE IF EXISTS reports;
+DROP TABLE IF EXISTS files;
+DROP TABLE IF EXISTS help_ticket_replies;
+DROP TABLE IF EXISTS help_tickets;
+DROP TABLE IF EXISTS group_join_requests;
+DROP TABLE IF EXISTS group_messages;
+DROP TABLE IF EXISTS groups;
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS mentorship_requests;
+DROP TABLE IF EXISTS mentorship_profiles;
+DROP TABLE IF EXISTS jobs;
+DROP TABLE IF EXISTS comments;
+DROP TABLE IF EXISTS post_reactions;
+DROP TABLE IF EXISTS posts;
+DROP TABLE IF EXISTS direct_messages;
+DROP TABLE IF EXISTS follows;
+DROP TABLE IF EXISTS connection_requests;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS users;

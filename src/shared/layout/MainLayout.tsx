@@ -1,5 +1,5 @@
 
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, Link } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { MobileNavbar } from "./MobileNavbar";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -179,11 +179,14 @@ export const MainLayout = () => {
       <header className="h-14 bg-background border-b border-border fixed top-0 left-0 right-0 z-50">
         <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo */}
-          <div className="flex items-center shrink-0">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">AC</span>
+          <Link to="/dashboard" className="flex items-center gap-2 shrink-0 group hover:opacity-90 transition-opacity">
+            <div className="h-9 w-9 bg-primary rounded-lg flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+              <span className="text-primary-foreground font-extrabold text-lg tracking-tighter">MC</span>
             </div>
-          </div>
+            <span className="hidden md:inline-block font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+              MPSAJMER CONNECT
+            </span>
+          </Link>
           
           {/* Global Search - Center */}
           <div className="hidden sm:block flex-1 max-w-md mx-2 md:mx-6">
@@ -338,8 +341,15 @@ export const MainLayout = () => {
         {/* Right Sidebar - Will be added later for specific pages */}
       </div>
       
-      <footer className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground mb-16 sm:mb-0">
-        this app is made by raghav agarwal
+      <footer className="border-t border-border px-4 py-4 text-center bg-card">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-xs text-muted-foreground font-medium">
+            &copy; {new Date().getFullYear()} MPSAJMER CONNECT. All rights reserved.
+          </p>
+          <p className="text-xs text-primary/80 font-semibold tracking-wide uppercase italic">
+            Developed by Raghav Agarwal
+          </p>
+        </div>
       </footer>
 
       {/* Mobile Navigation */}

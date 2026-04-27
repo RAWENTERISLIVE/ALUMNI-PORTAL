@@ -11,7 +11,7 @@ NC := \033[0m # No Color
 SHELL := /bin/bash
 
 # Project variables
-PROJECT_NAME := alumni-portal
+PROJECT_NAME := mpsajmer-connect
 FRONTEND_PORT := 8080
 BACKEND_PORT := 5000
 DB_PORT := 5432
@@ -19,7 +19,7 @@ NODE_ENV ?= development
 
 help: ## Show this help message
 	@echo "$(CYAN)╔════════════════════════════════════════════════════════════╗$(NC)"
-	@echo "$(CYAN)║$(NC)    $(GREEN)Alumni Portal - Single Server Deployment$(NC)                $(CYAN)║$(NC)"
+	@echo "$(CYAN)║$(NC)    $(GREEN)MPSAJMER CONNECT - Single Server Deployment$(NC)                $(CYAN)║$(NC)"
 	@echo "$(CYAN)╚════════════════════════════════════════════════════════════╝$(NC)"
 	@echo ""
 	@echo "$(YELLOW)📋 Available Commands:$(NC)"

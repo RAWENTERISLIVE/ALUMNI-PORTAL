@@ -1,6 +1,6 @@
 # ✨ Project Organization & Deployment System - Complete
 
-This document summarizes all the improvements made to make the Alumni Portal organized and deployment-friendly for single-server hosting.
+This document summarizes all the improvements made to make the MPSAJMER CONNECT organized and deployment-friendly for single-server hosting.
 
 ---
 
@@ -175,7 +175,7 @@ docker-compose -f docker-compose.full.yml up -d
 ## 📋 Directory Structure New Files
 
 ```
-alumni-portal/
+mpsajmer-connect/
 │
 ├─ 📄 Makefile ........................ NEW - All commands
 ├─ 📄 MAKEFILE_GUIDE.md .............. NEW - Command documentation

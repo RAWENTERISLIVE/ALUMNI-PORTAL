@@ -89,7 +89,7 @@ API_PROXY_ORIGIN=http://localhost:5000/api
 export API_PROXY_ORIGIN="https://api.yourdomain.com/api"
 ```
 
-2. Optional if Worker name differs from `alumni-portal`:
+2. Optional if Worker name differs from `mpsajmer-connect`:
 
 ```bash
 export CF_WORKER_NAME="your-worker-name"
@@ -132,6 +132,7 @@ Expected behavior:
 
 - `501 This endpoint has not been migrated...` means `API_PROXY_ORIGIN` secret is missing on Worker.
 - `500 API_PROXY_ORIGIN is invalid` means the URL is malformed; use a full URL like `https://api.example.com/api`.
+- `530 Origin DNS error` with a `*.trycloudflare.com` hostname means `API_PROXY_ORIGIN` points to an expired temporary tunnel. Update it to a stable backend origin and redeploy.
 - Login still fails with network/CORS errors when backend `FRONTEND_URL` or CORS allow-list does not include your Worker frontend domain.
 - Proxy loop protection error means `API_PROXY_ORIGIN` points back to the same frontend Worker domain `/api`.
 

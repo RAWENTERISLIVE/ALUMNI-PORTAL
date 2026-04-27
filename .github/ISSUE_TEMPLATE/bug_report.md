@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug in Alumni Portal
+about: Report a bug in MPSAJMER CONNECT
 title: "[BUG] "
 labels: bug
 assignees: ''

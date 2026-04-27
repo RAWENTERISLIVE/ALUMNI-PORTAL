@@ -1,5 +1,5 @@
 {
-	"name": "alumni-portal",
+	"name": "mpsajmer-connect",
 	"main": "worker/index.js",
 	"compatibility_date": "2026-03-31",
 	"compatibility_flags": [
@@ -13,24 +13,21 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "alumni-portal-db",
-			"database_id": "dd939e76-bdb7-4731-9ad3-14689801686e",
+			"database_name": "mpsajmer-connect-db",
+			"database_id": "fa1f7c86-d341-4bf2-aeaa-01d2ca2267b1",
 			"migrations_dir": "./cloudflare/d1/migrations"
-		},
-		{
-			"binding": "alumni_portal_db",
-			"database_name": "alumni-portal-db",
-			"database_id": "dd939e76-bdb7-4731-9ad3-14689801686e"
 		}
 	],
 	"r2_buckets": [
 		{
 			"binding": "UPLOADS_BUCKET",
-			"bucket_name": "alumni-portal-uploads"
-		},
+			"bucket_name": "mpsajmer-connect-uploads"
+		}
+	],
+	"services": [
 		{
-			"bucket_name": "alumni-portal-uploads",
-			"binding": "alumni_portal_uploads"
+			"binding": "BACKEND",
+			"service": "mpsajmer-connect-api"
 		}
 	],
 	"vars": {

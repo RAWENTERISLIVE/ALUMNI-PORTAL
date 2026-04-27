@@ -4,7 +4,7 @@
 # Tests all major features step by step
 
 echo "=========================================="
-echo "Alumni Portal - Complete Integration Test"
+echo "MPSAJMER CONNECT - Complete Integration Test"
 echo "=========================================="
 echo ""
 

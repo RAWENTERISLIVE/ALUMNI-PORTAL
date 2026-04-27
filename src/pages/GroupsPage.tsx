@@ -400,7 +400,7 @@ export default function GroupsPage() {
                      </div>
                      <div className="flex -space-x-2 overflow-hidden">
                         {Array.isArray(group.members) && group.members.slice(0, 3).map((member: any, index: number) => (
-                           <Avatar key={member.id || member._id || `${group.id || group._id}-${member.email || member.name || 'member'}`} className="inline-block h-8 w-8 rounded-full border-2 border-white ring-1 ring-gray-200">
+                           <Avatar key={typeof member === 'string' ? member : (member.id || member._id || index)} className="inline-block h-8 w-8 rounded-full border-2 border-white ring-1 ring-gray-200">
                              <AvatarImage src={typeof member === 'object' ? member.profileImage : undefined} />
                              <AvatarFallback className="bg-primary/10 text-foreground/90 font-medium">
                                {(() => {

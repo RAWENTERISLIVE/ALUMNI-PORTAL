@@ -232,8 +232,8 @@ Generates a multi-stage Dockerfile that:
 
 ```bash
 make generate-docker
-docker build -t alumni-portal:latest .
-docker run -p 8080:8080 -p 5000:5000 alumni-portal:latest
+docker build -t mpsajmer-connect:latest .
+docker run -p 8080:8080 -p 5000:5000 mpsajmer-connect:latest
 ```
 
 ---
@@ -322,8 +322,8 @@ make start
 ### Docker Deployment
 ```bash
 make generate-docker
-docker build -t alumni-portal:latest .
-docker run -d -p 8080:8080 -p 5000:5000 alumni-portal:latest
+docker build -t mpsajmer-connect:latest .
+docker run -d -p 8080:8080 -p 5000:5000 mpsajmer-connect:latest
 ```
 
 ---
@@ -331,7 +331,7 @@ docker run -d -p 8080:8080 -p 5000:5000 alumni-portal:latest
 ## 📋 Project Structure (Single Server)
 
 ```
-alumni-portal/
+mpsajmer-connect/
 ├── src/                    # Frontend React code
 ├── public/                 # Static frontend assets
 ├── dist/                   # Frontend build output

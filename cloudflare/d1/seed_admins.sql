@@ -1,0 +1,2 @@
+INSERT INTO users (id, email, password, name, role, is_verified, created_at, updated_at) VALUES ('admin_1', 'mpsajmer123@gmail.com', '$2b$10$VguOQaRfGyVjvkPPvrGu7uWslK4eBIWAeqVZJLoOaIirIlXM.RuG2', 'MPS Ajmer Admin', 'ADMIN', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO users (id, email, password, name, role, is_verified, created_at, updated_at) VALUES ('admin_2', 'futurist.raghav@gmail.com', '$2b$10$VguOQaRfGyVjvkPPvrGu7uWslK4eBIWAeqVZJLoOaIirIlXM.RuG2', 'Raghav', 'ADMIN', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

@@ -1,6 +1,6 @@
 # 🚀 QUICK REFERENCE CARD
 
-**Quick lookup for Alumni Portal deployment & commands**
+**Quick lookup for MPSAJMER CONNECT deployment & commands**
 
 ---
 
@@ -133,7 +133,7 @@ bash <(curl -s https://raw.githubusercontent.com/futurist-raghav/ALUMNI-PORTAL/m
 
 ### Heroku (Git + 5 min)
 ```bash
-heroku create alumni-portal
+heroku create mpsajmer-connect
 git push heroku main
 ```
 

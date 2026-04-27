@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║      Alumni Portal - VPS Setup        ║${NC}"
+echo -e "${BLUE}║      MPSAJMER CONNECT - VPS Setup        ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -79,8 +79,8 @@ fi
 
 # Step 5: Create application directory
 echo -e "${YELLOW}[5/9] Creating application directory...${NC}"
-mkdir -p /opt/alumni-portal
-cd /opt/alumni-portal
+mkdir -p /opt/mpsajmer-connect
+cd /opt/mpsajmer-connect
 
 # Step 6: Clone repository
 echo -e "${YELLOW}[6/9] Cloning repository...${NC}"
@@ -170,7 +170,7 @@ echo "2. Setup Nginx reverse proxy (optional)"
 echo "3. Access application at: https://${DOMAIN}"
 echo ""
 echo -e "${YELLOW}Useful Commands:${NC}"
-echo "  cd /opt/alumni-portal"
+echo "  cd /opt/mpsajmer-connect"
 echo "  docker-compose logs -f              # View logs"
 echo "  docker-compose ps                   # Check status"
 echo "  docker-compose exec backend bash    # Backend shell"

@@ -1,6 +1,6 @@
 # 🎯 Platform Hosting Options
 
-> **⭐ START HERE** if you want to know where to deploy your Alumni Portal
+> **⭐ START HERE** if you want to know where to deploy your MPSAJMER CONNECT
 
 ---
 
@@ -174,7 +174,7 @@ bash <(curl -s https://raw.githubusercontent.com/futurist-raghav/ALUMNI-PORTAL/m
 
 ### Heroku (Git Push)
 ```bash
-heroku create alumni-portal-yourname
+heroku create mpsajmer-connect-yourname
 git push heroku main
 heroku open
 ```

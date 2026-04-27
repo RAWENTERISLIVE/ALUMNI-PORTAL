@@ -435,10 +435,11 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
       </div>
     );
   } else {
-    messagesContent = messages.map((message) => {
+    messagesContent = messages.map((message, idx) => {
+      const key = message.id || message._id || `msg-${idx}`;
       if (message.messageType === 'system') {
         return (
-          <div key={message._id || message.id} className="text-center py-1">
+          <div key={key} className="text-center py-1">
             <span className="inline-block text-xs px-3 py-1 rounded-full bg-muted/40 text-muted-foreground">
               {message.content}
             </span>
@@ -447,7 +448,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
       }
 
       return (
-        <div key={message._id || message.id} className="flex gap-3 hover:bg-muted/30 p-2 rounded-md transition-colors">
+        <div key={key} className="flex gap-3 hover:bg-muted/30 p-2 rounded-md transition-colors">
           <Avatar className="h-10 w-10">
             <AvatarImage src={message.author?.profileImage} />
             <AvatarFallback className="bg-primary/10 text-foreground/90 font-medium">
@@ -607,7 +608,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
                       member?.id?.toString?.() === activeGroup?.creator?.id?.toString?.();
 
                     return (
-                      <div key={member.id} className="flex items-center gap-2">
+                      <div key={typeof member === 'string' ? member : (member.id || member._id)} className="flex items-center gap-2">
                         <Avatar className="h-7 w-7">
                           <AvatarImage src={member.profileImage} />
                           <AvatarFallback className="bg-primary/10 text-foreground/90 text-xs font-medium">

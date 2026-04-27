@@ -1,0 +1,26 @@
+{
+  "name": "mpsajmer-connect-api",
+  "account_id": "fe22ba5acbed9f6925bb8d7ea1ee8a4d",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mpsajmer-connect-db",
+      "database_id": "fa1f7c86-d341-4bf2-aeaa-01d2ca2267b1",
+      "migrations_dir": "../cloudflare/d1/migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "mpsajmer-connect-uploads"
+    }
+  ],
+
+  "vars": {
+    "ENVIRONMENT": "production",
+    "JWT_SECRET": "mpsajmer-connect-secret-key-change-in-prod"
+  }
+}

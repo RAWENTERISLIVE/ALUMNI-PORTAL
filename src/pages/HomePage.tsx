@@ -20,27 +20,27 @@ export default function HomePage() {
         <div className="container mx-auto px-4 sm:px-6 flex flex-col lg:flex-row items-center justify-between gap-8 relative z-10">
           <div className="space-y-6 max-w-2xl">
             <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold tracking-tight">
-              Your Legacy Continues Here
+              Welcome to MPSAJMER CONNECT
             </h1>
             <p className="text-base sm:text-lg md:text-xl opacity-90 font-light">
-              Join our thriving alumni network to reconnect with classmates, discover career opportunities, 
-              and contribute to the ongoing success of our prestigious institution.
+              The official portal for our prestigious alumni network. Reconnect with classmates, discover career opportunities, 
+              and contribute to our legacy of excellence.
             </p>
             <div className="flex flex-wrap gap-4 pt-4">
               <Button asChild size="lg" className="bg-card text-foreground hover:bg-muted/90 hover:scale-105 transition-all duration-300 shadow-lg font-semibold">
-                <Link to="/register">Join Our Community</Link>
+                <Link to="/register">Join the Network</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-card/10 transition-all duration-300">
-                <Link to="/login">Welcome Back</Link>
+                <Link to="/login">Login</Link>
               </Button>
             </div>
           </div>
           <div className="hidden lg:block relative group">
             <div className="absolute -top-6 -left-6 w-24 h-24 bg-accent rounded-full opacity-60 group-hover:scale-110 transition-transform duration-500"></div>
             <img 
-              src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" 
-              alt="Alumni" 
-              className="rounded-lg shadow-2xl w-[450px] h-auto relative z-10 border-4 border-white/20"
+              src="/hero-mpsajmer.png" 
+              alt="MPSAJMER CONNECT" 
+              className="rounded-lg shadow-2xl w-[550px] h-auto relative z-10 border-4 border-white/20"
             />
             <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-primary/40 rounded-full opacity-60 backdrop-blur-sm group-hover:scale-110 transition-transform duration-500 delay-100"></div>
           </div>
@@ -253,7 +253,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
             <div>
-              <h3 className="text-2xl font-bold mb-4">AlumniConnect</h3>
+              <h3 className="text-2xl font-bold mb-4">MPSAJMER CONNECT</h3>
               <p className="text-muted-foreground mb-4">
                 Connecting school communities since 2023
               </p>
@@ -322,7 +322,7 @@ export default function HomePage() {
               <Link to="/terms" className="text-muted-foreground hover:text-foreground">Terms of Service</Link>
               <Link to="/contact" className="text-muted-foreground hover:text-foreground">Contact Us</Link>
             </div>
-            <p>&copy; {new Date().getFullYear()} AlumniConnect. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} MPSAJMER CONNECT. All rights reserved.</p>
             <p className="mt-2">this app is made by raghav agarwal</p>
           </div>
         </div>

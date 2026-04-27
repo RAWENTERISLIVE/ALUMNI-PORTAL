@@ -45,7 +45,7 @@ write_env_file() {
   db_password="$(openssl rand -hex 18)"
 
   cat > "$ENV_FILE" <<EOF
-PROJECT_NAME=alumni-portal
+PROJECT_NAME=mpsajmer-connect
 NODE_ENV=production
 
 FRONTEND_PORT=8080
@@ -82,7 +82,7 @@ find_free_port() {
   echo "$port"
 }
 
-echo -e "${BLUE}==> Alumni Portal Full-Stack Deployment${NC}"
+echo -e "${BLUE}==> MPSAJMER CONNECT Full-Stack Deployment${NC}"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo -e "${YELLOW}Creating ${ENV_FILE} with production defaults...${NC}"

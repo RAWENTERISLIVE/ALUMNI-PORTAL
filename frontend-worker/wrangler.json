@@ -1,0 +1,13 @@
+{
+  "name": "mpsajmer-connect-web",
+  "main": "src/index.ts",
+  "type": "javascript",
+  "compatibility_date": "2026-03-31",
+  "assets": {
+    "directory": "../dist"
+  },
+
+  "vars": {
+    "API_PROXY_ORIGIN": "https://mpsajmer-connect-api.futurist-raghav.workers.dev"
+  }
+}

@@ -1,6 +1,6 @@
 # 🌐 Hosting & Deployment Platforms Guide
 
-Complete guide for hosting Alumni Portal on various platforms - from local school servers to commercial providers.
+Complete guide for hosting MPSAJMER CONNECT on various platforms - from local school servers to commercial providers.
 
 ---
 
@@ -61,9 +61,9 @@ sudo apt install -y git
 ```bash
 # Create directory
 cd /opt
-sudo mkdir alumni-portal
-sudo chown $USER:$USER alumni-portal
-cd alumni-portal
+sudo mkdir mpsajmer-connect
+sudo chown $USER:$USER mpsajmer-connect
+cd mpsajmer-connect
 
 # Clone repository
 git clone https://github.com/futurist-raghav/ALUMNI-PORTAL.git .
@@ -101,7 +101,7 @@ Backend:  http://your-server-ip:5000
 **Configure Hostname:**
 ```bash
 # Add to /etc/hosts on school network
-192.168.1.100  alumni-portal.school.local
+192.168.1.100  mpsajmer-connect.school.local
 
 # Or configure DNS on school router
 ```
@@ -109,16 +109,16 @@ Backend:  http://your-server-ip:5000
 #### Step 5: Backup Strategy
 ```bash
 # Create backup directory
-mkdir -p /backups/alumni-portal
+mkdir -p /backups/mpsajmer-connect
 
 # Daily backup cron
 sudo crontab -e
 
 # Add:
-0 2 * * * docker exec alumni-db pg_dump -U postgres alumni_portal | gzip > /backups/alumni-portal/backup_$(date +\%Y\%m\%d).sql.gz
+0 2 * * * docker exec alumni-db pg_dump -U postgres alumni_portal | gzip > /backups/mpsajmer-connect/backup_$(date +\%Y\%m\%d).sql.gz
 
 # Keep last 30 days
-find /backups/alumni-portal -name "*.gz" -mtime +30 -delete
+find /backups/mpsajmer-connect -name "*.gz" -mtime +30 -delete
 ```
 
 ---
@@ -141,14 +141,14 @@ find /backups/alumni-portal -name "*.gz" -mtime +30 -delete
 ```bash
 # 1. Use SSH Access (File Manager in Hostinger)
 # 2. Create app directory
-mkdir -p ~/public_html/alumni-portal
+mkdir -p ~/public_html/mpsajmer-connect
 
 # 3. Upload code via SFTP
 # Use FileZilla or similar
 # Connect to: sftp.hostinger.com
 
 # 4. Install dependencies
-cd ~/public_html/alumni-portal
+cd ~/public_html/mpsajmer-connect
 npm install
 cd backend && npm install && cd ..
 
@@ -186,7 +186,7 @@ pm2 start ecosystem.config.js
 ```
 1. Go to cPanel > Addon Domains
 2. Add your domain
-3. Point to ~/public_html/alumni-portal/dist
+3. Point to ~/public_html/mpsajmer-connect/dist
 4. Setup reverse proxy for /api to localhost:3000
 ```
 
@@ -231,8 +231,8 @@ su - appuser
 
 # Clone project
 cd /home/appuser
-git clone https://github.com/futurist-raghav/ALUMNI-PORTAL.git alumni-portal
-cd alumni-portal
+git clone https://github.com/futurist-raghav/ALUMNI-PORTAL.git mpsajmer-connect
+cd mpsajmer-connect
 
 # Setup environment
 ./setup-env.sh
@@ -286,7 +286,7 @@ npm install -g heroku
 heroku login
 
 # 3. Create app
-heroku create alumni-portal-yourname
+heroku create mpsajmer-connect-yourname
 
 # 4. Add PostgreSQL
 heroku addons:create heroku-postgresql:hobby-dev
@@ -371,7 +371,7 @@ Application Load Balancer
 pip install awsebcli
 
 # 2. Initialize
-eb init -p node.js-18 alumni-portal
+eb init -p node.js-18 mpsajmer-connect
 
 # 3. Create environment
 eb create alumni-production
@@ -408,8 +408,8 @@ curl -fsSL https://get.docker.com -o get-docker.sh
 sh get-docker.sh
 
 # Clone alumni portal
-git clone https://github.com/futurist-raghav/ALUMNI-PORTAL.git /opt/alumni-portal
-cd /opt/alumni-portal
+git clone https://github.com/futurist-raghav/ALUMNI-PORTAL.git /opt/mpsajmer-connect
+cd /opt/mpsajmer-connect
 
 # Setup environment
 ./setup-env.sh
@@ -447,7 +447,7 @@ School Setup
 ├── On-Premise Server
 │   ├── Ubuntu 20.04 Server
 │   ├── Docker installed
-│   └── Alumni Portal running
+│   └── MPSAJMER CONNECT running
 │
 ├── Network Configuration
 │   ├── Static IP assignment

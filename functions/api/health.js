@@ -9,7 +9,7 @@ const json = (payload, status = 200) =>
 export async function onRequestGet(context) {
   return json({
     success: true,
-    message: "Alumni Portal Cloudflare API is healthy",
+    message: "MPSAJMER CONNECT Cloudflare API is healthy",
     data: {
       runtime: "cloudflare-pages-functions",
       appEnv: context.env.APP_ENV || "unknown",

@@ -1,6 +1,6 @@
 # 🚀 Single-Server Deployment Guide
 
-This guide covers deploying the Alumni Portal as a single-server application (frontend + backend on one server).
+This guide covers deploying the MPSAJMER CONNECT as a single-server application (frontend + backend on one server).
 
 ---
 
@@ -117,8 +117,8 @@ newgrp docker
 
 ```bash
 cd /opt
-sudo git clone https://github.com/futurist-raghav/ALUMNI-PORTAL.git alumni-portal
-cd alumni-portal
+sudo git clone https://github.com/futurist-raghav/ALUMNI-PORTAL.git mpsajmer-connect
+cd mpsajmer-connect
 sudo chown -R $USER:$USER .
 ```
 
@@ -174,7 +174,7 @@ EOF
 
 ```bash
 # Build and start all services
-cd /opt/alumni-portal
+cd /opt/mpsajmer-connect
 docker-compose -f docker-compose.full.yml up -d
 
 # Run migrations
@@ -191,8 +191,8 @@ docker-compose -f docker-compose.full.yml logs -f
 
 ```bash
 # Build images
-docker build -t alumni-portal:latest .
-docker build -t alumni-portal-backend:latest ./backend
+docker build -t mpsajmer-connect:latest .
+docker build -t mpsajmer-connect-backend:latest ./backend
 
 # Create network
 docker network create alumni-network
@@ -213,7 +213,7 @@ docker run -d \
   -p 5000:5000 \
   -e DATABASE_URL="postgresql://postgres:password@alumni-db:5432/alumni_portal" \
   -e JWT_SECRET="your-secret" \
-  alumni-portal-backend:latest
+  mpsajmer-connect-backend:latest
 
 # Start Frontend
 docker run -d \
@@ -221,7 +221,7 @@ docker run -d \
   --network alumni-network \
   -p 8080:8080 \
   -e VITE_API_URL="http://localhost:5000/api" \
-  alumni-portal:latest
+  mpsajmer-connect:latest
 ```
 
 ### Accessing the Application
@@ -237,7 +237,7 @@ docker run -d \
 ### Step 1: Install Dependencies
 
 ```bash
-cd /opt/alumni-portal
+cd /opt/mpsajmer-connect
 
 # Install Node.js dependencies
 npm install
@@ -276,7 +276,7 @@ module.exports = {
     {
       name: 'alumni-api',
       script: './backend/dist/server.js',
-      cwd: '/opt/alumni-portal/backend',
+      cwd: '/opt/mpsajmer-connect/backend',
       env: {
         NODE_ENV: 'production'
       }
@@ -285,7 +285,7 @@ module.exports = {
       name: 'alumni-web',
       script: 'npm',
       args: 'run preview',
-      cwd: '/opt/alumni-portal',
+      cwd: '/opt/mpsajmer-connect',
       env: {
         NODE_ENV: 'production'
       }
@@ -332,7 +332,7 @@ For production, use Nginx as a reverse proxy:
 sudo apt-get install nginx
 
 # Create config
-sudo cat > /etc/nginx/sites-available/alumni-portal << 'EOF'
+sudo cat > /etc/nginx/sites-available/mpsajmer-connect << 'EOF'
 upstream backend {
     server localhost:5000;
 }
@@ -366,7 +366,7 @@ server {
 EOF
 
 # Enable site
-sudo ln -s /etc/nginx/sites-available/alumni-portal /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/mpsajmer-connect /etc/nginx/sites-enabled/
 
 # Test and start
 sudo nginx -t
@@ -428,7 +428,7 @@ pm2 monit
 
 # Check disk space
 df -h
-du -sh /opt/alumni-portal
+du -sh /opt/mpsajmer-connect
 
 # Check database
 docker exec alumni-db psql -U postgres -c "SELECT * FROM pg_stat_statements LIMIT 10;"

@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     Alumni Portal - Hetzner Setup     ║${NC}"
+echo -e "${BLUE}║     MPSAJMER CONNECT - Hetzner Setup     ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -50,8 +50,8 @@ chmod +x /usr/local/bin/docker-compose
 
 # Create app directory
 echo -e "${YELLOW}[5/9] Creating application directory...${NC}"
-mkdir -p /opt/alumni-portal
-cd /opt/alumni-portal
+mkdir -p /opt/mpsajmer-connect
+cd /opt/mpsajmer-connect
 
 # Clone repository
 echo -e "${YELLOW}[6/9] Cloning repository...${NC}"
