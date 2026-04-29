@@ -40,6 +40,11 @@ const authMiddleware = async (c: any, next: any) => {
   const payload = await verifyJWT(token, c.env.JWT_SECRET);
   if (!payload) return c.json({ success: false, message: 'Invalid token' }, 401);
   
+  // Normalize role for consistency in route handlers
+  if (payload.role) {
+    payload.role = toClientRole(payload.role);
+  }
+  
   c.set('user', payload);
   await next();
 };
@@ -54,6 +59,9 @@ const transformPost = (p: any) => ({
   updatedAt: p.updated_at,
   isFeatured: Boolean(p.is_featured),
   isSchoolUpdate: Boolean(p.is_school_update),
+  reactionCount: p.likes_count || 0,
+  commentCount: p.comments_count || 0,
+  shareCount: p.shares_count || 0,
   author: {
     id: p.author_id,
     name: p.author_name,
@@ -69,6 +77,7 @@ const transformJob = (j: any) => ({
   tags: parseJSON(j.tags),
   isAlumniReferral: Boolean(j.is_alumni_referral),
   isActive: Boolean(j.is_active),
+  applicationCount: j.application_count || 0,
   createdAt: j.created_at,
   updatedAt: j.updated_at,
   postedDate: j.created_at,
@@ -81,7 +90,25 @@ const transformJob = (j: any) => ({
 
 const transformUser = (u: any) => ({
   ...u,
-  role: u.role ? toClientRole(u.role) : undefined,
+  role: u.role ? toClientRole(u.role) : 'user',
+  profileImage: u.profile_image,
+  jobTitle: u.job_title,
+  classYear: u.class_year,
+  graduationYear: u.graduation_year,
+  firstName: u.first_name,
+  lastName: u.last_name,
+  isVerified: Boolean(u.is_verified),
+  isAvailableAsMentor: Boolean(u.is_available_as_mentor),
+  admissionNumber: u.admission_number,
+  admissionYear: u.admission_year,
+  accountType: u.account_type,
+  contactEmail: u.contact_email,
+  contactPhone: u.contact_phone,
+  linkedinProfile: u.linkedin_profile,
+  hasPremiumBadge: Boolean(u.has_premium_badge),
+  needsManualVerification: Boolean(u.needs_manual_verification),
+  verificationDetails: u.verification_details,
+  facultyIdCardUrl: u.faculty_id_card_url,
   skills: parseJSON(u.skills),
   interests: parseJSON(u.interests),
   experiences: parseJSON(u.experiences),
@@ -105,6 +132,8 @@ const transformEvent = (e: any) => ({
   tags: parseJSON(e.tags),
   isVirtual: Boolean(e.is_virtual),
   isSchoolEvent: Boolean(e.is_school_event),
+  attendeeCount: e.attendees_count || 0,
+  organizer: { id: e.organizer_id },
   createdAt: e.created_at,
   updatedAt: e.updated_at
 });
@@ -218,6 +247,23 @@ api.get('/auth/me', authMiddleware, async (c) => {
     success: true,
     user: transformed,
     data: transformed
+  });
+});
+
+api.get('/auth/sessions', authMiddleware, async (c) => {
+  const user = c.get('user');
+  // Since we don't have a sessions table yet, return current session as a placeholder
+  return c.json({
+    success: true,
+    data: [
+      {
+        id: 'current',
+        userAgent: c.req.header('User-Agent') || 'Unknown',
+        ipAddress: c.req.header('CF-Connecting-IP') || '127.0.0.1',
+        lastActive: new Date().toISOString(),
+        isCurrent: true
+      }
+    ]
   });
 });
 
@@ -347,7 +393,19 @@ api.post('/posts/:id/react', authMiddleware, async (c) => {
          .bind(postId, postId).run();
     }
     
-    return c.json({ success: true });
+    // Fetch updated post to return to client
+    const updatedPost: any = await c.env.DB.prepare(`
+      SELECT p.*, u.name as author_name, u.profile_image as author_image, u.role as author_role
+      FROM posts p 
+      JOIN users u ON p.author_id = u.id 
+      WHERE p.id = ?
+    `).bind(postId).first();
+
+    return c.json({ 
+      success: true, 
+      post: transformPost(updatedPost),
+      data: transformPost(updatedPost)
+    });
   } catch (error: any) {
     return c.json({ success: false, message: error.message }, 500);
   }
@@ -454,7 +512,13 @@ api.post('/jobs', authMiddleware, async (c) => {
 // Events
 api.get('/events', async (c) => {
   const result = await c.env.DB.prepare('SELECT * FROM events ORDER BY date ASC').all();
-  const events = result.results.map(transformEvent);
+  const events = await Promise.all(result.results.map(async (e: any) => {
+    const attendees = await c.env.DB.prepare('SELECT user_id as id FROM event_attendees WHERE event_id = ?').bind(e.id).all();
+    return {
+      ...transformEvent(e),
+      attendees: attendees.results
+    };
+  }));
   return c.json({ success: true, data: events });
 });
 
@@ -466,32 +530,47 @@ api.get('/events/my-events', authMiddleware, async (c) => {
     OR e.id IN (SELECT event_id FROM event_attendees WHERE user_id = ?)
     ORDER BY e.date ASC
   `).bind(user.id, user.id).all();
-  const events = result.results.map(transformEvent);
+  
+  const events = await Promise.all(result.results.map(async (e: any) => {
+    const attendees = await c.env.DB.prepare('SELECT user_id as id FROM event_attendees WHERE event_id = ?').bind(e.id).all();
+    return {
+      ...transformEvent(e),
+      attendees: attendees.results
+    };
+  }));
+  
   return c.json({ success: true, data: events });
 });
 
 api.post('/events', authMiddleware, async (c) => {
   const user = c.get('user');
-  const body = await c.req.json();
-  const id = crypto.randomUUID();
-  
-  await c.env.DB.prepare(`
-    INSERT INTO events (id, title, description, date, time, location, category, is_virtual, max_attendees, organizer_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id, 
-    body.title, 
-    body.description, 
-    body.date, 
-    body.time, 
-    body.location, 
-    body.category, 
-    body.isVirtual ? 1 : 0, 
-    body.maxAttendees || null, 
-    user.id
-  ).run();
-  
-  return c.json({ success: true, data: { id, ...body } });
+  try {
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
+    
+    await c.env.DB.prepare(`
+      INSERT INTO events (id, title, description, date, end_date, time, location, category, is_virtual, meeting_link, max_attendees, organizer_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      id, 
+      body.title, 
+      body.description, 
+      body.date, 
+      body.endDate || null,
+      body.time, 
+      body.location, 
+      body.category || 'other', 
+      body.isVirtual ? 1 : 0, 
+      body.meetingLink || null,
+      body.maxAttendees || null, 
+      user.id
+    ).run();
+    
+    return c.json({ success: true, data: { id, ...body } });
+  } catch (error: any) {
+    console.error('Event creation failed:', error);
+    return c.json({ success: false, message: error.message }, 500);
+  }
 });
 
 api.get('/events/:id', authMiddleware, async (c) => {
@@ -505,16 +584,31 @@ api.get('/events/:id', authMiddleware, async (c) => {
   
   if (!event) return c.json({ success: false, message: 'Event not found' }, 404);
   
+  const attendees = await c.env.DB.prepare('SELECT user_id as id FROM event_attendees WHERE event_id = ?').bind(id).all();
+  
   return c.json({ 
     success: true, 
     data: { 
       ...transformEvent(event),
-      isAttending: Boolean(event.is_attending)
+      isAttending: Boolean(event.is_attending),
+      attendees: attendees.results
     } 
   });
 });
 
-api.post('/events/:id/attend', authMiddleware, async (c) => {
+api.get('/events/:id/attendees', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  const result = await c.env.DB.prepare(`
+    SELECT u.id, u.name, u.email, u.contact_phone as phone, u.admission_number as admissionNumber
+    FROM users u
+    JOIN event_attendees ea ON u.id = ea.user_id
+    WHERE ea.event_id = ?
+  `).bind(id).all();
+  
+  return c.json({ success: true, data: result.results });
+});
+
+api.post('/events/:id/rsvp', authMiddleware, async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
   
@@ -530,7 +624,7 @@ api.post('/events/:id/attend', authMiddleware, async (c) => {
   }
 });
 
-api.delete('/events/:id/attend', authMiddleware, async (c) => {
+api.delete('/events/:id/rsvp', authMiddleware, async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
   
@@ -936,38 +1030,6 @@ api.post('/mentorship/request/:mentorId', authMiddleware, async (c) => {
   return c.json({ success: true });
 });
 
-// Users/Directory
-api.get('/users/directory', authMiddleware, async (c) => {
-  const limit = parseInt(c.req.query('limit') || '50');
-  const search = c.req.query('search') || '';
-  
-  let sql = `SELECT * FROM users WHERE status = 'APPROVED'`;
-  const params: any[] = [];
-  
-  if (search) {
-    sql += ` AND (name LIKE ? OR email LIKE ? OR job_title LIKE ? OR company LIKE ?)`;
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
-  }
-  
-  sql += ` LIMIT ?`;
-  params.push(limit);
-  
-  const result = await c.env.DB.prepare(sql).bind(...params).all();
-  const users = result.results.map(transformUser);
-  
-  return c.json({ success: true, data: users });
-});
-
-api.get('/users/:id', authMiddleware, async (c) => {
-  const id = c.req.param('id');
-  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
-  
-  if (!user) return c.json({ success: false, message: 'User not found' }, 404);
-  
-  // Get connection status, posts, etc if needed
-  return c.json({ success: true, data: transformUser(user) });
-});
-
 // Conversations
 api.get('/conversations', authMiddleware, async (c) => {
   const user = c.get('user');
@@ -1007,29 +1069,285 @@ api.get('/notifications', authMiddleware, async (c) => {
   return c.json({ success: true, data: notifications });
 });
 
-// Users
-api.get('/users/directory', async (c) => {
-  const result = await c.env.DB.prepare(`
-    SELECT id, name, email, profile_image, job_title, company, graduation_year, role
-    FROM users 
-    WHERE status = 'ACTIVE' 
-    LIMIT 100
-  `).all();
+api.get('/users/directory', authMiddleware, async (c) => {
+  const limit = parseInt(c.req.query('limit') || '100');
+  const search = c.req.query('search') || '';
   
+  let sql = `SELECT * FROM users WHERE (status = 'ACTIVE' OR status = 'APPROVED')`;
+  const params: any[] = [];
+  
+  if (search) {
+    sql += ` AND (name LIKE ? OR email LIKE ? OR job_title LIKE ? OR company LIKE ?)`;
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+  }
+  
+  sql += ` LIMIT ?`;
+  params.push(limit);
+  
+  const result = await c.env.DB.prepare(sql).bind(...params).all();
   const users = result.results.map(transformUser);
-  return c.json({ success: true, data: users });
+  
+  return c.json({ success: true, data: users, users });
 });
 
-api.get('/users/stats', async (c) => {
-  const stats: any = await c.env.DB.prepare(`
+api.get('/users/messages/search', authMiddleware, async (c) => {
+  const query = c.req.query('query') || '';
+  const limit = parseInt(c.req.query('limit') || '25');
+  const user = c.get('user');
+
+  const result = await c.env.DB.prepare(`
+    SELECT id, name, email, profile_image, role
+    FROM users
+    WHERE id != ? AND (name LIKE ? OR email LIKE ?)
+    LIMIT ?
+  `).bind(user.id, `%${query}%`, `%${query}%`, limit).all();
+
+  const users = result.results.map(u => ({
+    ...u,
+    role: toClientRole(u.role || 'USER')
+  }));
+
+  return c.json({ success: true, data: users, users });
+});
+
+api.get('/users', authMiddleware, async (c) => {
+  const user = c.get('user');
+  if (user.role !== 'admin' && user.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '10');
+  const offset = (page - 1) * limit;
+
+  const result = await c.env.DB.prepare(`
+    SELECT * FROM users 
+    ORDER BY created_at DESC 
+    LIMIT ? OFFSET ?
+  `).bind(limit, offset).all();
+
+  const countResult: any = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first();
+
+  return c.json({
+    success: true,
+    data: result.results.map(transformUser),
+    users: result.results.map(transformUser),
+    pagination: {
+      page,
+      limit,
+      total: countResult.count,
+      pages: Math.ceil(countResult.count / limit)
+    }
+  });
+});
+
+api.get('/users/pending', authMiddleware, async (c) => {
+  const user = c.get('user');
+  if (user.role !== 'admin' && user.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const result = await c.env.DB.prepare(`
+    SELECT * FROM users 
+    WHERE status = 'PENDING' 
+    ORDER BY created_at DESC
+  `).all();
+
+  return c.json({
+    success: true,
+    data: result.results.map(transformUser),
+    users: result.results.map(transformUser)
+  });
+});
+
+api.get('/users/stats', authMiddleware, async (c) => {
+  const user = c.get('user');
+  if (user.role !== 'admin' && user.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const userStats: any = await c.env.DB.prepare(`
     SELECT 
       COUNT(*) as total,
-      SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as approved,
-      SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending
+      SUM(CASE WHEN status = 'ACTIVE' OR status = 'APPROVED' THEN 1 ELSE 0 END) as active,
+      SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN status = 'SUSPENDED' THEN 1 ELSE 0 END) as suspended,
+      SUM(CASE WHEN role = 'MODERATOR' THEN 1 ELSE 0 END) as moderator,
+      SUM(CASE WHEN role = 'ADMIN' THEN 1 ELSE 0 END) as admin,
+      SUM(CASE WHEN role = 'SUPER_ADMIN' THEN 1 ELSE 0 END) as super_admin,
+      SUM(CASE WHEN created_at >= date('now', '-30 days') THEN 1 ELSE 0 END) as recent
     FROM users
   `).first();
+
+  const counts: any = await c.env.DB.prepare(`
+    SELECT 
+      (SELECT COUNT(*) FROM jobs) as jobs,
+      (SELECT COUNT(*) FROM groups) as groups,
+      (SELECT COUNT(*) FROM posts) as posts
+  `).first();
   
-  return c.json({ success: true, data: stats });
+  const stats = {
+    totalUsers: userStats.total || 0,
+    activeUsers: userStats.active || 0,
+    pendingUsers: userStats.pending || 0,
+    suspendedUsers: userStats.suspended || 0,
+    moderatorUsers: userStats.moderator || 0,
+    adminUsers: userStats.admin || 0,
+    superAdminUsers: userStats.super_admin || 0,
+    recentRegistrations: userStats.recent || 0,
+    totalJobs: counts.jobs || 0,
+    totalGroups: counts.groups || 0,
+    totalPosts: counts.posts || 0
+  };
+
+  return c.json({
+    success: true,
+    data: stats,
+    stats: stats
+  });
+});
+
+api.get('/reports', authMiddleware, async (c) => {
+  const user = c.get('user');
+  if (user.role !== 'admin' && user.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '50');
+  const offset = (page - 1) * limit;
+
+  const result = await c.env.DB.prepare(`
+    SELECT r.*, u.name as reporter_name
+    FROM reports r
+    JOIN users u ON r.reported_by_id = u.id
+    ORDER BY r.created_at DESC
+    LIMIT ? OFFSET ?
+  `).bind(limit, offset).all();
+
+  return c.json({
+    success: true,
+    data: result.results,
+    reports: result.results
+  });
+});
+
+api.patch('/users/:id/edit', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  
+  // Prepare update query
+  const updates: string[] = [];
+  const params: any[] = [];
+  
+  const fieldMap: Record<string, string> = {
+    email: 'email',
+    name: 'name',
+    firstName: 'first_name',
+    lastName: 'last_name',
+    role: 'role',
+    status: 'status',
+    accountType: 'account_type',
+    admissionNumber: 'admission_number',
+    admissionYear: 'admission_year',
+    contactEmail: 'contact_email',
+    contactPhone: 'contact_phone',
+    city: 'city',
+    country: 'country',
+    company: 'company',
+    jobTitle: 'job_title',
+    location: 'location',
+    bio: 'bio',
+    headline: 'headline',
+    linkedinProfile: 'linkedin_profile',
+    isAvailableAsMentor: 'is_available_as_mentor',
+    isVerified: 'is_verified',
+    hasPremiumBadge: 'has_premium_badge'
+  };
+  
+  Object.entries(body).forEach(([key, value]) => {
+    const dbField = fieldMap[key];
+    if (dbField) {
+      updates.push(`${dbField} = ?`);
+      // Handle booleans for SQLite
+      if (typeof value === 'boolean') {
+        params.push(value ? 1 : 0);
+      } else if (Array.isArray(value)) {
+        params.push(JSON.stringify(value));
+      } else {
+        params.push(value);
+      }
+    }
+  });
+  
+  if (updates.length === 0) {
+    return c.json({ success: false, message: 'No fields to update' }, 400);
+  }
+  
+  updates.push('updated_at = CURRENT_TIMESTAMP');
+  params.push(id);
+  
+  const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
+  await c.env.DB.prepare(sql).bind(...params).run();
+  
+  const updatedUser = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+  return c.json({ 
+    success: true, 
+    message: 'User updated successfully', 
+    data: transformUser(updatedUser),
+    user: transformUser(updatedUser)
+  });
+});
+
+// User Profile (Moved down to avoid shadowing static /users routes)
+api.get('/users/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+  
+  if (!user) return c.json({ success: false, message: 'User not found' }, 404);
+  
+  return c.json({ success: true, data: transformUser(user) });
+});
+
+api.post('/users/:id/approve', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  await c.env.DB.prepare("UPDATE users SET status = 'ACTIVE' WHERE id = ?").bind(id).run();
+  
+  return c.json({ success: true, message: 'User approved' });
+});
+
+api.post('/users/:id/reject', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  await c.env.DB.prepare("UPDATE users SET status = 'REJECTED' WHERE id = ?").bind(id).run();
+  
+  return c.json({ success: true, message: 'User rejected' });
+});
+
+api.post('/users/:id/block', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  await c.env.DB.prepare("UPDATE users SET status = 'SUSPENDED' WHERE id = ?").bind(id).run();
+  
+  return c.json({ success: true, message: 'User blocked' });
 });
 
 api.get('/users/messages/conversations', authMiddleware, async (c) => {
@@ -1043,23 +1361,67 @@ api.get('/users/messages/conversations', authMiddleware, async (c) => {
      ORDER BY created_at DESC LIMIT 1) as last_message,
     (SELECT created_at FROM direct_messages 
      WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id)
-     ORDER BY created_at DESC LIMIT 1) as last_activity
+     ORDER BY created_at DESC LIMIT 1) as last_activity,
+    (SELECT COUNT(*) FROM direct_messages
+     WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count
     FROM users u
     JOIN direct_messages dm ON (u.id = dm.sender_id OR u.id = dm.receiver_id)
     WHERE (dm.sender_id = ? OR dm.receiver_id = ?) AND u.id != ?
     ORDER BY last_activity DESC
-  `).bind(user.id, user.id, user.id, user.id, user.id, user.id, user.id).all();
+  `).bind(user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.id).all();
   
   const conversations = result.results.map(u => ({
-    id: u.id,
-    name: u.name,
-    profileImage: u.profile_image,
-    role: toClientRole(u.role || 'USER'),
+    userId: u.id,
     lastMessage: u.last_message,
-    lastActivity: u.last_activity
+    lastMessageAt: u.last_activity,
+    unreadCount: u.unread_count || 0,
+    participant: {
+      id: u.id,
+      name: u.name,
+      profileImage: u.profile_image
+    }
   }));
   
   return c.json({ success: true, data: conversations });
+});
+
+api.get('/users/messages/:id', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const targetId = c.req.param('id');
+  
+  const result = await c.env.DB.prepare(`
+    SELECT * FROM direct_messages 
+    WHERE (sender_id = ? AND receiver_id = ?) 
+       OR (sender_id = ? AND receiver_id = ?)
+    ORDER BY created_at ASC
+  `).bind(user.id, targetId, targetId, user.id).all();
+  
+  // Mark as read
+  await c.env.DB.prepare(`
+    UPDATE direct_messages 
+    SET is_read = 1, read_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
+  `).bind(targetId, user.id).run();
+  
+  return c.json({ success: true, data: result.results });
+});
+
+api.post('/users/messages/:id', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const targetId = c.req.param('id');
+  const { content } = await c.req.json();
+  
+  if (!content) return c.json({ success: false, message: 'Message content is required' }, 400);
+  
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(`
+    INSERT INTO direct_messages (id, sender_id, receiver_id, content)
+    VALUES (?, ?, ?, ?)
+  `).bind(id, user.id, targetId, content).run();
+  
+  const newMessage = await c.env.DB.prepare('SELECT * FROM direct_messages WHERE id = ?').bind(id).first();
+  
+  return c.json({ success: true, data: newMessage });
 });
 
 // Files

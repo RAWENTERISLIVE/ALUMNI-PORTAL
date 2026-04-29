@@ -15,3 +15,14 @@ ALTER TABLE users ADD COLUMN linkedin_profile TEXT;
 ALTER TABLE users ADD COLUMN skills TEXT;
 ALTER TABLE users ADD COLUMN interests TEXT;
 ALTER TABLE users ADD COLUMN updated_at TEXT;
+
+-- Add missing columns to jobs table (needed by 0006 index)
+ALTER TABLE jobs ADD COLUMN is_active INTEGER DEFAULT 1;
+
+-- Add missing columns to posts table (standardize with what backend expects)
+ALTER TABLE posts ADD COLUMN likes_count INTEGER DEFAULT 0;
+ALTER TABLE posts ADD COLUMN comments_count INTEGER DEFAULT 0;
+ALTER TABLE posts ADD COLUMN shares_count INTEGER DEFAULT 0;
+
+-- Add missing column to events table
+ALTER TABLE events ADD COLUMN attendees_count INTEGER DEFAULT 0;

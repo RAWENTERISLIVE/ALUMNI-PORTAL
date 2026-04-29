@@ -367,7 +367,7 @@ export default function EventsPage() {
         </CardContent>
         <CardFooter className="p-6 pt-0 mt-auto border-t border-border mt-4">
           <div className="w-full space-y-2">
-            {isOrganizer && (
+            {isOrganizer ? (
               <Button
                 className="w-full"
                 variant="outline"
@@ -375,14 +375,15 @@ export default function EventsPage() {
               >
                 View Attendees
               </Button>
+            ) : (
+              <Button
+                className="w-full"
+                variant={isAttending ? "outline" : "default"}
+                onClick={() => handleRSVP(event.id, isAttending)}
+              >
+                {isAttending ? 'Cancel RSVP' : 'RSVP Now'}
+              </Button>
             )}
-            <Button
-              className="w-full"
-              variant={isAttending ? "outline" : "default"}
-              onClick={() => handleRSVP(event.id, isAttending)}
-            >
-              {isAttending ? 'Cancel RSVP' : 'RSVP Now'}
-            </Button>
           </div>
         </CardFooter>
       </Card>

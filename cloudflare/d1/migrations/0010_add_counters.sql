@@ -1,0 +1,1 @@
+-- Redundant migration, content moved to 0005 to fix migration sequence.

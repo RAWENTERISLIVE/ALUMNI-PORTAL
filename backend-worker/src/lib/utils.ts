@@ -1,9 +1,9 @@
 export const toClientRole = (dbRole: string) => {
-  return dbRole.replace('_', '-').toLowerCase();
+  return dbRole.toLowerCase();
 };
 
 export const toDbRole = (clientRole: string) => {
-  return clientRole.replace('-', '_').toUpperCase();
+  return clientRole.toUpperCase();
 };
 
 export const jsonResponse = (data: any, status = 200) => {
