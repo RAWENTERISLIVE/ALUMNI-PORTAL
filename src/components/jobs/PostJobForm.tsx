@@ -64,8 +64,8 @@ export function PostJobForm({ isOpen, onClose, onSubmit }: PostJobFormProps) {
       description: "",
       requirements: "",
       benefits: "",
-      salaryMin: undefined,
-      salaryMax: undefined,
+      salaryMin: "" as any,
+      salaryMax: "" as any,
       salaryCurrency: "USD",
       applicationUrl: "",
       contactEmail: "",
@@ -146,6 +146,7 @@ export function PostJobForm({ isOpen, onClose, onSubmit }: PostJobFormProps) {
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Post a Job</DialogTitle>
+          <DialogDescription>Fill out the details below to share a new job opportunity with the alumni network.</DialogDescription>
         </DialogHeader>
         
         <Form {...form}>

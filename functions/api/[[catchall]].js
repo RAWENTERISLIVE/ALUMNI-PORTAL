@@ -69,9 +69,38 @@ export async function onRequest(context) {
     return new Response(null, {
       status: 204,
       headers: {
-        "allow": "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        "allow": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+        "access-control-allow-headers": "*"
       }
     });
+  }
+
+  // If a BACKEND service binding is configured, use it
+  if (context.env.BACKEND) {
+    try {
+      // Create a new URL by stripping the /api prefix
+      const url = new URL(context.request.url);
+      const originalPath = url.pathname;
+      const newPath = originalPath.startsWith("/api") 
+        ? originalPath.slice(4) 
+        : originalPath;
+      
+      url.pathname = newPath;
+      
+      const response = await context.env.BACKEND.fetch(new Request(url, context.request.clone()));
+      const responseHeaders = new Headers(response.headers);
+      responseHeaders.set("x-proxied-by", "cloudflare-pages-service-binding");
+      
+      return new Response(response.body, {
+        status: response.status,
+        headers: responseHeaders
+      });
+    } catch (e) {
+      console.error("Backend service binding error:", e);
+      // Fall through to legacy proxy if service binding fails
+    }
   }
 
   const origin = context.env.API_PROXY_ORIGIN;

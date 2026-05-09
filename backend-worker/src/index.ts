@@ -72,20 +72,29 @@ const transformPost = (p: any) => ({
 
 const transformJob = (j: any) => ({
   ...j,
-  requirements: parseJSON(j.requirements),
-  benefits: parseJSON(j.benefits),
-  tags: parseJSON(j.tags),
+  requirements: parseJSON(j.requirements) || [],
+  benefits: parseJSON(j.benefits) || [],
+  tags: parseJSON(j.tags) || [],
   isAlumniReferral: Boolean(j.is_alumni_referral),
   isActive: Boolean(j.is_active),
   applicationCount: j.application_count || 0,
+  postedByName: j.posted_by_name,
+  postedById: j.posted_by_id,
   createdAt: j.created_at,
   updatedAt: j.updated_at,
   postedDate: j.created_at,
-  salaryRange: {
+  postedBy: {
+    id: j.posted_by_id,
+    name: j.posted_by_name
+  },
+  salary: (j.salary_range_min > 0 || j.salary_range_max > 0)
+    ? `${Number(j.salary_range_min).toLocaleString()} - ${Number(j.salary_range_max).toLocaleString()} ${j.salary_currency || 'USD'}`
+    : null,
+  salaryRange: (j.salary_range_min > 0 || j.salary_range_max > 0) ? {
     min: j.salary_range_min,
     max: j.salary_range_max,
     currency: j.salary_currency || 'USD'
-  }
+  } : null
 });
 
 const transformUser = (u: any) => ({
@@ -217,7 +226,7 @@ api.post('/auth/login', async (c) => {
       await c.env.DB.prepare('UPDATE users SET password = ? WHERE id = ?').bind(hashed, user.id).run();
     }
 
-    const token = await createJWT(user.id, user.email, user.role, c.env.JWT_SECRET);
+    const token = await createJWT(user.id, user.email, user.role, user.name || 'User', c.env.JWT_SECRET);
     
     return c.json({
       success: true,
@@ -233,6 +242,48 @@ api.post('/auth/login', async (c) => {
     });
   } catch (error: any) {
     return c.json({ success: false, message: error.message }, 500);
+  }
+});
+
+api.post('/auth/register', async (c) => {
+  try {
+    const { email, password, name, role } = await c.req.json();
+    
+    if (!email || !password || !name) {
+      return c.json({ success: false, message: 'Email, password and name are required.' }, 400);
+    }
+
+    // Check if user already exists
+    const existingUser = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+    if (existingUser) {
+      return c.json({ success: false, message: 'An account with this email already exists.' }, 400);
+    }
+
+    const id = crypto.randomUUID();
+    const hashedPassword = await hashPassword(password);
+    const dbRole = toDbRole(role || 'ALUMNI');
+    
+    await c.env.DB.prepare(`
+      INSERT INTO users (id, email, password, name, role, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'ACTIVE', datetime('now'), datetime('now'))
+    `).bind(id, email, hashedPassword, name, dbRole).run();
+
+    const token = await createJWT(id, email, dbRole, name, c.env.JWT_SECRET);
+
+    return c.json({
+      success: true,
+      accessToken: token,
+      user: {
+        id,
+        email,
+        name,
+        role: toClientRole(dbRole),
+        status: 'ACTIVE'
+      }
+    });
+  } catch (error: any) {
+    console.error('Registration error:', error);
+    return c.json({ success: false, message: error.message || 'Registration failed' }, 500);
   }
 });
 
@@ -493,20 +544,183 @@ api.get('/jobs', async (c) => {
 });
 
 api.post('/jobs', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
+
+    const salaryMin = body.salaryRange?.min ?? body.salaryRangeMin ?? 0;
+    const salaryMax = body.salaryRange?.max ?? body.salaryRangeMax ?? 0;
+    const salaryCurrency = body.salaryRange?.currency ?? body.salaryCurrency ?? 'USD';
+
+    await c.env.DB.prepare(`
+      INSERT INTO jobs (
+        id, title, company, location, type, 
+        salary_range_min, salary_range_max, salary_currency,
+        description, requirements, benefits, tags,
+        posted_by_id, posted_by_name,
+        is_active, is_alumni_referral,
+        application_url, contact_email, application_deadline,
+        created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `).bind(
+      id, 
+      body.title || '', 
+      body.company || '', 
+      body.location || '', 
+      body.type || 'full-time',
+      salaryMin, 
+      salaryMax, 
+      salaryCurrency,
+      body.description || '', 
+      JSON.stringify(body.requirements || []), 
+      JSON.stringify(body.benefits || []), 
+      JSON.stringify(body.tags || []),
+      user.id || 'unknown', 
+      user.name || 'User',
+      body.isAlumniReferral ? 1 : 0,
+      body.applicationUrl || null, 
+      body.contactEmail || null, 
+      body.applicationDeadline || null
+    ).run();
+
+    return c.json({ success: true, data: { id, ...body } });
+  } catch (error: any) {
+    console.error('Create job error:', error);
+    return c.json({ success: false, message: error.message || 'Failed to create job' }, 500);
+  }
+});
+
+api.get('/jobs/saved', authMiddleware, async (c) => {
   const user = c.get('user');
+  const result = await c.env.DB.prepare(`
+    SELECT j.* FROM jobs j
+    JOIN saved_jobs sj ON j.id = sj.job_id
+    WHERE sj.user_id = ? AND j.is_active = 1
+    ORDER BY j.created_at DESC
+  `).bind(user.id).all();
+  
+  const jobs = result.results.map(transformJob);
+  return c.json({ success: true, data: jobs });
+});
+
+api.get('/jobs/applied', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const result = await c.env.DB.prepare(`
+    SELECT j.* FROM jobs j
+    JOIN job_applications ja ON j.id = ja.job_id
+    WHERE ja.applicant_id = ?
+    ORDER BY ja.applied_at DESC
+  `).bind(user.id).all();
+  
+  const jobs = result.results.map(transformJob);
+  return c.json({ success: true, data: jobs });
+});
+
+api.get('/jobs/stats', authMiddleware, async (c) => {
+  const user = c.get('user');
+  
+  const total = await c.env.DB.prepare('SELECT COUNT(*) as count FROM jobs').first();
+  const active = await c.env.DB.prepare('SELECT COUNT(*) as count FROM jobs WHERE is_active = 1').first();
+  const applications = await c.env.DB.prepare('SELECT COUNT(*) as count FROM job_applications').first();
+  const posted = await c.env.DB.prepare('SELECT COUNT(*) as count FROM jobs WHERE posted_by_id = ?').bind(user.id).first();
+  
+  return c.json({ 
+    success: true, 
+    data: { 
+      total: total?.count || 0, 
+      active: active?.count || 0, 
+      applications: applications?.count || 0, 
+      posted: posted?.count || 0 
+    } 
+  });
+});
+
+api.post('/jobs/:id/save', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const jobId = c.req.param('id');
+  
+  await c.env.DB.prepare('INSERT OR IGNORE INTO saved_jobs (job_id, user_id) VALUES (?, ?)')
+    .bind(jobId, user.id).run();
+    
+  return c.json({ success: true });
+});
+
+api.delete('/jobs/:id/save', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const jobId = c.req.param('id');
+  
+  await c.env.DB.prepare('DELETE FROM saved_jobs WHERE job_id = ? AND user_id = ?')
+    .bind(jobId, user.id).run();
+    
+  return c.json({ success: true });
+});
+
+api.post('/jobs/:id/apply', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const jobId = c.req.param('id');
   const body = await c.req.json();
   const id = crypto.randomUUID();
-
+  
+  // Check if already applied
+  const existing = await c.env.DB.prepare('SELECT id FROM job_applications WHERE job_id = ? AND applicant_id = ?')
+    .bind(jobId, user.id).first();
+    
+  if (existing) {
+    return c.json({ success: true, data: { alreadyApplied: true } });
+  }
+  
   await c.env.DB.prepare(`
-    INSERT INTO jobs (id, title, company, location, type, salary_range_min, salary_range_max, description, posted_by_id, posted_by_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id, body.title, body.company, body.location, body.type, 
-    body.salaryRangeMin || 0, body.salaryRangeMax || 0,
-    body.description, user.id, body.name || 'Admin'
-  ).run();
+    INSERT INTO job_applications (id, job_id, applicant_id, cover_letter, resume_url, resume_filename, portfolio_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, jobId, user.id, body.coverLetter, body.resumeUrl, body.resumeFilename, body.portfolioUrl).run();
+  
+  // Increment application count
+  await c.env.DB.prepare('UPDATE jobs SET application_count = application_count + 1 WHERE id = ?')
+    .bind(jobId).run();
+    
+  return c.json({ success: true, data: { id, alreadyApplied: false } });
+});
 
-  return c.json({ success: true, data: { id, ...body } });
+api.get('/jobs/:id/applications', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const jobId = c.req.param('id');
+  
+  const job: any = await c.env.DB.prepare('SELECT posted_by_id FROM jobs WHERE id = ?').bind(jobId).first();
+  if (!job) return c.json({ success: false, message: 'Job not found' }, 404);
+  
+  const userRole = user.role.toLowerCase();
+  const isSuperAdmin = userRole === 'super_admin';
+  
+  if (job.posted_by_id !== user.id && !isSuperAdmin) {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+  
+  const result = await c.env.DB.prepare(`
+    SELECT ja.*, u.name as applicant_name, u.email as applicant_email, 
+           u.contact_phone as applicant_phone, u.linkedin_profile as applicant_linkedin
+    FROM job_applications ja
+    JOIN users u ON ja.applicant_id = u.id
+    WHERE ja.job_id = ?
+    ORDER BY ja.applied_at DESC
+  `).bind(jobId).all();
+  
+  const applications = result.results.map((a: any) => ({
+    id: a.id,
+    applicantId: a.applicant_id,
+    applicantName: a.applicant_name,
+    applicantEmail: a.applicant_email,
+    applicantPhone: a.applicant_phone,
+    applicantLinkedin: a.applicant_linkedin,
+    coverLetter: a.cover_letter,
+    resumeUrl: a.resume_url,
+    resumeFilename: a.resume_filename,
+    portfolioUrl: a.portfolio_url,
+    appliedAt: a.applied_at
+  }));
+  
+  return c.json({ success: true, data: applications });
 });
 
 // Events
@@ -975,16 +1189,77 @@ api.get('/mentorship/mentors', async (c) => {
 
 api.get('/mentorship/profile', authMiddleware, async (c) => {
   const user = c.get('user');
+  
+  // Find mentor profile for current user
   const profile = await c.env.DB.prepare('SELECT * FROM mentorship_profiles WHERE user_id = ?').bind(user.id).first();
   
-  if (!profile) return c.json({ success: false, message: 'Profile not found' }, 404);
+  // Get mentorship requests SENT by this user (as mentee)
+  const sentRequestsResult = await c.env.DB.prepare(`
+    SELECT r.*, u.name as mentor_name, u.profile_image as mentor_image, mp.experience as mentor_experience
+    FROM mentorship_requests r
+    JOIN mentorship_profiles mp ON r.mentor_profile_id = mp.id
+    JOIN users u ON mp.user_id = u.id
+    WHERE r.mentee_id = ?
+    ORDER BY r.created_at DESC
+  `).bind(user.id).all();
+  
+  const requests = sentRequestsResult.results.map(r => ({
+    ...r,
+    preferredSlot: parseJSON(r.preferred_slot),
+    sessionMode: r.session_mode,
+    mentor: {
+      user: {
+        name: r.mentor_name,
+        profileImage: r.mentor_image
+      },
+      experience: r.mentor_experience
+    }
+  }));
+
+  let incomingRequests = [];
+  if (profile) {
+    // Get mentorship requests RECEIVED by this user (as mentor)
+    const incomingResult = await c.env.DB.prepare(`
+      SELECT r.*, u.name as mentee_name, u.profile_image as mentee_image, u.title as mentee_title
+      FROM mentorship_requests r
+      JOIN users u ON r.mentee_id = u.id
+      WHERE r.mentor_profile_id = ?
+      ORDER BY r.created_at DESC
+    `).bind(profile.id).all();
+    
+    incomingRequests = incomingResult.results.map(r => ({
+      ...r,
+      preferredSlot: parseJSON(r.preferred_slot),
+      sessionMode: r.session_mode,
+      mentee: {
+        user: {
+          name: r.mentee_name,
+          profileImage: r.mentee_image,
+          title: r.mentee_title
+        }
+      }
+    }));
+  }
+
+  if (!profile) {
+    return c.json({ 
+      success: true, 
+      data: { 
+        profile: null,
+        requests,
+        incomingRequests: []
+      } 
+    });
+  }
   
   return c.json({ 
     success: true, 
     data: {
       ...profile,
       expertise: parseJSON(profile.expertise),
-      availability: parseJSON(profile.availability)
+      availability: parseJSON(profile.availability),
+      requests,
+      incomingRequests
     } 
   });
 });
@@ -1016,16 +1291,25 @@ api.post('/mentorship/become-mentor', authMiddleware, async (c) => {
 api.post('/mentorship/request/:mentorId', authMiddleware, async (c) => {
   const user = c.get('user');
   const mentorId = c.req.param('mentorId');
-  const { message } = await c.req.json();
+  const body = await c.req.json();
+  const { message, topic, sessionMode, selectedSlot } = body;
   
   const mentorProfile: any = await c.env.DB.prepare('SELECT id FROM mentorship_profiles WHERE user_id = ?').bind(mentorId).first();
   if (!mentorProfile) return c.json({ success: false, message: 'Mentor not found' }, 404);
   
   const id = crypto.randomUUID();
   await c.env.DB.prepare(`
-    INSERT INTO mentorship_requests (id, mentee_id, mentor_profile_id, message)
-    VALUES (?, ?, ?, ?)
-  `).bind(id, user.id, mentorProfile.id, message).run();
+    INSERT INTO mentorship_requests (id, mentee_id, mentor_profile_id, message, topic, session_mode, preferred_slot)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, 
+    user.id, 
+    mentorProfile.id, 
+    message || null, 
+    topic || null, 
+    sessionMode || 'chat', 
+    selectedSlot ? JSON.stringify(selectedSlot) : null
+  ).run();
   
   return c.json({ success: true });
 });
@@ -1067,6 +1351,27 @@ api.get('/notifications', authMiddleware, async (c) => {
   const result = await c.env.DB.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50').bind(user.id).all();
   const notifications = result.results.map(transformNotification);
   return c.json({ success: true, data: notifications });
+});
+
+api.post('/notifications/:id/seen', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const now = new Date().toISOString();
+  
+  await c.env.DB.prepare('UPDATE notifications SET is_seen = 1, seen_at = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+    .bind(now, now, id, user.id).run();
+    
+  return c.json({ success: true });
+});
+
+api.post('/notifications/mark-all-seen', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const now = new Date().toISOString();
+  
+  await c.env.DB.prepare('UPDATE notifications SET is_seen = 1, seen_at = ?, updated_at = ? WHERE user_id = ? AND is_seen = 0')
+    .bind(now, now, user.id).run();
+    
+  return c.json({ success: true });
 });
 
 api.get('/users/directory', authMiddleware, async (c) => {
@@ -1425,28 +1730,66 @@ api.post('/users/messages/:id', authMiddleware, async (c) => {
 });
 
 // Files
-api.post('/uploads', authMiddleware, async (c) => {
+const handleUpload = async (c: any) => {
   const user = c.get('user');
-  const formData = await c.req.parseBody();
-  const file = formData.file as File;
+  if (!user) return c.json({ success: false, message: 'Unauthorized' }, 401);
 
-  if (!file) return c.json({ success: false, message: 'No file provided' }, 400);
+  let file: File | null = null;
+  
+  try {
+    const formData = await c.req.formData();
+    file = formData.get('file') as any;
+  } catch (e: any) {
+    console.error('Error parsing form data:', e);
+    return c.json({ success: false, message: 'Invalid form data: ' + e.message }, 400);
+  }
 
-  const key = `${crypto.randomUUID()}-${file.name.replace(/\s+/g, '_')}`;
-  await c.env.BUCKET.put(key, await file.arrayBuffer(), {
-    httpMetadata: { contentType: file.type }
-  });
+  if (!file || typeof (file as any).arrayBuffer !== 'function') {
+    return c.json({ success: false, message: 'No valid file provided' }, 400);
+  }
 
-  const url = `https://mpsajmer-connect-api.futurist-raghav.workers.dev/api/files/${key}`;
-  const id = crypto.randomUUID();
+  try {
+    const fileName = (file as any).name || 'upload';
+    const fileType = (file as any).type || 'application/octet-stream';
+    const fileSize = (file as any).size || 0;
+    
+    const key = `${crypto.randomUUID()}-${fileName.replace(/\s+/g, '_')}`;
+    
+    if (!c.env.BUCKET) throw new Error('R2 Bucket binding is missing');
 
-  await c.env.DB.prepare(`
-    INSERT INTO files (id, filename, original_name, mimetype, size, url, uploaded_by_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, key, file.name, file.type, file.size, url, user.id).run();
+    await c.env.BUCKET.put(key, await (file as any).arrayBuffer(), {
+      httpMetadata: { contentType: fileType }
+    });
 
-  return c.json({ success: true, url, id });
-});
+    const baseUrl = new URL(c.req.url).origin;
+    const url = `${baseUrl}/api/files/${key}`;
+    const id = crypto.randomUUID();
+
+    await c.env.DB.prepare(`
+      INSERT INTO files (id, filename, original_name, mimetype, size, path, url, uploaded_by_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, key, fileName, fileType, fileSize, key, url, user.id).run();
+
+    return c.json({ 
+      success: true, 
+      id, 
+      url,
+      data: {
+        id,
+        url,
+        originalName: fileName,
+        mimetype: fileType,
+        size: fileSize
+      }
+    });
+  } catch (error: any) {
+    console.error('File upload error:', error);
+    return c.json({ success: false, message: error.message || 'File upload failed' }, 500);
+  }
+};
+
+api.post('/uploads', authMiddleware, handleUpload);
+api.post('/uploads/single', authMiddleware, handleUpload);
 
 api.get('/files/:key', async (c) => {
   const key = c.req.param('key');

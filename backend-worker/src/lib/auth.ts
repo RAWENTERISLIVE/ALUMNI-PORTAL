@@ -13,9 +13,9 @@ export const hashPassword = async (password: string) => {
   return await bcrypt.hash(password, 10);
 };
 
-export const createJWT = async (userId: string, email: string, role: string, secret: string) => {
+export const createJWT = async (userId: string, email: string, role: string, name: string, secret: string) => {
   const secretKey = new TextEncoder().encode(secret);
-  const token = await new SignJWT({ id: userId, email, role })
+  const token = await new SignJWT({ id: userId, email, role, name })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')

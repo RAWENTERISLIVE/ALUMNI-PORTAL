@@ -72,7 +72,8 @@ export interface Job {
   description: string;
   requirements: string[];
   benefits?: string[];
-  postedBy: string;
+  postedBy: string | { id: string; name: string };
+  postedById?: string;
   postedByName: string;
   applicationUrl?: string;
   contactEmail?: string;

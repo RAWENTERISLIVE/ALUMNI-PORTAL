@@ -94,13 +94,16 @@ class ApiService {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
     
+    // Check if body is FormData to avoid setting JSON content type
+    const isFormData = options.body instanceof FormData;
+    
     const config: RequestInit = {
+      ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...(!isFormData && { 'Content-Type': 'application/json' }),
         ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
         ...options.headers,
       },
-      ...options,
     };
 
     try {
@@ -1217,89 +1220,23 @@ class ApiService {
 
   // File upload method
   async uploadFile(file: File): Promise<ApiResponse> {
-    const sendUploadRequest = async () => {
-      const formData = new FormData();
-      formData.append('file', file);
+    const formData = new FormData();
+    formData.append('file', file);
 
-      return fetch(`${this.baseURL}/uploads/single`, {
-        method: 'POST',
-        headers: {
-          ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
-        },
-        body: formData
-      });
-    };
-
-    try {
-      let response = await sendUploadRequest();
-
-      if (response.status === 401 && this.accessToken) {
-        const refreshed = await this.refreshToken();
-        if (refreshed) {
-          response = await sendUploadRequest();
-        }
-      }
-
-      let data: any = null;
-      const contentType = response.headers.get('content-type') || '';
-
-      if (contentType.includes('application/json')) {
-        try {
-          data = await response.json();
-        } catch {
-          data = null;
-        }
-      } else {
-        const text = await response.text();
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = { message: text };
-        }
-      }
-
-      if (!response.ok) {
-        const errorMessage =
-          data?.message ||
-          data?.error ||
-          (response.status === 401
-            ? 'Session expired. Please login again.'
-            : `Upload failed (HTTP ${response.status})`);
-        throw new Error(errorMessage);
-      }
-
-      return data;
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message || 'Failed to upload file.',
-      };
-    }
+    return await this.request('/uploads/single', {
+      method: 'POST',
+      body: formData,
+    });
   }
 
   async uploadVerificationIdCard(file: File): Promise<ApiResponse> {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+    const formData = new FormData();
+    formData.append('file', file);
 
-      const response = await fetch(`${this.baseURL}/auth/upload-verification-id`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.message || 'Failed to upload faculty ID card.');
-      }
-
-      return data;
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message || 'Failed to upload faculty ID card.',
-      };
-    }
+    return await this.request('/auth/upload-verification-id', {
+      method: 'POST',
+      body: formData
+    });
   }
 
   // Group methods

@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { JobDetailsModal } from "@/components/jobs/JobDetailsModal";
 import { PostJobForm } from "@/components/jobs/PostJobForm";
 import { ApplyJobDialog } from "@/components/jobs/ApplyJobDialog";
+import { JobApplicantsModal } from "@/components/jobs/JobApplicantsModal";
 import apiService from "@/services/apiService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Job } from "@/types";
@@ -46,17 +47,16 @@ interface JobApplicationRecord {
   appliedAt: string;
 }
 
-const getPostedById = (job: Job): string | undefined => {
-  const postedBy = job.postedBy as unknown;
-
-  if (postedBy && typeof postedBy === "object" && "id" in postedBy) {
-    const maybeId = (postedBy as { id?: unknown }).id;
-    if (typeof maybeId === "string") {
-      return maybeId;
-    }
+const getPostedById = (job: Job): string => {
+  if (job.postedById) return job.postedById;
+  
+  const postedBy = job.postedBy as any;
+  if (postedBy && typeof postedBy === "object" && postedBy.id) {
+    return String(postedBy.id);
   }
-
-  return undefined;
+  
+  const rawId = (job as any).posted_by_id;
+  return rawId ? String(rawId) : "";
 };
 
 const escapeCsvCell = (value: unknown): string => {
@@ -80,6 +80,12 @@ export default function JobsPage() {
   const [applicationSubmitStatus, setApplicationSubmitStatus] = useState<string>("");
   const [downloadingApplicantsForJobId, setDownloadingApplicantsForJobId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
+  
+  // Applicants modal
+  const [isApplicantsModalOpen, setIsApplicantsModalOpen] = useState(false);
+  const [currentApplicantsJob, setCurrentApplicantsJob] = useState<Job | null>(null);
+  const [applicants, setApplicants] = useState<JobApplicationRecord[]>([]);
+  const [isLoadingApplicants, setIsLoadingApplicants] = useState(false);
   
   // Additional filters
   const [jobTypeFilter, setJobTypeFilter] = useState<string | null>(null);
@@ -265,11 +271,16 @@ export default function JobsPage() {
   };
 
   const canDownloadApplications = (job: Job) => {
-    if (!currentUser) return false;
-    if (isOwnPosting(job)) return true;
-
-    const role = (currentUser.role || "").toLowerCase();
-    return role === "moderator" || role === "admin" || role === "super_admin";
+    if (!currentUser || !currentUser.id) return false;
+    const userRole = currentUser.role?.toLowerCase();
+    
+    // Check ownership
+    const isJobOwner = getPostedById(job) === currentUser.id;
+    
+    // Check if super admin (who should have master access)
+    const isSuperAdmin = userRole === "super_admin";
+    
+    return isJobOwner || isSuperAdmin;
   };
 
   const handleExternalApply = async (job: Job) => {
@@ -321,6 +332,31 @@ export default function JobsPage() {
     }
 
     openApplyDialog(job);
+  };
+
+  const handleViewApplicants = async (job: Job) => {
+    if (!canDownloadApplications(job)) {
+      toast({ title: "Not allowed", description: "Only the job poster can view applicant data.", variant: "destructive" });
+      return;
+    }
+
+    setCurrentApplicantsJob(job);
+    setIsApplicantsModalOpen(true);
+    setIsLoadingApplicants(true);
+
+    try {
+      const response = await apiService.getJobApplications(job.id);
+      if (response.success) {
+        setApplicants((Array.isArray(response.data) ? response.data : []) as JobApplicationRecord[]);
+      } else {
+        throw new Error(response.message || "Failed to fetch applicants");
+      }
+    } catch (error: any) {
+      console.error("Error fetching applicants:", error);
+      toast({ title: "Error", description: "Failed to load applicants.", variant: "destructive" });
+    } finally {
+      setIsLoadingApplicants(false);
+    }
   };
 
   const handleDownloadApplicants = async (job: Job) => {
@@ -658,15 +694,25 @@ export default function JobsPage() {
                       
                       <div className="flex items-center gap-2">
                         {isOwnJob && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-sm"
-                            disabled={downloadingApplicantsForJobId === job.id}
-                            onClick={() => void handleDownloadApplicants(job)}
-                          >
-                            {downloadingApplicantsForJobId === job.id ? "Preparing..." : "Download Applicants"}
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-sm text-primary hover:text-primary/80 hover:bg-primary/5"
+                              onClick={() => void handleViewApplicants(job)}
+                            >
+                              View Applicants
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-sm"
+                              disabled={downloadingApplicantsForJobId === job.id}
+                              onClick={() => void handleDownloadApplicants(job)}
+                            >
+                              {downloadingApplicantsForJobId === job.id ? "Preparing..." : "CSV Export"}
+                            </Button>
+                          </div>
                         )}
 
                         <Button 
@@ -771,6 +817,7 @@ export default function JobsPage() {
           canDownloadApplications={canDownloadApplications(selectedJob)}
           isDownloadingApplications={downloadingApplicantsForJobId === selectedJob.id}
           onDownloadApplications={handleDownloadApplicants}
+          onViewApplicants={handleViewApplicants}
         />
       )}
 
@@ -794,6 +841,14 @@ export default function JobsPage() {
             portfolioUrl,
           });
         }}
+      />
+      
+      <JobApplicantsModal
+        isOpen={isApplicantsModalOpen}
+        onClose={() => setIsApplicantsModalOpen(false)}
+        jobTitle={currentApplicantsJob?.title || ""}
+        applications={applicants as any}
+        loading={isLoadingApplicants}
       />
       
       <PostJobForm
