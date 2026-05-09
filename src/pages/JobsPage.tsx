@@ -48,15 +48,19 @@ interface JobApplicationRecord {
 }
 
 const getPostedById = (job: Job): string => {
-  if (job.postedById) return job.postedById;
+  if (job.postedById) return String(job.postedById);
   
   const postedBy = job.postedBy as any;
-  if (postedBy && typeof postedBy === "object" && postedBy.id) {
+  if (postedBy && typeof postedBy === "object" && postedBy.id !== undefined) {
     return String(postedBy.id);
   }
   
   const rawId = (job as any).posted_by_id;
-  return rawId ? String(rawId) : "";
+  if (rawId !== undefined && rawId !== null) {
+    return String(rawId);
+  }
+  
+  return "";
 };
 
 const escapeCsvCell = (value: unknown): string => {
@@ -256,7 +260,7 @@ export default function JobsPage() {
       return;
     }
 
-    if (getPostedById(job) === currentUser.id) {
+    if (isOwnPosting(job)) {
       toast({ title: "Not allowed", description: "You cannot apply to your own job posting.", variant: "destructive" });
       return;
     }
@@ -266,21 +270,14 @@ export default function JobsPage() {
   };
 
   const isOwnPosting = (job: Job) => {
+    if (!currentUser || !currentUser.id) return false;
     const postedById = getPostedById(job);
-    return Boolean(currentUser && postedById && postedById === currentUser.id);
+    if (!postedById) return false;
+    return String(postedById) === String(currentUser.id);
   };
 
   const canDownloadApplications = (job: Job) => {
-    if (!currentUser || !currentUser.id) return false;
-    const userRole = currentUser.role?.toLowerCase();
-    
-    // Check ownership
-    const isJobOwner = getPostedById(job) === currentUser.id;
-    
-    // Check if super admin (who should have master access)
-    const isSuperAdmin = userRole === "super_admin";
-    
-    return isJobOwner || isSuperAdmin;
+    return isOwnPosting(job);
   };
 
   const handleExternalApply = async (job: Job) => {
@@ -710,7 +707,7 @@ export default function JobsPage() {
                               disabled={downloadingApplicantsForJobId === job.id}
                               onClick={() => void handleDownloadApplicants(job)}
                             >
-                              {downloadingApplicantsForJobId === job.id ? "Preparing..." : "CSV Export"}
+                              {downloadingApplicantsForJobId === job.id ? "Preparing..." : "Download Applicants"}
                             </Button>
                           </div>
                         )}

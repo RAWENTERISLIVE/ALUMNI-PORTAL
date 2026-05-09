@@ -1,4 +1,5 @@
 import { Server as HttpServer } from 'http';
-export declare const initSocket: (server: HttpServer) => Server;
-export declare const getIO: () => any;
+import { Server } from 'socket.io';
+export declare const initSocket: (server: HttpServer) => Server<import("socket.io").DefaultEventsMap, import("socket.io").DefaultEventsMap, import("socket.io").DefaultEventsMap, any>;
+export declare const getIO: () => Server<import("socket.io").DefaultEventsMap, import("socket.io").DefaultEventsMap, import("socket.io").DefaultEventsMap, any>;
 //# sourceMappingURL=socket.d.ts.map

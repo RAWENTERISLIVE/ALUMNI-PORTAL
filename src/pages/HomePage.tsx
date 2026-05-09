@@ -1,329 +1,253 @@
-
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Users, MessageSquare, Briefcase, ChevronRight, Star } from "lucide-react";
+import { 
+  GraduationCap, 
+  Users, 
+  MessageSquare, 
+  Briefcase, 
+  ChevronRight, 
+  Star,
+  ArrowRight,
+  Sparkles,
+  Globe,
+  Award,
+  Zap,
+  BookOpen
+} from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
+    <div className="min-h-screen flex flex-col font-sans bg-background selection:bg-primary/30 text-foreground overflow-x-hidden">
+      {/* Navigation Bar */}
+      <nav className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md border-b border-border/50 shadow-sm transition-all duration-300">
+        <div className="container mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="MPS Ajmer Logo" className="w-10 h-10 object-contain drop-shadow-md" />
+            <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Maheshwari Public School, Ajmer
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <Button asChild variant="outline" className="hidden sm:inline-flex border-primary/20 hover:bg-primary/10 transition-colors text-foreground">
+              <Link to="/login">Sign In</Link>
+            </Button>
+            <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 rounded-full px-6">
+              <Link to="/register">Join Network</Link>
+            </Button>
+          </div>
+        </div>
+      </nav>
 
       {/* Hero Section */}
-      <header className="bg-gradient-to-r from-primary to-primary/80 text-white py-14 sm:py-20 relative overflow-hidden">
-        {/* Abstract background shapes */}
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-card opacity-5 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 rounded-full bg-accent opacity-20 blur-3xl"></div>
+      <header className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden flex items-center min-h-[90vh]">
+        {/* Background Gradients & Orbs */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background"></div>
+        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary/20 rounded-full mix-blend-multiply filter blur-[128px] animate-pulse"></div>
+        <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-accent/20 rounded-full mix-blend-multiply filter blur-[128px] animate-pulse" style={{ animationDelay: '2s' }}></div>
         
-        <div className="container mx-auto px-4 sm:px-6 flex flex-col lg:flex-row items-center justify-between gap-8 relative z-10">
-          <div className="space-y-6 max-w-2xl">
-            <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold tracking-tight">
-              Welcome to MPSAJMER CONNECT
+        <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row items-center gap-16">
+          <div className="flex-1 space-y-8 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary font-medium text-sm w-max mx-auto lg:mx-0 shadow-inner backdrop-blur-sm">
+              <Sparkles className="w-4 h-4" />
+              <span>The Official Global Alumni Network</span>
+            </div>
+            
+            <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
+              Reconnect with your <br className="hidden lg:block"/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary animate-gradient-x">Alma Mater</span>
             </h1>
-            <p className="text-base sm:text-lg md:text-xl opacity-90 font-light">
-              The official portal for our prestigious alumni network. Reconnect with classmates, discover career opportunities, 
-              and contribute to our legacy of excellence.
+            
+            <p className="text-lg lg:text-xl text-muted-foreground font-light max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+              Step into the official community for Maheshwari Public School, Ajmer alumni. Reconnect with classmates, share opportunities, and support the community.
             </p>
-            <div className="flex flex-wrap gap-4 pt-4">
-              <Button asChild size="lg" className="bg-card text-foreground hover:bg-muted/90 hover:scale-105 transition-all duration-300 shadow-lg font-semibold">
-                <Link to="/register">Join the Network</Link>
+            
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
+              <Button asChild size="lg" className="h-14 px-8 text-lg rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/30 transition-all hover:-translate-y-1 group">
+                <Link to="/register">
+                  Join the Community 
+                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-card/10 transition-all duration-300">
-                <Link to="/login">Login</Link>
+              <Button asChild size="lg" variant="outline" className="h-14 px-8 text-lg rounded-full border-border/50 hover:bg-muted/50 backdrop-blur-sm transition-all hover:-translate-y-1">
+                <Link to="/directory">Explore Directory</Link>
               </Button>
             </div>
           </div>
-          <div className="hidden lg:block relative group">
-            <div className="absolute -top-6 -left-6 w-24 h-24 bg-accent rounded-full opacity-60 group-hover:scale-110 transition-transform duration-500"></div>
-            <img 
-              src="/hero-mpsajmer.png" 
-              alt="MPSAJMER CONNECT" 
-              className="rounded-lg shadow-2xl w-[550px] h-auto relative z-10 border-4 border-white/20"
-            />
-            <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-primary/40 rounded-full opacity-60 backdrop-blur-sm group-hover:scale-110 transition-transform duration-500 delay-100"></div>
+          
+          <div className="flex-1 relative hidden md:block">
+            <div className="relative w-full max-w-lg mx-auto aspect-square">
+              {/* Decorative rings */}
+              <div className="absolute inset-0 border border-primary/20 rounded-full animate-[spin_60s_linear_infinite]"></div>
+              <div className="absolute inset-4 border border-accent/20 rounded-full animate-[spin_40s_linear_infinite_reverse]"></div>
+              
+              {/* Main Image */}
+              <div className="absolute inset-12 rounded-full overflow-hidden border-8 border-background/50 shadow-2xl">
+                <img src="/hero-mpsajmer.png" alt="MPS Ajmer Campus" className="w-full h-full object-cover" 
+                     onError={(e) => {
+                       const target = e.target as HTMLImageElement;
+                       target.src = "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=1000&auto=format&fit=crop";
+                     }} 
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* School Highlights */}
-      <section className="py-12 sm:py-16 bg-card">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <span className="text-foreground font-medium uppercase tracking-wider">OUR LEGACY</span>
-            <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4 text-foreground">A Tradition of Excellence</h2>
-            <div className="h-1 w-20 bg-primary mx-auto mb-6"></div>
-            <p className="text-muted-foreground text-lg">
-              For over 75 years, our institution has been shaping leaders, innovators, and changemakers who make an impact worldwide.
-            </p>
+
+      {/* Features Showcase */}
+      <section className="py-24 relative">
+        <div className="container mx-auto px-6">
+          <div className="text-center max-w-3xl mx-auto mb-20 space-y-4">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-primary">Discover The Platform</h2>
+            <h3 className="text-3xl md:text-5xl font-bold text-foreground">Everything you need to thrive</h3>
+            <p className="text-xl text-muted-foreground">The central hub for our alumni community to stay connected and grow together.</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 mt-12">
-            <div className="bg-card p-8 text-center rounded-xl shadow-sm border border-border hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Star className="h-8 w-8 text-foreground" />
-              </div>
-              <h3 className="text-2xl font-bold mb-3 text-foreground">Top-Ranked</h3>
-              <p className="text-muted-foreground">
-                Consistently ranked among the top educational institutions nationwide for academic excellence and student outcomes.
-              </p>
-            </div>
-
-            <div className="bg-card p-8 text-center rounded-xl shadow-sm border border-border hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="h-8 w-8 text-foreground" />
-              </div>
-              <h3 className="text-2xl font-bold mb-3 text-foreground">Global Network</h3>
-              <p className="text-muted-foreground">
-                Join over 50,000 alumni across 75 countries who are changing the world in countless ways.
-              </p>
-            </div>
-
-            <div className="bg-card p-8 text-center rounded-xl shadow-sm border border-border hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Briefcase className="h-8 w-8 text-foreground" />
-              </div>
-              <h3 className="text-2xl font-bold mb-3 text-foreground">Career Success</h3>
-              <p className="text-muted-foreground">
-                Our graduates achieve exceptional career trajectories with 95% employment within six months of graduation.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section with Enhanced Design */}
-      <section className="py-12 sm:py-16 bg-card">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <span className="text-foreground font-medium uppercase tracking-wider">ALUMNI BENEFITS</span>
-            <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4 text-foreground">Reconnect &amp; Grow Together</h2>
-            <div className="h-1 w-20 bg-primary mx-auto mb-6"></div>
-            <p className="text-muted-foreground text-lg">
-              Our platform offers everything you need to stay connected with your school community
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mt-12">
-            <div className="bg-card p-6 rounded-xl shadow-sm border border-border flex flex-col items-center text-center hover:border-primary/30 hover:shadow-md transition-all duration-300">
-              <div className="bg-primary/10 p-4 rounded-full mb-4">
-                <Users className="h-8 w-8 text-foreground" />
-              </div>
-              <h3 className="text-xl font-medium mb-2 text-foreground">Alumni Directory</h3>
-              <p className="text-muted-foreground">
-                Find and reconnect with former classmates and teachers
-              </p>
-              <Button variant="ghost" size="sm" className="mt-4 text-foreground hover:text-foreground hover:bg-primary/5" asChild>
-                <Link to="/register" className="flex items-center">
-                  Explore <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
-            </div>
-
-            <div className="bg-card p-6 rounded-xl shadow-sm border border-border flex flex-col items-center text-center hover:border-primary/30 hover:shadow-md transition-all duration-300">
-              <div className="bg-primary/10 p-4 rounded-full mb-4">
-                <MessageSquare className="h-8 w-8 text-foreground" />
-              </div>
-              <h3 className="text-xl font-medium mb-2 text-foreground">Groups &amp; Events</h3>
-              <p className="text-muted-foreground">
-                Join interest groups and attend alumni events
-              </p>
-              <Button variant="ghost" size="sm" className="mt-4 text-foreground hover:text-foreground hover:bg-primary/5" asChild>
-                <Link to="/register" className="flex items-center">
-                  Join Now <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
-            </div>
-
-            <div className="bg-card p-6 rounded-xl shadow-sm border border-border flex flex-col items-center text-center hover:border-primary/30 hover:shadow-md transition-all duration-300">
-              <div className="bg-primary/10 p-4 rounded-full mb-4">
-                <GraduationCap className="h-8 w-8 text-foreground" />
-              </div>
-              <h3 className="text-xl font-medium mb-2 text-foreground">Mentorship</h3>
-              <p className="text-muted-foreground">
-                Connect with mentors or become one yourself
-              </p>
-              <Button variant="ghost" size="sm" className="mt-4 text-foreground hover:text-foreground hover:bg-primary/5" asChild>
-                <Link to="/register" className="flex items-center">
-                  Learn More <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
-            </div>
-
-            <div className="bg-card p-6 rounded-xl shadow-sm border border-border flex flex-col items-center text-center hover:border-primary/30 hover:shadow-md transition-all duration-300">
-              <div className="bg-primary/10 p-4 rounded-full mb-4">
-                <Briefcase className="h-8 w-8 text-foreground" />
-              </div>
-              <h3 className="text-xl font-medium mb-2 text-foreground">Job Board</h3>
-              <p className="text-muted-foreground">
-                Explore career opportunities shared by alumni
-              </p>
-              <Button variant="ghost" size="sm" className="mt-4 text-foreground hover:text-foreground hover:bg-primary/5" asChild>
-                <Link to="/register" className="flex items-center">
-                  View Jobs <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section className="py-12 sm:py-16 bg-card">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <span className="text-foreground font-medium uppercase tracking-wider">ALUMNI VOICES</span>
-            <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4 text-foreground">What Our Community Says</h2>
-            <div className="h-1 w-20 bg-primary mx-auto mb-6"></div>
-          </div>
-          
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="bg-card p-8 rounded-xl shadow-sm border border-border relative hover:shadow-md transition-all duration-300">
-              <div className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4">
-                <div className="text-foreground/20 text-6xl opacity-50">"</div>
-              </div>
-              <p className="italic mb-6 text-foreground/80">
-                "The alumni network has been instrumental in my career growth. I've found mentors, job opportunities, and lifelong friends."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-primary rounded-full mr-4"></div>
-                <div>
-                  <h4 className="font-medium text-foreground">Sarah Johnson</h4>
-                  <p className="text-sm text-muted-foreground">Class of 2015</p>
+            {[
+              {
+                icon: Users,
+                title: "Alumni Directory",
+                desc: "Smart search to find classmates by graduation year, location, or industry.",
+                color: "from-primary/10 to-primary/5",
+                iconColor: "text-primary"
+              },
+              {
+                icon: Briefcase,
+                title: "Exclusive Job Board",
+                desc: "Access roles posted by fellow alumni at top companies around the world.",
+                color: "from-accent/10 to-accent/5",
+                iconColor: "text-accent"
+              },
+              {
+                icon: GraduationCap,
+                title: "Mentorship Program",
+                desc: "Get guidance from experienced professionals or give back to recent grads.",
+                color: "from-primary/10 to-primary/5",
+                iconColor: "text-primary"
+              },
+              {
+                icon: MessageSquare,
+                title: "Community Groups",
+                desc: "Join groups based on your interests, industry, or geographical region.",
+                color: "from-accent/10 to-accent/5",
+                iconColor: "text-accent"
+              },
+              {
+                icon: BookOpen,
+                title: "News & Updates",
+                desc: "Stay informed about the latest school news, achievements, and milestones.",
+                color: "from-primary/10 to-primary/5",
+                iconColor: "text-primary"
+              },
+              {
+                icon: Star,
+                title: "Events & Reunions",
+                desc: "RSVP to global meetups, webinars, and official school reunions.",
+                color: "from-accent/10 to-accent/5",
+                iconColor: "text-accent"
+              }
+            ].map((feature, i) => (
+              <div key={i} className="group relative p-8 rounded-3xl bg-card border border-border hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/5 transition-all duration-500 overflow-hidden hover:-translate-y-2">
+                <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+                <div className="relative z-10">
+                  <div className={`w-14 h-14 rounded-2xl bg-background border border-border shadow-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500`}>
+                    <feature.icon className={`w-7 h-7 ${feature.iconColor}`} />
+                  </div>
+                  <h4 className="text-2xl font-bold mb-3 text-foreground">{feature.title}</h4>
+                  <p className="text-muted-foreground leading-relaxed">{feature.desc}</p>
                 </div>
               </div>
-            </div>
-            
-            <div className="bg-card p-8 rounded-xl shadow-sm border border-border relative hover:shadow-md transition-all duration-300">
-              <div className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4">
-                <div className="text-foreground/20 text-6xl opacity-50">"</div>
-              </div>
-              <p className="italic mb-6 text-foreground/80">
-                "Being part of this alumni community keeps me connected to the school's values and the amazing people I met during my time there."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-primary rounded-full mr-4"></div>
-                <div>
-                  <h4 className="font-medium text-foreground">Michael Chen</h4>
-                  <p className="text-sm text-muted-foreground">Class of 2008</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-card p-8 rounded-xl shadow-sm border border-border relative lg:col-span-1 md:col-span-2 lg:col-auto hover:shadow-md transition-all duration-300">
-              <div className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4">
-                <div className="text-foreground/20 text-6xl opacity-50">"</div>
-              </div>
-              <p className="italic mb-6 text-foreground/80">
-                "The mentorship program changed my life. I'm now giving back by mentoring recent graduates. It's a full-circle experience."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-primary rounded-full mr-4"></div>
-                <div>
-                  <h4 className="font-medium text-foreground">Alicia Rodriguez</h4>
-                  <p className="text-sm text-muted-foreground">Class of 2010</p>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="bg-gradient-to-r from-primary to-primary/80 text-white py-14 sm:py-20">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-5xl font-bold mb-6 max-w-3xl mx-auto">Ready to reconnect with your alma mater?</h2>
-          <p className="text-lg md:text-xl mb-8 max-w-2xl mx-auto opacity-90">
-            Join our growing community of alumni and start building valuable connections today.
-          </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <Button asChild size="lg" className="bg-card text-foreground hover:bg-card hover:scale-105 transition-all duration-300 shadow-lg">
-              <Link to="/register">Join Now</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-card/10 transition-all duration-300">
-              <Link to="/login">Sign In</Link>
-            </Button>
+      <section className="py-24 relative overflow-hidden">
+        <div className="absolute inset-0 bg-primary"></div>
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=2000&auto=format&fit=crop')] mix-blend-overlay opacity-20 bg-cover bg-center"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/90 to-primary/80"></div>
+        
+        <div className="container mx-auto px-6 relative z-10 text-center">
+          <div className="max-w-4xl mx-auto backdrop-blur-sm bg-black/10 p-10 md:p-16 rounded-3xl border border-white/10 shadow-2xl">
+            <h2 className="text-4xl md:text-6xl font-extrabold text-white mb-6">Your network is your net worth.</h2>
+            <p className="text-xl text-white/80 mb-10 max-w-2xl mx-auto font-light">
+              Don't miss out on the value of the MPS Ajmer alumni network. Join your fellow graduates today.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Button asChild size="lg" className="h-16 px-10 text-lg rounded-full bg-white text-[#8B0000] hover:bg-gray-100 shadow-xl hover:-translate-y-1 transition-all">
+                <Link to="/register">Create Your Profile</Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="h-16 px-10 text-lg rounded-full border-white text-white hover:bg-white/20 hover:-translate-y-1 transition-all">
+                <Link to="/login">Sign In to Dashboard</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-card text-card-foreground border-t border-border py-12">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-            <div>
-              <h3 className="text-2xl font-bold mb-4">MPSAJMER CONNECT</h3>
-              <p className="text-muted-foreground mb-4">
-                Connecting school communities since 2023
-              </p>
-              <div className="flex space-x-4">
-                <a href="https://facebook.com" className="text-white hover:text-accent" target="_blank" rel="noreferrer">
-                  <span className="sr-only">Facebook</span>
-                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd" />
-                  </svg>
-                </a>
-                <a href="https://instagram.com" className="text-white hover:text-accent" target="_blank" rel="noreferrer">
-                  <span className="sr-only">Instagram</span>
-                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 015.45 2.525c.636-.247 1.363-.416 2.427-.465C8.901 2.013 9.256 2 11.685 2h.63zm-.081 1.802h-.468c-2.456 0-2.784.011-3.807.058-.975.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.882-.344 1.857-.047 1.023-.058 1.351-.058 3.807v.468c0 2.456.011 2.784.058 3.807.045.975.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.882.3 1.857.344 1.054.048 1.37.058 4.041.058h.08c2.597 0 2.917-.01 3.96-.058.976-.045 1.505-.207 1.858-.344.466-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.882.344-1.857.048-1.055.058-1.37.058-4.041v-.08c0-2.597-.01-2.917-.058-3.96-.045-.976-.207-1.505-.344-1.858a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.882-.3-1.857-.344-1.023-.047-1.351-.058-3.807-.058zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.802a3.333 3.333 0 100 6.666 3.333 3.333 0 000-6.666zm5.338-3.205a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z" clipRule="evenodd" />
-                  </svg>
-                </a>
-                <a href="https://x.com" className="text-white hover:text-accent" target="_blank" rel="noreferrer">
-                  <span className="sr-only">Twitter</span>
-                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-                  </svg>
-                </a>
-                <a href="https://linkedin.com" className="text-white hover:text-accent" target="_blank" rel="noreferrer">
-                  <span className="sr-only">LinkedIn</span>
-                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                  </svg>
-                </a>
+      <footer className="bg-card pt-20 pb-10 border-t border-border">
+        <div className="container mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <img src="/logo.png" alt="MPS Ajmer Logo" className="w-8 h-8" />
+                <span className="text-xl font-bold">Maheshwari Public School, Ajmer</span>
+              </div>
+              <div className="text-muted-foreground leading-relaxed space-y-2 text-sm">
+                <p className="font-semibold text-foreground">Contact Us</p>
+                <p>Address<br/>Maheshwari Public School<br/>Mahesh Path, Capt. D. P. Choudhary Marg,<br/>Vaishali Nagar, Ajmer 305004</p>
+                <p>Phone: 91-145-2641508, 2641351</p>
+                <p>Website: <a href="https://mpsajmer.com" className="hover:text-primary transition-colors">mpsajmer.com</a></p>
+                <p>E-mail: mpsajmer123@gmail.com</p>
               </div>
             </div>
             
+            <div className="space-y-6">
+              <div className="text-muted-foreground leading-relaxed space-y-2 text-sm mt-12 md:mt-14">
+                <p className="font-semibold text-foreground">Principal's Office visiting hours</p>
+                <p>(On School Days only)<br/>9.00 am. to 10.00 am.<br/>(At other time by appointment only)</p>
+                
+                <p className="font-semibold text-foreground mt-4">Schools Office Hours</p>
+                <p>(On School Days only)<br/>9.00 a.m to 12.00 Noon</p>
+              </div>
+            </div>
+
             <div>
-              <h4 className="text-lg font-bold mb-4">Quick Links</h4>
-              <ul className="space-y-2">
-                <li><Link to="/about" className="text-muted-foreground hover:text-foreground">About Us</Link></li>
-                <li><Link to="/events" className="text-muted-foreground hover:text-foreground">Events</Link></li>
-                <li><Link to="/news" className="text-muted-foreground hover:text-foreground">News</Link></li>
-                <li><Link to="/donate" className="text-muted-foreground hover:text-foreground">Support Us</Link></li>
+              <h4 className="text-lg font-bold mb-6 text-foreground">Platform</h4>
+              <ul className="space-y-4">
+                <li><Link to="/directory" className="text-muted-foreground hover:text-primary transition-colors">Directory</Link></li>
+                <li><Link to="/jobs" className="text-muted-foreground hover:text-primary transition-colors">Job Board</Link></li>
+                <li><Link to="/mentorship" className="text-muted-foreground hover:text-primary transition-colors">Mentorship</Link></li>
+                <li><Link to="/events" className="text-muted-foreground hover:text-primary transition-colors">Events</Link></li>
               </ul>
             </div>
-            
+
             <div>
-              <h4 className="text-lg font-bold mb-4">Resources</h4>
-              <ul className="space-y-2">
-                <li><Link to="/mentorship" className="text-muted-foreground hover:text-foreground">Mentorship Program</Link></li>
-                <li><Link to="/jobs" className="text-muted-foreground hover:text-foreground">Job Board</Link></li>
-                <li><Link to="/groups" className="text-muted-foreground hover:text-foreground">Alumni Groups</Link></li>
-                <li><Link to="/directory" className="text-muted-foreground hover:text-foreground">Alumni Directory</Link></li>
+              <h4 className="text-lg font-bold mb-6 text-foreground">Support & Links</h4>
+              <ul className="space-y-4">
+                <li><Link to="/faq" className="text-muted-foreground hover:text-primary transition-colors">FAQ</Link></li>
+                <li><Link to="/contact" className="text-muted-foreground hover:text-primary transition-colors">Contact Us</Link></li>
+                <li><Link to="/privacy" className="text-muted-foreground hover:text-primary transition-colors">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="text-muted-foreground hover:text-primary transition-colors">Terms of Service</Link></li>
               </ul>
-            </div>
-            
-            <div>
-              <h4 className="text-lg font-bold mb-4">Contact</h4>
-              <address className="not-italic text-muted-foreground">
-                <p>1234 School Avenue</p>
-                <p>City, State 12345</p>
-                <p className="mt-2">Email: <a href="mailto:alumni@school.edu" className="hover:text-foreground">alumni@school.edu</a></p>
-                <p>Phone: (123) 456-7890</p>
-              </address>
             </div>
           </div>
           
-          <div className="border-t border-border mt-8 pt-8 text-center text-muted-foreground text-sm">
-            <div className="flex flex-wrap justify-center gap-6 mb-4">
-              <Link to="/privacy" className="text-muted-foreground hover:text-foreground">Privacy Policy</Link>
-              <Link to="/terms" className="text-muted-foreground hover:text-foreground">Terms of Service</Link>
-              <Link to="/contact" className="text-muted-foreground hover:text-foreground">Contact Us</Link>
+          <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-col gap-1">
+              <p>&copy; {new Date().getFullYear()} Maheshwari Public School, Ajmer . All rights reserved.</p>
             </div>
-            <p>&copy; {new Date().getFullYear()} MPSAJMER CONNECT. All rights reserved.</p>
-            <p className="mt-2">this app is made by raghav agarwal</p>
+            <div className="flex flex-col gap-1 md:text-right">
+              <p>Developed & Managed by Raghav Agarwal</p>
+              <p>Website: <a href="https://raghavagarwal.com" className="hover:text-primary transition-colors">https://raghavagarwal.com</a> | Mail: <a href="mailto:admin@raghavagarwal.com" className="hover:text-primary transition-colors">admin@raghavagarwal.com</a></p>
+            </div>
           </div>
         </div>
       </footer>

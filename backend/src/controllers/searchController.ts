@@ -318,15 +318,21 @@ export const universalSearch = asyncHandler(async (req: Request, res: Response) 
     }),
     prisma.helpTicket.findMany({
       where: {
-        OR: [
-          { title: { contains: query, mode: 'insensitive' } },
-          { description: { contains: query, mode: 'insensitive' } },
-          { tags: { hasSome: [query] } }
-        ],
-        // User can only see their own tickets or tickets assigned to them (for admins/moderators)
-        OR: [
-          { createdById: currentUserId },
-          { assignedTo: currentUserId }
+        AND: [
+          {
+            OR: [
+              { title: { contains: query, mode: 'insensitive' } },
+              { description: { contains: query, mode: 'insensitive' } },
+              { tags: { hasSome: [query] } }
+            ]
+          },
+          {
+            // User can only see their own tickets or tickets assigned to them (for admins/moderators)
+            OR: [
+              { createdById: currentUserId },
+              { assignedTo: currentUserId }
+            ]
+          }
         ]
       },
       select: {

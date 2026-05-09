@@ -14,64 +14,78 @@ type PublicInfoContent = {
 
 const PAGE_CONTENT: Record<PublicInfoKey, PublicInfoContent> = {
   about: {
-    title: "About MPSAJMER CONNECT",
+    title: "About Maheshwari Public School, Ajmer Connect",
     subtitle:
-      "We help alumni, students, and faculty stay connected through mentorship, opportunities, and meaningful community engagement.",
+      "Bridging the gap between our glorious past and a promising future by keeping the alumni network closely knit.",
     sections: [
+      {
+        heading: "Our Legacy",
+        paragraphs: [
+          "Maheshwari Public School, Ajmer has been a beacon of quality education and holistic development. Our alumni have spread across the globe, making significant contributions in various fields such as medicine, engineering, civil services, business, and arts.",
+          "The MPS Ajmer Connect platform is an exclusive networking hub designed to bring our diverse and accomplished alumni together on a single platform to foster collaboration, mentorship, and lifelong relationships.",
+        ],
+      },
       {
         heading: "Our Mission",
         paragraphs: [
-          "MPSAJMER CONNECT is built to strengthen long-term relationships across graduating batches and departments.",
-          "We make it easier to share knowledge, discover opportunities, and support one another through every career stage.",
+          "Our mission is to build a highly engaged and supportive alumni community that actively participates in the growth and development of the school and its students.",
+          "Through MPS Ajmer Connect, we aim to provide a secure environment where alumni can reconnect with old friends, share professional opportunities, mentor recent graduates, and stay updated on the latest happenings at their alma mater.",
         ],
       },
       {
         heading: "What We Offer",
         paragraphs: [
-          "Members can join groups, explore jobs, attend events, and participate in mentorship programs.",
-          "Admins and moderators can verify accounts, manage approvals, and maintain a safe community space.",
+          "Alumni can access a comprehensive directory, post and apply for exclusive job opportunities, and engage in interest-based community groups.",
+          "The platform also hosts a dedicated Mentorship Program, allowing experienced professionals to guide the next generation of MPS graduates.",
         ],
       },
     ],
   },
   news: {
-    title: "Alumni News",
+    title: "MPS Ajmer Alumni News",
     subtitle:
-      "Latest updates from our alumni community, campus network, and platform improvements.",
+      "Stay informed with the latest updates, achievements, and announcements from the MPS Ajmer community.",
     sections: [
       {
-        heading: "Community Highlights",
+        heading: "Community Highlights & Achievements",
         paragraphs: [
-          "We regularly publish alumni achievements, major announcements, and featured stories.",
-          "Check back soon as we roll out a richer editorial and newsletter workflow.",
+          "Our alumni continue to make us proud on the global stage. From groundbreaking research to entrepreneurial success, the MPS Ajmer family is always reaching new heights.",
+          "We regularly feature interviews, success stories, and spotlights on alumni who are making a positive impact in their respective industries and communities.",
         ],
       },
       {
-        heading: "Platform Updates",
+        heading: "Campus Updates",
         paragraphs: [
-          "Recent releases are focused on account security, moderation workflows, and profile quality.",
-          "More updates are planned for search, messaging, and event discovery.",
+          "While you may have left the campus, the campus never leaves you. We bring you the latest developments from Maheshwari Public School, Ajmer.",
+          "Stay updated on infrastructural upgrades, newly introduced academic programs, student achievements, and upcoming annual functions or sports meets.",
         ],
       },
     ],
   },
   donate: {
-    title: "Support The Community",
+    title: "Support Maheshwari Public School",
     subtitle:
-      "Your support helps us improve career initiatives, mentorship programs, and alumni outreach.",
+      "Give back to the institution that shaped your foundation and help us empower the next generation.",
     sections: [
       {
-        heading: "Why Contributions Matter",
+        heading: "Why Give Back?",
         paragraphs: [
-          "Donations help maintain the platform and fund alumni-driven programs.",
-          "They also support student mentoring, networking events, and community-led initiatives.",
+          "Your contributions play a vital role in enhancing the educational experience for current students at Maheshwari Public School, Ajmer.",
+          "Donations support scholarships for meritorious and underprivileged students, infrastructural advancements, sports facilities, and technology upgrades.",
         ],
       },
       {
-        heading: "How To Contribute",
+        heading: "Contribution Initiatives",
         paragraphs: [
-          "To coordinate support, please contact our alumni office at alumni@school.edu.",
-          "We will share approved channels and contribution options after verification.",
+          "Alumni can contribute to specific funds such as the Library Development Fund, the Sports Infrastructure Fund, or directly sponsor a student's education.",
+          "We also welcome non-monetary contributions such as volunteering for guest lectures, conducting skill-building workshops, and offering internships.",
+        ],
+      },
+      {
+        heading: "How To Donate",
+        paragraphs: [
+          "To make a financial contribution or to discuss a specialized endowment, please contact the Principal's Office directly.",
+          "Reach out to us at mpsajmer123@gmail.com or call 91-145-2641508 to coordinate your support.",
         ],
       },
     ],
@@ -79,28 +93,35 @@ const PAGE_CONTENT: Record<PublicInfoKey, PublicInfoContent> = {
   privacy: {
     title: "Privacy Policy",
     subtitle:
-      "This page explains what information we collect, how it is used, and how you can control your data.",
-    lastUpdated: "31 March 2026",
+      "Your privacy is our priority. This policy outlines how MPS Ajmer Connect collects, utilizes, and safeguards your data.",
+    lastUpdated: "09 May 2026",
     sections: [
       {
-        heading: "Data We Collect",
+        heading: "Information Collection",
         paragraphs: [
-          "We collect account details, profile information, and activity required to provide alumni networking features.",
-          "Optional data such as profile images, interests, and mentorship preferences can be updated at any time.",
+          "When you register on MPS Ajmer Connect, we collect essential information such as your full name, email address, graduation year, and professional details to verify your alumni status.",
+          "We may also collect usage data, including IP addresses, browser types, and interaction metrics, to optimize platform performance and ensure security.",
         ],
       },
       {
-        heading: "How We Use Data",
+        heading: "Use of Information",
         paragraphs: [
-          "Your information is used to authenticate access, personalize your experience, and power community features.",
-          "We do not sell personal data. Access is restricted based on role and security controls.",
+          "The primary purpose of collecting your data is to facilitate networking, provide tailored job recommendations, and keep you informed about school events.",
+          "Your profile information is visible to other verified alumni to foster connections. We strictly prohibit the selling, renting, or unauthorized sharing of your personal data with third-party marketing agencies.",
         ],
       },
       {
-        heading: "Your Controls",
+        heading: "Data Protection & Security",
         paragraphs: [
-          "You can manage profile visibility and notification preferences from account settings.",
-          "If you need account deletion or additional support, contact the platform administrators.",
+          "We implement industry-standard security measures, including encryption and secure server hosting, to protect your data against unauthorized access, alteration, or disclosure.",
+          "Access to backend databases is strictly restricted to authorized administrators of Maheshwari Public School, Ajmer.",
+        ],
+      },
+      {
+        heading: "Your Rights and Controls",
+        paragraphs: [
+          "You hold full control over your profile. You can update your information, adjust visibility settings, or request account deletion at any time through your account dashboard.",
+          "If you have concerns regarding your data privacy, please contact the administrators at admin@raghavagarwal.com.",
         ],
       },
     ],
@@ -108,50 +129,65 @@ const PAGE_CONTENT: Record<PublicInfoKey, PublicInfoContent> = {
   terms: {
     title: "Terms of Service",
     subtitle:
-      "By using MPSAJMER CONNECT, you agree to follow community standards and applicable platform rules.",
-    lastUpdated: "31 March 2026",
+      "By accessing and using the MPS Ajmer Connect platform, you agree to abide by these terms and community guidelines.",
+    lastUpdated: "09 May 2026",
     sections: [
       {
-        heading: "Acceptable Use",
+        heading: "Acceptance of Terms",
         paragraphs: [
-          "Use the platform for professional networking, mentorship, and alumni collaboration.",
-          "Do not post unlawful, abusive, or misleading content.",
+          "Welcome to the official alumni portal of Maheshwari Public School, Ajmer. By registering an account, you confirm that you are a genuine alumnus/alumna, faculty member, or authorized affiliate of the school.",
+          "Falsifying your identity or providing inaccurate graduation details will result in immediate permanent suspension from the platform.",
         ],
       },
       {
-        heading: "Account Responsibility",
+        heading: "Community Guidelines & Acceptable Use",
         paragraphs: [
-          "You are responsible for keeping your login credentials secure.",
-          "Role misuse, impersonation, or unauthorized access attempts may result in suspension.",
+          "MPS Ajmer Connect is a professional and respectful environment. Users must refrain from posting defamatory, abusive, offensive, discriminatory, or unlawful content.",
+          "Spamming, unsolicited commercial promotions, and harassment of fellow alumni are strictly prohibited and will be met with strict disciplinary action.",
         ],
       },
       {
-        heading: "Moderation and Enforcement",
+        heading: "Intellectual Property & Content Ownership",
         paragraphs: [
-          "Admins may review reports, remove harmful content, and suspend accounts that violate policies.",
-          "These actions are intended to protect users and preserve trust in the community.",
+          "Users retain ownership of the content they post. However, by posting on this platform, you grant Maheshwari Public School, Ajmer a non-exclusive license to use, display, and distribute the content within the context of the platform.",
+          "The platform's branding, logos, and proprietary software are the intellectual property of Maheshwari Public School, Ajmer and the platform developer.",
+        ],
+      },
+      {
+        heading: "Moderation and Termination",
+        paragraphs: [
+          "The administrative team reserves the right to review, edit, or remove any content that violates these Terms of Service without prior notice.",
+          "We reserve the right to suspend or terminate accounts that engage in malicious activities, breach security protocols, or violate community standards.",
         ],
       },
     ],
   },
   contact: {
-    title: "Contact Us",
+    title: "Contact Maheshwari Public School, Ajmer",
     subtitle:
-      "Need help with your account, verification, or platform usage? Reach out to the alumni support team.",
+      "Get in touch with the school administration or the alumni portal support team.",
     sections: [
       {
-        heading: "Support Channels",
+        heading: "School Contact Information",
         paragraphs: [
-          "Email: alumni@school.edu",
-          "Phone: (123) 456-7890",
-          "Address: 1234 School Avenue, City, State 12345",
+          "Address: Maheshwari Public School, Mahesh Path, Capt. D. P. Choudhary Marg, Vaishali Nagar, Ajmer 305004",
+          "Phone: 91-145-2641508, 2641351",
+          "Email: mpsajmer123@gmail.com",
+          "Website: mpsajmer.com",
         ],
       },
       {
-        heading: "When To Contact Us",
+        heading: "Visiting Hours",
         paragraphs: [
-          "Use this channel for account approval queries, login access issues, and moderation concerns.",
-          "For urgent security matters, include clear details so the team can prioritize quickly.",
+          "Principal's Office: 9:00 AM to 10:00 AM (On School Days only). At other times, by appointment only.",
+          "School's Office: 9:00 AM to 12:00 Noon (On School Days only).",
+        ],
+      },
+      {
+        heading: "Technical Support",
+        paragraphs: [
+          "If you are facing technical issues with the alumni portal, login problems, or need to report a bug, please reach out to the platform manager.",
+          "Developer Email: admin@raghavagarwal.com",
         ],
       },
     ],
@@ -167,22 +203,31 @@ export default function PublicInfoPage({ pageKey }: PublicInfoPageProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Navigation spacer since navbar is fixed */}
+      <div className="h-20"></div>
+      
       <main className="container mx-auto max-w-4xl px-4 py-12">
-        <div className="mb-10 rounded-lg border bg-card p-6 shadow-sm sm:p-8">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{content.title}</h1>
-          <p className="mt-3 text-muted-foreground">{content.subtitle}</p>
-          {content.lastUpdated ? (
-            <p className="mt-4 text-sm text-muted-foreground">Last updated: {content.lastUpdated}</p>
-          ) : null}
+        <div className="mb-10 rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm p-8 md:p-12 shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full mix-blend-multiply blur-3xl"></div>
+          <div className="relative z-10">
+            <h1 className="text-3xl font-extrabold tracking-tight sm:text-5xl text-foreground mb-4">{content.title}</h1>
+            <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl">{content.subtitle}</p>
+            {content.lastUpdated ? (
+              <p className="mt-6 text-sm font-medium text-primary">Last updated: {content.lastUpdated}</p>
+            ) : null}
+          </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-8">
           {content.sections.map((section) => (
-            <section key={section.heading} className="rounded-lg border bg-card p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">{section.heading}</h2>
-              <div className="mt-3 space-y-3">
-                {section.paragraphs.map((paragraph) => (
-                  <p key={paragraph} className="leading-relaxed text-muted-foreground">
+            <section key={section.heading} className="rounded-2xl border border-border/50 bg-card p-8 shadow-sm hover:shadow-md transition-shadow">
+              <h2 className="text-2xl font-bold text-foreground mb-4 flex items-center gap-3">
+                <span className="w-8 h-1 bg-primary rounded-full inline-block"></span>
+                {section.heading}
+              </h2>
+              <div className="space-y-4">
+                {section.paragraphs.map((paragraph, idx) => (
+                  <p key={idx} className="leading-relaxed text-muted-foreground text-lg">
                     {paragraph}
                   </p>
                 ))}
@@ -191,18 +236,19 @@ export default function PublicInfoPage({ pageKey }: PublicInfoPageProps) {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-wrap items-center gap-4 text-sm">
-          <Link className="font-medium text-foreground underline-offset-4 hover:underline" to="/">
-            Back to home
+        <div className="mt-16 flex flex-wrap items-center justify-center gap-6 text-sm border-t border-border/50 pt-8">
+          <Link className="font-semibold text-primary underline-offset-4 hover:underline" to="/">
+            Back to Home
           </Link>
-          <Link className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" to="/privacy">
-            Privacy
+          <span className="text-border">|</span>
+          <Link className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors" to="/privacy">
+            Privacy Policy
           </Link>
-          <Link className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" to="/terms">
-            Terms
+          <Link className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors" to="/terms">
+            Terms of Service
           </Link>
-          <Link className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" to="/contact">
-            Contact
+          <Link className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors" to="/contact">
+            Contact Us
           </Link>
         </div>
       </main>

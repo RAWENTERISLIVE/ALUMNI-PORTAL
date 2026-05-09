@@ -690,10 +690,7 @@ api.get('/jobs/:id/applications', authMiddleware, async (c) => {
   const job: any = await c.env.DB.prepare('SELECT posted_by_id FROM jobs WHERE id = ?').bind(jobId).first();
   if (!job) return c.json({ success: false, message: 'Job not found' }, 404);
   
-  const userRole = user.role.toLowerCase();
-  const isSuperAdmin = userRole === 'super_admin';
-  
-  if (job.posted_by_id !== user.id && !isSuperAdmin) {
+  if (String(job.posted_by_id) !== String(user.id)) {
     return c.json({ success: false, message: 'Unauthorized' }, 403);
   }
   

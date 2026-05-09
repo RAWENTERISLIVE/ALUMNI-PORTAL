@@ -291,14 +291,20 @@ exports.universalSearch = (0, errorHandler_1.asyncHandler)(async (req, res) => {
         }),
         prisma_1.default.helpTicket.findMany({
             where: {
-                OR: [
-                    { title: { contains: query, mode: 'insensitive' } },
-                    { description: { contains: query, mode: 'insensitive' } },
-                    { tags: { hasSome: [query] } }
-                ],
-                OR: [
-                    { createdById: currentUserId },
-                    { assignedTo: currentUserId }
+                AND: [
+                    {
+                        OR: [
+                            { title: { contains: query, mode: 'insensitive' } },
+                            { description: { contains: query, mode: 'insensitive' } },
+                            { tags: { hasSome: [query] } }
+                        ]
+                    },
+                    {
+                        OR: [
+                            { createdById: currentUserId },
+                            { assignedTo: currentUserId }
+                        ]
+                    }
                 ]
             },
             select: {

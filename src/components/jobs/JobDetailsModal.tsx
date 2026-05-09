@@ -252,7 +252,7 @@ export function JobDetailsModal({
                 className="flex items-center gap-2 border-primary/30 text-primary hover:bg-primary/5"
               >
                 <Users className="h-4 w-4" />
-                Applicant Manager
+                View Applicants
               </Button>
               <Button
                 onClick={handleDownloadApplications}
@@ -261,7 +261,7 @@ export function JobDetailsModal({
                 className="flex items-center gap-2"
               >
                 <Download className="h-4 w-4" />
-                {isDownloadingApplications ? 'Preparing...' : 'Download CSV'}
+                {isDownloadingApplications ? 'Preparing...' : 'Download Applicants'}
               </Button>
             </>
           )}

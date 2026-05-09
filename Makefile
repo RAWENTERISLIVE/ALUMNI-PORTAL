@@ -16,6 +16,7 @@ FRONTEND_PORT := 8080
 BACKEND_PORT := 5000
 DB_PORT := 5432
 NODE_ENV ?= development
+CLOUDFLARE_ACCOUNT_ID ?= fe22ba5acbed9f6925bb8d7ea1ee8a4d
 
 help: ## Show this help message
 	@echo "$(CYAN)╔════════════════════════════════════════════════════════════╗$(NC)"
@@ -37,7 +38,9 @@ help: ## Show this help message
 	@echo "  make setup          # Setup project first time"
 	@echo "  make dev            # Start development environment"
 	@echo "  make build          # Build production artifacts"
-	@echo "  make deploy         # Deploy production build"
+	@echo "  make build          # Build production artifacts"
+	@echo "  make deploy         # Deploy production build (Local/Docker)"
+	@echo "  make cf-deploy      # Deploy to Cloudflare (Pages + Workers + D1)"
 	@echo ""
 
 ## 🔧 Setup Commands
@@ -193,8 +196,10 @@ stop: ## Stop all services
 
 ## 🚢 Deployment Commands
 
-deploy: build db-migrate ## Deploy application (build + migrate + ready for start)
-	@echo "$(GREEN)✓ Application ready for deployment!$(NC)"
+deploy: cf-deploy ## Deploy to Cloudflare (Pages + Workers + D1)
+
+deploy-local: build db-migrate ## Deploy application locally (Local/Docker)
+	@echo "$(GREEN)✓ Application ready for local deployment!$(NC)"
 	@echo ""
 	@echo "$(CYAN)Build Summary:$(NC)"
 	@echo "  Frontend: ./dist"
@@ -214,6 +219,32 @@ deploy-docker: ## Create Docker image for deployment
 	docker build -t $(PROJECT_NAME):latest .
 	@echo "$(GREEN)✓ Docker image created: $(PROJECT_NAME):latest$(NC)"
 	@echo "$(CYAN)To run: docker run -p 8080:8080 -p 5000:5000 $(PROJECT_NAME):latest$(NC)"
+
+## ☁️  Cloudflare Deployment
+cf-deploy: build-frontend cf-deploy-backend cf-deploy-frontend ## Full deployment to Cloudflare
+	@echo "$(GREEN)✓ Full Cloudflare deployment complete!$(NC)"
+
+cf-deploy-frontend: ## Deploy frontend to Cloudflare Workers (Assets)
+	@echo "$(CYAN)Deploying frontend to Cloudflare Workers...$(NC)"
+	CLOUDFLARE_ACCOUNT_ID=$(CLOUDFLARE_ACCOUNT_ID) npx wrangler deploy
+	@echo "$(GREEN)✓ Frontend deployed to Cloudflare Workers$(NC)"
+
+cf-deploy-backend: ## Deploy backend to Cloudflare Workers
+	@echo "$(CYAN)Deploying backend to Cloudflare Workers...$(NC)"
+	cd backend-worker && CLOUDFLARE_ACCOUNT_ID=$(CLOUDFLARE_ACCOUNT_ID) npx wrangler deploy
+	@echo "$(GREEN)✓ Backend deployed to Cloudflare Workers$(NC)"
+
+cf-migrate: ## Apply D1 migrations to remote database
+	@echo "$(CYAN)Applying D1 migrations...$(NC)"
+	npx wrangler d1 migrations apply DB --remote
+	@echo "$(GREEN)✓ D1 migrations applied$(NC)"
+
+cf-setup: ## Initial Cloudflare setup (D1 creation + R2 bucket)
+	@echo "$(CYAN)Setting up Cloudflare resources...$(NC)"
+	npx wrangler d1 create mpsajmer-connect-db || true
+	npx wrangler r2 bucket create mpsajmer-connect-uploads || true
+	$(MAKE) cf-migrate
+	@echo "$(GREEN)✓ Cloudflare setup complete$(NC)"
 
 ## 📝 Git Commands
 

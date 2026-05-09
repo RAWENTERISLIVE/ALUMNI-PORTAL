@@ -1,12 +1,7 @@
 import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
-// UserRole enum - migrated from deleted User model
-enum UserRole {
-  USER = 'USER',
-  ADMIN = 'ADMIN',
-  SUPER_ADMIN = 'SUPER_ADMIN'
-}
+import { Role as UserRole } from '@prisma/client';
 
 import {
   getJobs,
