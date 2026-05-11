@@ -64,7 +64,7 @@ const setOAuthStatus = (userId: string, status: Omit<LinkedInOAuthImportStatus, 
   });
 };
 
-const getJwtSecret = () => process.env.JWT_SECRET || 'linkedin-oauth-fallback-secret';
+const getJwtSecret = () => process.env.JWT_SECRET!;
 
 const normalizeLinkedInProfileUrl = (input?: string | null): string | undefined => {
   if (!input || typeof input !== 'string') return undefined;
