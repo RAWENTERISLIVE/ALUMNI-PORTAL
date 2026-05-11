@@ -92,13 +92,13 @@ const generateTokens = (userId: string) => {
   
   const accessToken = jwt.sign(
     payload, 
-    process.env.JWT_SECRET || 'fallback_secret',
+    process.env.JWT_SECRET!,
     { expiresIn: ACCESS_TOKEN_EXPIRES_IN as NonNullable<SignOptions['expiresIn']> }
   );
 
   const refreshToken = jwt.sign(
     payload,
-    process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret',
+    process.env.JWT_REFRESH_SECRET!,
     { expiresIn: REFRESH_TOKEN_EXPIRES_IN as NonNullable<SignOptions['expiresIn']> }
   );
 
@@ -381,7 +381,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
   try {
     const decoded = jwt.verify(
       token, 
-      process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret'
+      process.env.JWT_REFRESH_SECRET!
     ) as any;
 
     const user = await prisma.user.findUnique({

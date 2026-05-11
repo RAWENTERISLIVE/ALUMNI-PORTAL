@@ -53,6 +53,14 @@ if (!fs.existsSync(uploadsDir)) {
 // Phase 1 - Enhanced app initialization
 const initializeApp = async () => {
   console.log('🚀 Starting Alma Connect Sphere Backend...');
+
+  // Security check: Ensure critical environment variables are set
+  if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+    console.error('❌ CRITICAL ERROR: JWT_SECRET and JWT_REFRESH_SECRET must be defined in environment variables.');
+    console.error('Shutting down due to missing security configuration.');
+    process.exit(1);
+  }
+
   console.log('📋 Phase 1: Core Authentication & Security + Profiles');
   await ensureDefaultSuperAdmins();
   console.log('✅ Application initialized successfully');
