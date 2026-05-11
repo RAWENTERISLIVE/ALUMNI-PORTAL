@@ -21,7 +21,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
-import { Globe, Lock, Users } from "lucide-react";
+import { Globe, Lock, Users, Camera, Loader2 } from "lucide-react";
+import { useState, useRef } from "react";
+import apiService from "@/services/apiService";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface CreateGroupFormProps {
   isOpen: boolean;
@@ -31,14 +34,36 @@ interface CreateGroupFormProps {
 
 export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormProps) {
   const { toast } = useToast();
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const form = useForm({
     defaultValues: {
       name: "",
       description: "",
       privacy: "public",
-      category: "professional"
+      category: "professional",
+      imageUrl: ""
     }
   });
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const response = await apiService.uploadFile(file);
+      if (response.success && response.data?.url) {
+        form.setValue('imageUrl', response.data.url);
+        toast({ title: "Image uploaded" });
+      }
+    } catch (error) {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleSubmit = (data: any) => {
     if (!data.name.trim()) {
@@ -70,6 +95,35 @@ export function CreateGroupForm({ isOpen, onClose, onSubmit }: CreateGroupFormPr
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <div className="flex items-center gap-4 mb-4">
+              <Avatar className="h-20 w-20 border-2 border-primary/20">
+                <AvatarImage src={form.watch('imageUrl')} />
+                <AvatarFallback className="bg-primary/5 text-primary">
+                  <Users className="h-10 w-10 opacity-20" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
+                  {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Camera className="h-4 w-4 mr-2" />}
+                  Add Group Photo
+                </Button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                />
+                <p className="text-[10px] text-muted-foreground">Optional profile photo for the group</p>
+              </div>
+            </div>
+
             <FormField
               control={form.control}
               name="name"

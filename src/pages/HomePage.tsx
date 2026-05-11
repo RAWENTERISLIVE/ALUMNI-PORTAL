@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { 
-  GraduationCap, 
-  Users, 
-  MessageSquare, 
-  Briefcase, 
-  ChevronRight, 
+import {
+  GraduationCap,
+  Users,
+  MessageSquare,
+  Briefcase,
+  ChevronRight,
   Star,
   ArrowRight,
   Sparkles,
@@ -15,6 +15,7 @@ import {
   BookOpen
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Footer } from "@/shared/layout/Footer";
 
 export default function HomePage() {
   return (
@@ -46,27 +47,27 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background"></div>
         <div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary/20 rounded-full mix-blend-multiply filter blur-[128px] animate-pulse"></div>
         <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-accent/20 rounded-full mix-blend-multiply filter blur-[128px] animate-pulse" style={{ animationDelay: '2s' }}></div>
-        
+
         <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row items-center gap-16">
           <div className="flex-1 space-y-8 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary font-medium text-sm w-max mx-auto lg:mx-0 shadow-inner backdrop-blur-sm">
               <Sparkles className="w-4 h-4" />
               <span>The Official Global Alumni Network</span>
             </div>
-            
+
             <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
-              Reconnect with your <br className="hidden lg:block"/>
+              Reconnect with your <br className="hidden lg:block" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary animate-gradient-x">Alma Mater</span>
             </h1>
-            
+
             <p className="text-lg lg:text-xl text-muted-foreground font-light max-w-2xl mx-auto lg:mx-0 leading-relaxed">
               Step into the official community for Maheshwari Public School, Ajmer alumni. Reconnect with classmates, share opportunities, and support the community.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
               <Button asChild size="lg" className="h-14 px-8 text-lg rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/30 transition-all hover:-translate-y-1 group">
                 <Link to="/register">
-                  Join the Community 
+                  Join the Community
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </Button>
@@ -75,20 +76,20 @@ export default function HomePage() {
               </Button>
             </div>
           </div>
-          
+
           <div className="flex-1 relative hidden md:block">
             <div className="relative w-full max-w-lg mx-auto aspect-square">
               {/* Decorative rings */}
               <div className="absolute inset-0 border border-primary/20 rounded-full animate-[spin_60s_linear_infinite]"></div>
               <div className="absolute inset-4 border border-accent/20 rounded-full animate-[spin_40s_linear_infinite_reverse]"></div>
-              
+
               {/* Main Image */}
               <div className="absolute inset-12 rounded-full overflow-hidden border-8 border-background/50 shadow-2xl">
-                <img src="/hero-mpsajmer.png" alt="MPS Ajmer Campus" className="w-full h-full object-cover" 
-                     onError={(e) => {
-                       const target = e.target as HTMLImageElement;
-                       target.src = "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=1000&auto=format&fit=crop";
-                     }} 
+                <img src="/hero-mpsajmer.png" alt="MPS Ajmer Campus" className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=1000&auto=format&fit=crop";
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
               </div>
@@ -172,7 +173,7 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-primary"></div>
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=2000&auto=format&fit=crop')] mix-blend-overlay opacity-20 bg-cover bg-center"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/90 to-primary/80"></div>
-        
+
         <div className="container mx-auto px-6 relative z-10 text-center">
           <div className="max-w-4xl mx-auto backdrop-blur-sm bg-black/10 p-10 md:p-16 rounded-3xl border border-white/10 shadow-2xl">
             <h2 className="text-4xl md:text-6xl font-extrabold text-white mb-6">Your network is your net worth.</h2>
@@ -192,65 +193,7 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-card pt-20 pb-10 border-t border-border">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <img src="/logo.png" alt="MPS Ajmer Logo" className="w-8 h-8" />
-                <span className="text-xl font-bold">Maheshwari Public School, Ajmer</span>
-              </div>
-              <div className="text-muted-foreground leading-relaxed space-y-2 text-sm">
-                <p className="font-semibold text-foreground">Contact Us</p>
-                <p>Address<br/>Maheshwari Public School<br/>Mahesh Path, Capt. D. P. Choudhary Marg,<br/>Vaishali Nagar, Ajmer 305004</p>
-                <p>Phone: 91-145-2641508, 2641351</p>
-                <p>Website: <a href="https://mpsajmer.com" className="hover:text-primary transition-colors">mpsajmer.com</a></p>
-                <p>E-mail: mpsajmer123@gmail.com</p>
-              </div>
-            </div>
-            
-            <div className="space-y-6">
-              <div className="text-muted-foreground leading-relaxed space-y-2 text-sm mt-12 md:mt-14">
-                <p className="font-semibold text-foreground">Principal's Office visiting hours</p>
-                <p>(On School Days only)<br/>9.00 am. to 10.00 am.<br/>(At other time by appointment only)</p>
-                
-                <p className="font-semibold text-foreground mt-4">Schools Office Hours</p>
-                <p>(On School Days only)<br/>9.00 a.m to 12.00 Noon</p>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-lg font-bold mb-6 text-foreground">Platform</h4>
-              <ul className="space-y-4">
-                <li><Link to="/directory" className="text-muted-foreground hover:text-primary transition-colors">Directory</Link></li>
-                <li><Link to="/jobs" className="text-muted-foreground hover:text-primary transition-colors">Job Board</Link></li>
-                <li><Link to="/mentorship" className="text-muted-foreground hover:text-primary transition-colors">Mentorship</Link></li>
-                <li><Link to="/events" className="text-muted-foreground hover:text-primary transition-colors">Events</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-lg font-bold mb-6 text-foreground">Support & Links</h4>
-              <ul className="space-y-4">
-                <li><Link to="/faq" className="text-muted-foreground hover:text-primary transition-colors">FAQ</Link></li>
-                <li><Link to="/contact" className="text-muted-foreground hover:text-primary transition-colors">Contact Us</Link></li>
-                <li><Link to="/privacy" className="text-muted-foreground hover:text-primary transition-colors">Privacy Policy</Link></li>
-                <li><Link to="/terms" className="text-muted-foreground hover:text-primary transition-colors">Terms of Service</Link></li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <div className="flex flex-col gap-1">
-              <p>&copy; {new Date().getFullYear()} Maheshwari Public School, Ajmer . All rights reserved.</p>
-            </div>
-            <div className="flex flex-col gap-1 md:text-right">
-              <p>Developed & Managed by Raghav Agarwal</p>
-              <p>Website: <a href="https://raghavagarwal.com" className="hover:text-primary transition-colors">https://raghavagarwal.com</a> | Mail: <a href="mailto:admin@raghavagarwal.com" className="hover:text-primary transition-colors">admin@raghavagarwal.com</a></p>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer showFullFooter={true} isLandingPage={true} />
     </div>
   );
 }

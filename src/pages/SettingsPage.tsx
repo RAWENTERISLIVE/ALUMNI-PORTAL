@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,37 +10,40 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
+  Layout,
+  FileText,
+  ShieldCheck,
+  CheckCircle,
+  Clock,
+  Upload,
   Bell,
-  Lock,
-  User,
-  LogOut,
-  Save,
-  Trash2,
-  Globe,
+  Palette,
   Eye,
-  Key,
-  GraduationCap,
-  Users,
+  Lock,
+  HelpCircle,
+  Sun,
+  Moon,
+  Monitor,
+  Save,
   ExternalLink,
   AlertCircle,
-  HelpCircle
+  Globe,
+  GraduationCap,
+  UserCheck,
+  Mail,
+  MessageSquare,
+  Shield,
+  Key,
+  LogOut,
+  User,
+  Trash2
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "next-themes";
 import apiService from "@/services/apiService";
-import HelpSection from "@/components/settings/HelpSection";
 
-// Define types for form data
-interface ProfileFormData {
-  name: string;
-  email: string;
-  jobTitle: string;
-  company: string;
-  city: string;
-  country: string;
-  bio: string;
-  contactPhone: string;
-  linkedInProfile: string;
-}
+import HelpSection from "@/components/settings/HelpSection";
 
 interface NotificationSettings {
   emailMessages: boolean;
@@ -77,23 +81,12 @@ interface SessionActivityItem {
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { currentUser, logout, refreshUser } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState("notifications");
   const [loading, setLoading] = useState(false);
-
-  // Profile settings
-  const [profileForm, setProfileForm] = useState<ProfileFormData>({
-    name: currentUser?.name || "",
-    email: currentUser?.email || "",
-    jobTitle: currentUser?.jobTitle || "",
-    company: currentUser?.company || "",
-    city: currentUser?.city || "",
-    country: currentUser?.country || "",
-    bio: currentUser?.bio || "",
-    contactPhone: currentUser?.contactPhone || "",
-    linkedInProfile: currentUser?.linkedInProfile || ""
-  });
 
   // Notification settings with defaults
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
@@ -124,8 +117,6 @@ export default function SettingsPage() {
     confirmPassword: ""
   });
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [profilePhotoLoading, setProfilePhotoLoading] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionActivity, setSessionActivity] = useState<SessionActivityItem[]>([]);
 
@@ -148,18 +139,6 @@ export default function SettingsPage() {
   // Update state when currentUser changes
   useEffect(() => {
     if (currentUser) {
-      setProfileForm({
-        name: currentUser.name || "",
-        email: currentUser.email || "",
-        jobTitle: currentUser.jobTitle || "",
-        company: currentUser.company || "",
-        city: currentUser.city || "",
-        country: currentUser.country || "",
-        bio: currentUser.bio || "",
-        contactPhone: currentUser.contactPhone || "",
-        linkedInProfile: currentUser.linkedInProfile || ""
-      });
-
       setNotificationSettings({
         emailMessages: currentUser.notificationSettings?.emailMessages ?? true,
         emailJobs: currentUser.notificationSettings?.emailJobs ?? true,
@@ -183,74 +162,6 @@ export default function SettingsPage() {
       loadSessions();
     }
   }, [currentUser]);
-
-  const handlePhotoChangeClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (!selectedFile) return;
-
-    try {
-      setProfilePhotoLoading(true);
-      const uploadResponse = await apiService.uploadFile(selectedFile);
-      const imageUrl = uploadResponse.data?.url;
-
-      if (!uploadResponse.success || !imageUrl) {
-        throw new Error(uploadResponse.message || "Failed to upload profile photo");
-      }
-
-      const profileResponse = await apiService.updateProfile({ profileImage: imageUrl });
-      if (!profileResponse.success) {
-        throw new Error(profileResponse.message || "Failed to update profile photo");
-      }
-
-      await refreshUser();
-      toast({
-        title: "Photo Updated",
-        description: "Your profile photo has been updated.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update profile photo.",
-        variant: "destructive",
-      });
-    } finally {
-      event.target.value = "";
-      setProfilePhotoLoading(false);
-    }
-  };
-
-  const handleProfileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser?.id) return;
-
-    try {
-      setLoading(true);
-      const response = await apiService.updateProfile(profileForm);
-      
-      if (response.success) {
-        toast({ 
-          title: "Profile Updated", 
-          description: "Your profile has been successfully updated." 
-        });
-        await refreshUser(); // Refresh user data in context
-      } else {
-        throw new Error(response.message || "Failed to update profile");
-      }
-    } catch (error: any) {
-      console.error("Error updating profile:", error);
-      toast({ 
-        title: "Error", 
-        description: error.message || "Failed to update profile settings.", 
-        variant: "destructive" 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleNotificationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -499,15 +410,25 @@ export default function SettingsPage() {
         {/* Main Content */}
         <div className="flex-1 max-w-4xl">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 h-auto gap-1">
+            <TabsList className={`grid w-full ${currentUser?.accountType === 'faculty' || currentUser?.needsManualVerification ? 'grid-cols-6' : 'grid-cols-5'} h-auto gap-1`}>
               <TabsTrigger value="notifications" className="flex items-center gap-2">
                 <Bell className="h-4 w-4" />
                 <span className="hidden sm:inline">Notifications</span>
+              </TabsTrigger>
+              <TabsTrigger value="appearance" className="flex items-center gap-2">
+                <Palette className="h-4 w-4" />
+                <span className="hidden sm:inline">Appearance</span>
               </TabsTrigger>
               <TabsTrigger value="privacy" className="flex items-center gap-2">
                 <Eye className="h-4 w-4" />
                 <span className="hidden sm:inline">Privacy</span>
               </TabsTrigger>
+              {(currentUser?.accountType === 'faculty' || currentUser?.needsManualVerification) && (
+                <TabsTrigger value="verification" className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4" />
+                  <span className="hidden sm:inline">Verification</span>
+                </TabsTrigger>
+              )}
               <TabsTrigger value="security" className="flex items-center gap-2">
                 <Lock className="h-4 w-4" />
                 <span className="hidden sm:inline">Security</span>
@@ -519,155 +440,6 @@ export default function SettingsPage() {
             </TabsList>
 
             <div className="mt-6">
-              {/* Profile Settings */}
-              <TabsContent value="profile" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <User className="h-5 w-5" />
-                      Profile Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleProfileSubmit} className="space-y-6">
-                      {/* Profile Picture Section */}
-                      <div className="flex flex-col sm:flex-row items-start gap-6">
-                        <div className="flex flex-col items-center space-y-4">
-                          <Avatar className="h-24 w-24">
-                            <AvatarImage src={currentUser.profileImage} />
-                            <AvatarFallback className="bg-primary/10 text-foreground/90 text-xl">
-                              {currentUser.name?.charAt(0) || "U"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handlePhotoUpload}
-                          />
-                          <Button type="button" variant="outline" size="sm" onClick={handlePhotoChangeClick} disabled={profilePhotoLoading}>
-                            {profilePhotoLoading ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-                            Change Photo
-                          </Button>
-                        </div>
-
-                        <div className="flex-1 space-y-4 w-full">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label htmlFor="settings-full-name" className="text-sm font-medium">Full Name</label>
-                              <Input
-                                id="settings-full-name"
-                                value={profileForm.name}
-                                onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                                required
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label htmlFor="settings-email" className="text-sm font-medium">Email</label>
-                              <Input
-                                id="settings-email"
-                                type="email"
-                                value={profileForm.email}
-                                onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                                required
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label htmlFor="settings-job-title" className="text-sm font-medium">Job Title</label>
-                              <Input
-                                id="settings-job-title"
-                                value={profileForm.jobTitle}
-                                onChange={(e) => setProfileForm({ ...profileForm, jobTitle: e.target.value })}
-                                placeholder="Software Engineer, Product Manager, etc."
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label htmlFor="settings-company" className="text-sm font-medium">Company</label>
-                              <Input
-                                id="settings-company"
-                                value={profileForm.company}
-                                onChange={(e) => setProfileForm({ ...profileForm, company: e.target.value })}
-                                placeholder="Company or Organization"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label htmlFor="settings-city" className="text-sm font-medium">City</label>
-                              <Input
-                                id="settings-city"
-                                value={profileForm.city}
-                                onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
-                                placeholder="San Francisco"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label htmlFor="settings-country" className="text-sm font-medium">Country</label>
-                              <Input
-                                id="settings-country"
-                                value={profileForm.country}
-                                onChange={(e) => setProfileForm({ ...profileForm, country: e.target.value })}
-                                placeholder="United States"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label htmlFor="settings-phone" className="text-sm font-medium">Phone</label>
-                              <Input
-                                id="settings-phone"
-                                value={profileForm.contactPhone}
-                                onChange={(e) => setProfileForm({ ...profileForm, contactPhone: e.target.value })}
-                                placeholder="(555) 123-4567"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label htmlFor="settings-linkedin" className="text-sm font-medium">LinkedIn Profile</label>
-                              <Input
-                                id="settings-linkedin"
-                                value={profileForm.linkedInProfile}
-                                onChange={(e) => setProfileForm({ ...profileForm, linkedInProfile: e.target.value })}
-                                placeholder="https://linkedin.com/in/username"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <label htmlFor="settings-bio" className="text-sm font-medium">Bio</label>
-                            <textarea
-                              id="settings-bio"
-                              className="w-full min-h-[100px] p-3 border border-input bg-background rounded-md focus:ring-2 focus:ring-ring focus:border-ring resize-y"
-                              value={profileForm.bio}
-                              onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
-                              placeholder="Tell others about yourself, your interests, and your professional background..."
-                              maxLength={500}
-                            />
-                            <p className="text-xs text-muted-foreground">{profileForm.bio.length}/500 characters</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-end pt-4 border-t">
-                        <Button
-                          type="submit"
-                          disabled={loading}
-                          className="bg-primary hover:bg-primary/90 min-w-[120px]"
-                        >
-                          {loading ? <LoadingSpinner size="sm" className="mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                          Save Profile
-                        </Button>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
               {/* Notification Settings */}
               <TabsContent value="notifications" className="space-y-6">
                 <Card>
@@ -800,10 +572,280 @@ export default function SettingsPage() {
                           className="bg-primary hover:bg-primary/90 min-w-[140px]"
                         >
                           {loading ? <LoadingSpinner size="sm" className="mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                          Save Preferences
+                          Save Social Settings
                         </Button>
                       </div>
                     </form>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Verification Settings */}
+              {(currentUser?.accountType === 'faculty' || currentUser?.needsManualVerification) && (
+                <TabsContent value="verification" className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <ShieldCheck className="h-5 w-5" />
+                        Account Verification
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30">
+                        <div className={`p-3 rounded-full ${currentUser?.isVerified ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {currentUser?.isVerified ? <CheckCircle className="h-6 w-6" /> : <Clock className="h-6 w-6" />}
+                        </div>
+                        <div>
+                          <p className="font-bold text-lg">
+                            Status: {currentUser?.isVerified ? 'Verified' : 'Pending Verification'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {currentUser?.isVerified 
+                              ? 'Your account has been fully verified by the administration.' 
+                              : 'Your account is currently awaiting administrative review.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {currentUser?.accountType === 'faculty' && (
+                        <div className="space-y-4">
+                          <h3 className="font-semibold text-lg flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-primary" />
+                            Faculty ID Card
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            Please upload a clear image of your official Faculty ID card for verification.
+                          </p>
+
+                          {currentUser?.facultyIdCardUrl ? (
+                            <div className="space-y-4">
+                              <div className="relative group rounded-xl overflow-hidden border border-border aspect-video max-w-md mx-auto">
+                                <img 
+                                  src={currentUser.facultyIdCardUrl} 
+                                  alt="Faculty ID Card" 
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Button 
+                                    variant="secondary" 
+                                    size="sm"
+                                    onClick={() => globalThis.open(currentUser.facultyIdCardUrl, '_blank')}
+                                  >
+                                    <ExternalLink className="h-4 w-4 mr-2" />
+                                    View Full Size
+                                  </Button>
+                                </div>
+                              </div>
+                              
+                              {!currentUser.isVerified && (
+                                <div className="flex flex-col items-center gap-3">
+                                  <p className="text-xs text-muted-foreground italic">
+                                    You can update your ID card if the current one is incorrect or blurry.
+                                  </p>
+                                  <input
+                                    type="file"
+                                    id="faculty-id-upload"
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      
+                                      try {
+                                        setLoading(true);
+                                        const uploadRes = await apiService.uploadVerificationIdCard(file);
+                                        if (uploadRes.success && uploadRes.url) {
+                                          const updateRes = await apiService.updateProfile({ 
+                                            facultyIdCardUrl: uploadRes.url,
+                                            needsManualVerification: true 
+                                          });
+                                          if (updateRes.success) {
+                                            toast({ title: "ID Card Uploaded", description: "Your ID card has been updated and is pending review." });
+                                            await refreshUser();
+                                          }
+                                        }
+                                      } catch (err: any) {
+                                        toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
+                                      } finally {
+                                        setLoading(false);
+                                      }
+                                    }}
+                                  />
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    disabled={loading}
+                                    onClick={() => document.getElementById('faculty-id-upload')?.click()}
+                                  >
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    Update ID Card
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-border rounded-xl bg-muted/10">
+                              <div className="p-4 bg-muted rounded-full mb-4">
+                                <Upload className="h-8 w-8 text-muted-foreground" />
+                              </div>
+                              <p className="font-medium text-center mb-2">No ID Card Uploaded</p>
+                              <p className="text-xs text-muted-foreground text-center mb-6 max-w-xs">
+                                Upload your faculty ID to get access to all faculty-exclusive features.
+                              </p>
+                              <input
+                                type="file"
+                                id="faculty-id-upload-new"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  
+                                  try {
+                                    setLoading(true);
+                                    const uploadRes = await apiService.uploadVerificationIdCard(file);
+                                    if (uploadRes.success && uploadRes.url) {
+                                      const updateRes = await apiService.updateProfile({ 
+                                        facultyIdCardUrl: uploadRes.url,
+                                        needsManualVerification: true 
+                                      });
+                                      if (updateRes.success) {
+                                        toast({ title: "ID Card Uploaded", description: "Your ID card has been submitted for review." });
+                                        await refreshUser();
+                                      }
+                                    }
+                                  } catch (err: any) {
+                                    toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
+                                  } finally {
+                                    setLoading(false);
+                                  }
+                                }}
+                              />
+                              <Button 
+                                disabled={loading}
+                                onClick={() => document.getElementById('faculty-id-upload-new')?.click()}
+                              >
+                                {loading ? <LoadingSpinner size="sm" className="mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                                Upload ID Card
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {currentUser?.needsManualVerification && currentUser?.accountType === 'alumni' && (
+                        <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 text-blue-800">
+                          <h4 className="font-semibold flex items-center gap-2 mb-2">
+                            <AlertCircle className="h-4 w-4" />
+                            Manual Admission Verification
+                          </h4>
+                          <p className="text-sm">
+                            You've requested manual verification because you couldn't find your admission number. 
+                            The administrators are reviewing your provided details:
+                          </p>
+                          <div className="mt-4 p-3 bg-white/50 rounded-lg text-sm border border-blue-200">
+                            {currentUser.verificationDetails || 'No additional details provided.'}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
+
+              {/* Appearance Settings */}
+              <TabsContent value="appearance" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Palette className="h-5 w-5" />
+                      Appearance
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-8">
+                      <section className="space-y-4">
+                        <div className="flex items-center gap-2 text-lg font-semibold">
+                          <Layout className="h-5 w-5 text-primary" />
+                          <h4>Theme Preference</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Choose how the platform looks to you. Select a theme or let it match your system settings.
+                        </p>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                          {[
+                            { 
+                              id: 'light', 
+                              label: 'Light Mode', 
+                              desc: 'Classic bright look',
+                              icon: Sun,
+                              color: 'bg-white border-gray-200'
+                            },
+                            { 
+                              id: 'dark', 
+                              label: 'Dark Mode', 
+                              desc: 'Easier on the eyes',
+                              icon: Moon,
+                              color: 'bg-slate-950 border-slate-800'
+                            },
+                            { 
+                              id: 'system', 
+                              label: 'System', 
+                              desc: 'Match your device',
+                              icon: Monitor,
+                              color: 'bg-gradient-to-br from-white to-slate-950 border-gray-300'
+                            }
+                          ].map((option) => (
+                            <div 
+                              key={option.id}
+                              className={`relative group cursor-pointer`}
+                              onClick={() => setTheme(option.id)}
+                            >
+                              <div className={`h-32 rounded-xl border-2 transition-all p-4 flex flex-col items-center justify-center gap-3 ${
+                                theme === option.id 
+                                  ? 'border-primary ring-2 ring-primary/20 bg-primary/5' 
+                                  : 'border-border hover:border-muted-foreground/30 hover:bg-muted/50'
+                              }`}>
+                                <div className={`p-3 rounded-full ${
+                                  theme === option.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                                }`}>
+                                  <option.icon className="h-6 w-6" />
+                                </div>
+                                <div className="text-center">
+                                  <p className="font-bold text-sm">{option.label}</p>
+                                  <p className="text-[10px] text-muted-foreground">{option.desc}</p>
+                                </div>
+                                
+                                {theme === option.id && (
+                                  <div className="absolute top-2 right-2 h-5 w-5 bg-primary rounded-full flex items-center justify-center">
+                                    <div className="h-2 w-2 bg-white rounded-full" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                      
+                      <Separator />
+                      
+                      <section className="space-y-4">
+                        <div className="flex items-center gap-2 text-lg font-semibold">
+                          <Layout className="h-5 w-5 text-primary" />
+                          <h4>Interface Options</h4>
+                        </div>
+                        <div className="p-4 rounded-xl border border-border bg-muted/30">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                              <p className="font-medium text-sm">Compact View</p>
+                              <p className="text-xs text-muted-foreground">Reduce spacing to show more content at once</p>
+                            </div>
+                            <Switch disabled checked={false} />
+                          </div>
+                        </div>
+                      </section>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -818,149 +860,162 @@ export default function SettingsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <form onSubmit={handlePrivacySubmit} className="space-y-6">
-                      <div>
-                        <h3 className="font-medium mb-4">Profile Visibility</h3>
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-4">
-                            <input
-                              type="radio"
-                              id="visibility-public"
-                              name="profileVisibility"
-                              value="public"
-                              checked={privacySettings.profileVisibility === "public"}
-                              onChange={() => setPrivacySettings({ ...privacySettings, profileVisibility: "public" })}
-                              className="h-4 w-4 text-foreground"
-                            />
-                            <div className="flex-1">
-                              <label htmlFor="visibility-public" className="block font-medium">Public</label>
-                              <p className="text-sm text-muted-foreground">Anyone on the internet can view your profile</p>
-                            </div>
-                            <Globe className="h-5 w-5 text-muted-foreground" />
-                          </div>
-
-                          <div className="flex items-center gap-4">
-                            <input
-                              type="radio"
-                              id="visibility-alumni"
-                              name="profileVisibility"
-                              value="alumni"
-                              checked={privacySettings.profileVisibility === "alumni"}
-                              onChange={() => setPrivacySettings({ ...privacySettings, profileVisibility: "alumni" })}
-                              className="h-4 w-4 text-foreground"
-                            />
-                            <div className="flex-1">
-                              <label htmlFor="visibility-alumni" className="block font-medium">Alumni Only</label>
-                              <p className="text-sm text-muted-foreground">Only alumni from your school can view your profile</p>
-                            </div>
-                            <GraduationCap className="h-5 w-5 text-muted-foreground" />
-                          </div>
-
-                          <div className="flex items-center gap-4">
-                            <input
-                              type="radio"
-                              id="visibility-connections"
-                              name="profileVisibility"
-                              value="connections"
-                              checked={privacySettings.profileVisibility === "connections"}
-                              onChange={() => setPrivacySettings({ ...privacySettings, profileVisibility: "connections" })}
-                              className="h-4 w-4 text-foreground"
-                            />
-                            <div className="flex-1">
-                              <label htmlFor="visibility-connections" className="block font-medium">Connections Only</label>
-                              <p className="text-sm text-muted-foreground">Only people you've connected with can view your full profile</p>
-                            </div>
-                            <Users className="h-5 w-5 text-muted-foreground" />
-                          </div>
+                    <div className="space-y-8">
+                      {/* Profile Visibility */}
+                      <section className="space-y-4">
+                        <div className="flex items-center gap-2 text-lg font-semibold">
+                          <Eye className="h-5 w-5 text-primary" />
+                          <h4>Profile Visibility</h4>
                         </div>
-                      </div>
-
-                      <div className="pt-6 border-t">
-                        <h3 className="font-medium mb-4">Contact Information</h3>
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">Show Email Address</p>
-                              <p className="text-sm text-muted-foreground">Allow others to see your email address</p>
+                        <p className="text-sm text-muted-foreground">
+                          Control who can find you and view your full profile details.
+                        </p>
+                        <div className="grid gap-4 mt-4">
+                          {[
+                            { 
+                              id: 'public', 
+                              label: 'Public', 
+                              desc: 'Anyone on the internet can view your profile',
+                              icon: Globe
+                            },
+                            { 
+                              id: 'alumni', 
+                              label: 'Alumni Only', 
+                              desc: 'Only verified alumni can view your full profile',
+                              icon: GraduationCap
+                            },
+                            { 
+                              id: 'connections', 
+                              label: 'Connections Only', 
+                              desc: 'Only people you are connected with can see your details',
+                              icon: UserCheck
+                            }
+                          ].map((option) => (
+                            <div 
+                              key={option.id}
+                              className={`flex items-start gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                                privacySettings.profileVisibility === option.id 
+                                  ? 'border-primary bg-primary/5' 
+                                  : 'border-border hover:border-muted-foreground/20'
+                              }`}
+                              onClick={() => setPrivacySettings({ ...privacySettings, profileVisibility: option.id as any })}
+                            >
+                              <div className={`p-2 rounded-lg ${
+                                privacySettings.profileVisibility === option.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                              }`}>
+                                <option.icon className="h-5 w-5" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium">{option.label}</span>
+                                  <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                                    privacySettings.profileVisibility === option.id ? 'border-primary' : 'border-muted-foreground/30'
+                                  }`}>
+                                    {privacySettings.profileVisibility === option.id && <div className="h-2 w-2 rounded-full bg-primary" />}
+                                  </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">{option.desc}</p>
+                              </div>
                             </div>
-                            <Switch
-                              checked={privacySettings.showEmail}
-                              onCheckedChange={(checked) =>
-                                setPrivacySettings({ ...privacySettings, showEmail: checked })
-                              }
-                            />
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">Show Phone Number</p>
-                              <p className="text-sm text-muted-foreground">Allow others to see your phone number</p>
-                            </div>
-                            <Switch
-                              checked={privacySettings.showPhone}
-                              onCheckedChange={(checked) =>
-                                setPrivacySettings({ ...privacySettings, showPhone: checked })
-                              }
-                            />
-                          </div>
+                          ))}
                         </div>
-                      </div>
+                      </section>
 
-                      <div className="pt-6 border-t">
-                        <h3 className="font-medium mb-4">Social Interactions</h3>
+                      <Separator />
+
+                      {/* Contact Info */}
+                      <section className="space-y-4">
+                        <div className="flex items-center gap-2 text-lg font-semibold">
+                          <Mail className="h-5 w-5 text-primary" />
+                          <h4>Contact Information</h4>
+                        </div>
                         <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">Allow Messaging</p>
-                              <p className="text-sm text-muted-foreground">Let others send you direct messages</p>
+                          <div className="flex items-center justify-between p-4 rounded-xl border border-border">
+                            <div className="space-y-0.5">
+                              <div className="font-medium">Show Email Address</div>
+                              <div className="text-xs text-muted-foreground">Allow others to see your email on your profile</div>
                             </div>
-                            <Switch
-                              checked={privacySettings.allowMessaging}
-                              onCheckedChange={(checked) =>
-                                setPrivacySettings({ ...privacySettings, allowMessaging: checked })
-                              }
+                            <Switch 
+                              checked={privacySettings.showEmail} 
+                              onCheckedChange={(checked) => setPrivacySettings({ ...privacySettings, showEmail: checked })} 
                             />
                           </div>
-
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">Allow Connection Requests</p>
-                              <p className="text-sm text-muted-foreground">Let others send you connection requests</p>
+                          <div className="flex items-center justify-between p-4 rounded-xl border border-border">
+                            <div className="space-y-0.5">
+                              <div className="font-medium">Show Phone Number</div>
+                              <div className="text-xs text-muted-foreground">Allow others to see your phone number</div>
                             </div>
-                            <Switch
-                              checked={privacySettings.allowConnection}
-                              onCheckedChange={(checked) =>
-                                setPrivacySettings({ ...privacySettings, allowConnection: checked })
-                              }
-                            />
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">Appear in Search Results</p>
-                              <p className="text-sm text-muted-foreground">Allow your profile to appear in the alumni directory</p>
-                            </div>
-                            <Switch
-                              checked={privacySettings.allowProfileSearch}
-                              onCheckedChange={(checked) =>
-                                setPrivacySettings({ ...privacySettings, allowProfileSearch: checked })
-                              }
+                            <Switch 
+                              checked={privacySettings.showPhone} 
+                              onCheckedChange={(checked) => setPrivacySettings({ ...privacySettings, showPhone: checked })} 
                             />
                           </div>
                         </div>
-                      </div>
+                      </section>
 
-                      <div className="flex justify-end pt-4 border-t">
-                        <Button
-                          type="submit"
+                      <Separator />
+
+                      {/* Social Interactions */}
+                      <section className="space-y-4">
+                        <div className="flex items-center gap-2 text-lg font-semibold">
+                          <MessageSquare className="h-5 w-5 text-primary" />
+                          <h4>Social Interactions</h4>
+                        </div>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between p-4 rounded-xl border border-border">
+                            <div className="space-y-0.5">
+                              <div className="font-medium">Allow Messaging</div>
+                              <div className="text-xs text-muted-foreground">Let others send you direct messages</div>
+                            </div>
+                            <Switch 
+                              checked={privacySettings.allowMessaging} 
+                              onCheckedChange={(checked) => setPrivacySettings({ ...privacySettings, allowMessaging: checked })} 
+                            />
+                          </div>
+                          <div className="flex items-center justify-between p-4 rounded-xl border border-border">
+                            <div className="space-y-0.5">
+                              <div className="font-medium">Allow Connection Requests</div>
+                              <div className="text-xs text-muted-foreground">Let others send you connection requests</div>
+                            </div>
+                            <Switch 
+                              checked={privacySettings.allowConnection} 
+                              onCheckedChange={(checked) => setPrivacySettings({ ...privacySettings, allowConnection: checked })} 
+                            />
+                          </div>
+                          <div className="flex items-center justify-between p-4 rounded-xl border border-border">
+                            <div className="space-y-0.5">
+                              <div className="font-medium">Appear in Search Results</div>
+                              <div className="text-xs text-muted-foreground">Allow your profile to appear in the directory search</div>
+                            </div>
+                            <Switch 
+                              checked={privacySettings.allowProfileSearch} 
+                              onCheckedChange={(checked) => setPrivacySettings({ ...privacySettings, allowProfileSearch: checked })} 
+                            />
+                          </div>
+                        </div>
+                      </section>
+
+                      <div className="pt-4 flex justify-end">
+                        <Button 
+                          onClick={handlePrivacySubmit} 
+                          className="rounded-full px-8 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95"
                           disabled={loading}
-                          className="bg-primary hover:bg-primary/90 min-w-[160px]"
                         >
-                          {loading ? <LoadingSpinner size="sm" className="mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                          Save Privacy Settings
+                          {loading ? (
+                            <div className="flex items-center gap-2">
+                              <LoadingSpinner size="sm" />
+                              <span>Saving...</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Shield className="h-4 w-4" />
+                              <span>Save Privacy Settings</span>
+                            </div>
+                          )}
                         </Button>
                       </div>
-                    </form>
+                    </div>
+
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -1075,12 +1130,20 @@ export default function SettingsPage() {
 
               <div className="space-y-3">
                 <Button
-                  onClick={() => setActiveTab("profile")}
+                  onClick={() => navigate("/profile")}
                   variant="ghost"
                   className="w-full justify-start"
                 >
                   <User className="h-4 w-4 mr-2" />
                   Edit Profile
+                </Button>
+                <Button
+                  onClick={() => setActiveTab("appearance")}
+                  variant="ghost"
+                  className="w-full justify-start"
+                >
+                  <Palette className="h-4 w-4 mr-2" />
+                  Appearance
                 </Button>
                 <Button
                   onClick={() => setActiveTab("security")}

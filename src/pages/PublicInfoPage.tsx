@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Footer } from "@/shared/layout/Footer";
 
 type PublicInfoKey = "about" | "news" | "donate" | "privacy" | "terms" | "contact";
 
@@ -252,6 +253,7 @@ export default function PublicInfoPage({ pageKey }: PublicInfoPageProps) {
           </Link>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

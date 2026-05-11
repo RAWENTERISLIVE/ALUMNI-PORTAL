@@ -226,6 +226,17 @@ export default {
       return proxyApiRequest(request, env);
     }
 
-    return env.ASSETS.fetch(request);
+    // Default: try to serve static assets
+    let response = await env.ASSETS.fetch(request);
+
+    // SPA Routing: If the asset isn't found (404) and it's not an API route,
+    // serve index.html to allow client-side routing to handle it.
+    if (response.status === 404 && !isApiRoute) {
+      const indexUrl = new URL(url.origin);
+      indexUrl.pathname = "/index.html";
+      response = await env.ASSETS.fetch(new Request(indexUrl.toString(), request));
+    }
+
+    return response;
   }
 };

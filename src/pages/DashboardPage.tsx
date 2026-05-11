@@ -9,6 +9,7 @@ import { PostCard } from '@/components/posts/PostCardNew';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import apiService from '@/services/apiService';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function DashboardPage() {
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
@@ -123,12 +124,12 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-muted/30">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 break-words">
+        <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-foreground mb-3 tracking-tight">
             Welcome back{currentUser?.name ? `, ${currentUser.name.split(' ')[0]}` : ''}! 👋
           </h1>
-          <p className="text-muted-foreground">
-            Stay connected with your alumni network and discover new opportunities.
+          <p className="text-lg text-muted-foreground font-light">
+            Stay connected with the <span className="text-primary font-semibold">Maheshwari Public School, Ajmer</span> community.
           </p>
         </div>
 
@@ -137,21 +138,25 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Create Post Section */}
             {isAuthenticated && (
-              <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-foreground">
+              <Card className="bg-card border-border shadow-sm hover:shadow-md transition-shadow duration-300 rounded-2xl overflow-hidden">
+                <CardHeader className="bg-muted/30 pb-4">
+                  <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+                    <Plus className="h-5 w-5 text-primary" />
                     Share an Update
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-6">
                   <CreatePostForm
                     onPostCreated={handlePostCreated}
                     trigger={
                       <Button 
                         size="lg" 
-                        className="w-full justify-start gap-3 bg-muted/30 border-2 border-border hover:border-blue-300 hover:bg-primary/5 text-foreground/90 font-medium"
+                        variant="outline"
+                        className="w-full justify-start gap-4 h-14 border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all"
                       >
-                        <Plus className="h-5 w-5" />
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          <Plus className="h-4 w-4" />
+                        </div>
                         What's on your mind?
                       </Button>
                     }
@@ -230,13 +235,13 @@ export default function DashboardPage() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Quick Actions */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-foreground">
+            <Card className="bg-card border-border shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader className="bg-muted/30 pb-4">
+                <CardTitle className="text-lg font-bold text-foreground">
                   Quick Actions
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="pt-6 space-y-4">
                 {quickActions.map((action) => {
                   const Icon = action.icon;
                   return (
@@ -245,13 +250,15 @@ export default function DashboardPage() {
                       onClick={() => {
                         globalThis.location.href = action.href;
                       }}
-                      className={`w-full p-4 border-2 rounded-lg text-left transition-all duration-200 ${action.color}`}
+                      className={`w-full p-4 border border-border rounded-xl text-left transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 group ${action.color}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <Icon className="h-5 w-5 text-muted-foreground" />
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-lg bg-background border border-border flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                          <Icon className="h-5 w-5" />
+                        </div>
                         <div>
-                          <p className="font-medium text-foreground">{action.title}</p>
-                          <p className="text-sm text-muted-foreground">{action.description}</p>
+                          <p className="font-bold text-foreground group-hover:text-primary transition-colors">{action.title}</p>
+                          <p className="text-xs text-muted-foreground">{action.description}</p>
                         </div>
                       </div>
                     </button>
@@ -262,34 +269,39 @@ export default function DashboardPage() {
 
             {/* User Profile Summary */}
             {isAuthenticated && currentUser && (
-              <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-foreground">
+              <Card className="bg-card border-border shadow-sm rounded-2xl overflow-hidden">
+                <CardHeader className="bg-muted/30 pb-4">
+                  <CardTitle className="text-lg font-bold text-foreground">
                     Your Profile
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                        <span className="text-primary font-semibold">
+                <CardContent className="pt-6">
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-14 w-14 border-2 border-primary/20 p-1">
+                        <AvatarImage src={currentUser.profileImage} className="rounded-full" />
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold text-xl">
                           {currentUser.name?.charAt(0) || 'U'}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground">{currentUser.name}</p>
-                        <p className="text-sm text-muted-foreground">{currentUser.email}</p>
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="overflow-hidden">
+                        <p className="font-bold text-foreground truncate">{currentUser.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
+                        {currentUser.role && (
+                          <Badge variant="secondary" className="mt-1 text-[10px] uppercase tracking-wider h-5">
+                            {currentUser.role.replace('_', ' ')}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     <Button 
                       variant="outline" 
-                      size="sm" 
-                      className="w-full border-border/80 text-foreground/90 hover:bg-muted/30"
+                      className="w-full border-border hover:bg-primary/5 hover:text-primary font-semibold rounded-xl transition-all"
                       onClick={() => {
                         globalThis.location.href = '/profile';
                       }}
                     >
-                      View Profile
+                      View Full Profile
                     </Button>
                   </div>
                 </CardContent>

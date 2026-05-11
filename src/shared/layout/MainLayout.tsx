@@ -19,6 +19,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Footer } from "./Footer";
 
 interface NotificationItem {
   id: string;
@@ -179,27 +180,25 @@ export const MainLayout = () => {
       <header className="h-14 bg-background border-b border-border fixed top-0 left-0 right-0 z-50">
         <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo */}
-          <Link to="/dashboard" className="flex items-center gap-2 shrink-0 group hover:opacity-90 transition-opacity">
-            <div className="h-9 w-9 bg-primary rounded-lg flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
-              <span className="text-primary-foreground font-extrabold text-lg tracking-tighter">MC</span>
-            </div>
-            <span className="hidden md:inline-block font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              MPSAJMER CONNECT
+          <Link to="/dashboard" className="flex items-center gap-3 shrink-0 group hover:opacity-90 transition-opacity">
+            <img src="/logo.png" alt="MPS Ajmer Logo" className="h-10 w-10 object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-300" />
+            <span className="hidden md:inline-block font-bold text-lg lg:text-xl tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Maheshwari Public School, Ajmer
             </span>
           </Link>
-          
+
           {/* Global Search - Center */}
           <div className="hidden sm:block flex-1 max-w-md mx-2 md:mx-6">
             <GlobalSearch />
           </div>
-          
+
           {/* Right Controls */}
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3">
             <ThemeToggle />
 
             {showAdminButton && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 className="hidden lg:inline-flex border-primary text-foreground hover:bg-primary/10"
                 onClick={() => navigate('/admin')}
@@ -207,7 +206,7 @@ export const MainLayout = () => {
                 Admin Dashboard
               </Button>
             )}
-            
+
             {/* Notification Bell */}
             <Sheet open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
               <SheetTrigger asChild>
@@ -252,9 +251,8 @@ export const MainLayout = () => {
                   {sortedNotifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`w-full text-left rounded-md border p-3 transition-colors ${
-                        notification.isSeen ? 'bg-background' : 'bg-muted/40'
-                      }`}
+                      className={`w-full text-left rounded-md border p-3 transition-colors ${notification.isSeen ? 'bg-background' : 'bg-muted/40'
+                        }`}
                     >
                       <div className="flex items-start gap-2">
                         <button
@@ -297,7 +295,7 @@ export const MainLayout = () => {
                 </div>
               </SheetContent>
             </Sheet>
-            
+
             {/* Messages */}
             <Button
               variant="ghost"
@@ -307,10 +305,10 @@ export const MainLayout = () => {
             >
               <MessageCircle className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
             </Button>
-            
+
             {/* Profile Avatar */}
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               onClick={() => navigate('/profile')}
               className="p-0 h-8 w-8"
@@ -330,27 +328,18 @@ export const MainLayout = () => {
       <div className="flex flex-1 pt-14">
         {/* Left Sidebar */}
         {!isMobile && <Sidebar />}
-        
+
         {/* Main Content Area */}
         <main className="flex-1 overflow-x-hidden">
           <div className="p-3 sm:p-4 md:p-6 pb-20 md:pb-6 max-w-5xl mx-auto">
             <Outlet />
           </div>
         </main>
-        
+
         {/* Right Sidebar - Will be added later for specific pages */}
       </div>
-      
-      <footer className="border-t border-border px-4 py-4 text-center bg-card">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-xs text-muted-foreground font-medium">
-            &copy; {new Date().getFullYear()} MPSAJMER CONNECT. All rights reserved.
-          </p>
-          <p className="text-xs text-primary/80 font-semibold tracking-wide uppercase italic">
-            Developed by Raghav Agarwal
-          </p>
-        </div>
-      </footer>
+
+      <Footer />
 
       {/* Mobile Navigation */}
       {isMobile && <MobileNavbar />}

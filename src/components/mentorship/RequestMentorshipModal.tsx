@@ -76,7 +76,7 @@ export function RequestMentorshipModal({ mentor, isOpen, onClose, onSubmit }: Re
       
       if (onSubmit) {
         await onSubmit({
-          mentorId: mentor.id,
+          mentorId: mentor.user?.id || mentor.id,
           topic,
           message,
           sessionMode,

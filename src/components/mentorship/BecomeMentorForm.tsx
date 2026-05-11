@@ -21,15 +21,16 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface BecomeMentorFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: any) => void;
+  initialData?: any;
 }
 
-export function BecomeMentorForm({ isOpen, onClose, onSubmit }: Readonly<BecomeMentorFormProps>) {
+export function BecomeMentorForm({ isOpen, onClose, onSubmit, initialData }: Readonly<BecomeMentorFormProps>) {
   const { toast } = useToast();
   const [sessionMode, setSessionMode] = useState<"chat" | "video" | "meet">("chat");
   const [iceBreakerTemplate, setIceBreakerTemplate] = useState(
@@ -44,8 +45,28 @@ export function BecomeMentorForm({ isOpen, onClose, onSubmit }: Readonly<BecomeM
       expertise: "",
       availability: "1-2 hours/month",
       bio: "",
+      experience: "",
     }
   });
+
+  // Load initial data when it changes
+  useEffect(() => {
+    if (initialData && isOpen) {
+      form.reset({
+        expertise: Array.isArray(initialData.expertise) ? initialData.expertise.join(', ') : (initialData.expertise || ""),
+        availability: initialData.availability || "1-2 hours/month",
+        bio: initialData.bio || "",
+        experience: initialData.experience || "",
+      });
+      if (initialData.session_mode) setSessionMode(initialData.session_mode);
+      if (initialData.slots) {
+        const parsedSlots = typeof initialData.slots === 'string' ? JSON.parse(initialData.slots) : initialData.slots;
+        if (Array.isArray(parsedSlots) && parsedSlots.length > 0) {
+          setSlots(parsedSlots);
+        }
+      }
+    }
+  }, [initialData, isOpen, form]);
 
   const handleSubmit = (data: any) => {
     // Convert expertise string to array
@@ -136,6 +157,23 @@ export function BecomeMentorForm({ isOpen, onClose, onSubmit }: Readonly<BecomeM
               )}
             />
             
+            <FormField
+              control={form.control}
+              name="experience"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Experience Level</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., 5+ years in Software Engineering" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Briefly describe your professional standing.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="bio"

@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { GlobalSearch } from "./GlobalSearch";
 
 export const MobileNavbar = () => {
   const location = useLocation();
@@ -90,18 +91,28 @@ export const MobileNavbar = () => {
               </div>
             </SheetHeader>
             
+            {/* Search - Mobile */}
+            <div className="mb-6 px-1">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
+                Universal Search
+              </p>
+              <div className="px-1">
+                <GlobalSearch />
+              </div>
+            </div>
+
             {/* User profile in drawer */}
             {currentUser && (
-              <div className="flex items-center space-x-4 mb-8 p-4 border rounded-lg">
-                <Avatar>
-                  <AvatarImage src={currentUser.profileImage} alt={currentUser.name} />
-                  <AvatarFallback>{getInitials(currentUser.name)}</AvatarFallback>
+              <div className="flex items-center space-x-4 mb-8 p-5 bg-muted/30 border border-border rounded-2xl shadow-sm">
+                <Avatar className="h-14 w-14 border-2 border-primary/10 p-1">
+                  <AvatarImage src={currentUser.profileImage} alt={currentUser.name} className="rounded-full" />
+                  <AvatarFallback className="bg-primary/10 text-primary font-bold">{getInitials(currentUser.name)}</AvatarFallback>
                 </Avatar>
-                <div className="flex-1">
-                  <p className="font-medium">{currentUser.name}</p>
-                  <p className="text-sm text-muted-foreground">{currentUser.email}</p>
+                <div className="flex-1 overflow-hidden">
+                  <p className="font-bold text-foreground truncate">{currentUser.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
                   {isAdmin && (
-                    <Badge variant={isSuperAdmin ? "default" : "secondary"} className="mt-1 text-xs">
+                    <Badge variant={isSuperAdmin ? "default" : "secondary"} className="mt-1.5 text-[10px] uppercase tracking-wider h-5">
                       {isSuperAdmin ? "Super Admin" : "Admin"}
                     </Badge>
                   )}

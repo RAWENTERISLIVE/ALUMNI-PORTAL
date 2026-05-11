@@ -39,6 +39,8 @@ function MentorshipPage() {
   const [proposedDay, setProposedDay] = useState("Monday");
   const [proposedStartTime, setProposedStartTime] = useState("18:00");
   const [proposedEndTime, setProposedEndTime] = useState("19:00");
+  const [isMentor, setIsMentor] = useState(false);
+  const [mentorProfile, setMentorProfile] = useState<any>(null);
 
   useEffect(() => {
     loadMentors();
@@ -49,7 +51,7 @@ function MentorshipPage() {
     try {
       setLoading(true);
       const query: any = {};
-      if (searchQuery) query.search = searchQuery;
+      if (searchQuery) query.query = searchQuery;
       if (selectedCategory) query.expertise = selectedCategory;
       if (selectedExperience) query.experience = selectedExperience;
       
@@ -72,6 +74,8 @@ function MentorshipPage() {
       if (response.success && response.data) {
         setMyMentorships(response.data.requests || []);
         setIncomingRequests(response.data.incomingRequests || []);
+        setIsMentor(!!response.data.isMentor);
+        setMentorProfile(response.data.profile || null);
       }
     } catch (error) {
       console.error("Error loading mentorships:", error);
@@ -104,26 +108,26 @@ function MentorshipPage() {
 
   const handleRespondMentorshipRequest = async (request: any, action: 'accept' | 'reject') => {
     try {
-      const response = await apiService.respondToRequest(request.id, action);
+      const response = await apiService.respondMentorshipRequest(request.id, action);
       if (!response.success) {
         throw new Error(response.message || `Failed to ${action} request.`);
       }
 
-      setIncomingRequests((prev) => prev.filter((item) => item.id !== request.id));
+      // If accepted, immediately update state to show active connection
+      await loadMyMentorships();
+
       if (action === 'accept') {
         const draft = buildConfirmationDraft(request);
         setAssistTargetRequest(request);
         setConfirmationDraft(draft);
-        setProposedDay(request?.preferredSlot?.day || 'Monday');
-        setProposedStartTime(request?.preferredSlot?.startTime || '18:00');
-        setProposedEndTime(request?.preferredSlot?.endTime || '19:00');
+        setProposedDay(request?.preferred_slot?.day || 'Monday');
+        setProposedStartTime(request?.preferred_slot?.startTime || '18:00');
+        setProposedEndTime(request?.preferred_slot?.endTime || '19:00');
         setAssistDialogOpen(true);
         toast({ title: 'Request accepted', description: 'First-session message draft is ready.' });
       } else {
         toast({ title: 'Request rejected', description: 'The mentee has been notified.' });
       }
-
-      await loadMyMentorships();
     } catch (error: any) {
       toast({ title: 'Action failed', description: error.message || 'Please try again.', variant: 'destructive' });
     }
@@ -154,6 +158,33 @@ function MentorshipPage() {
     toast({ title: 'Sent', description: 'Confirmation message sent in one-to-one chat.' });
     setAssistDialogOpen(false);
     navigate(`/messages?user=${menteeId}`);
+  };
+
+  const handleCancelRequest = async (requestId: string) => {
+    if (!confirm("Are you sure you want to cancel this mentorship request?")) return;
+    try {
+      const response = await apiService.respondMentorshipRequest(requestId, 'cancel');
+      if (response.success) {
+        toast({ title: "Request Cancelled", description: "Your mentorship request has been removed." });
+        loadMyMentorships();
+      } else {
+        toast({ title: "Error", description: response.message || "Failed to cancel request.", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("Error cancelling request:", error);
+      toast({ title: "Error", description: "An unexpected error occurred.", variant: "destructive" });
+    }
+  };
+
+  const handleScheduleSession = (mentorship: any) => {
+    const targetUserId = mentorship.mentor?.user?.id || mentorship.mentee?.user?.id;
+    if (!targetUserId) {
+      toast({ title: 'Unable to schedule', description: 'User ID missing.', variant: 'destructive' });
+      return;
+    }
+    
+    navigate(`/messages?user=${targetUserId}`);
+    toast({ description: "Redirecting to chat to coordinate your next session." });
   };
 
   const handleUseRequestedSlotDraft = () => {
@@ -235,24 +266,24 @@ function MentorshipPage() {
                       {mentor.user.name.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-lg text-foreground">{mentor.user.name}</h3>
-                    <p className="text-muted-foreground">{mentor.user.title}</p>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-lg text-foreground truncate">{mentor.user.name}</h3>
+                    <p className="text-muted-foreground truncate">{mentor.user.title}</p>
                     <div className="flex items-center text-sm text-muted-foreground/80 mt-1">
-                      <GraduationCap className="h-3 w-3 mr-1" />
-                      <span>Class of {mentor.user.graduationYear}</span>
+                      <GraduationCap className="h-3 w-3 mr-1 flex-shrink-0" />
+                      <span className="truncate">Class of {mentor.user.graduationYear}</span>
                     </div>
                     <div className="flex items-center mt-1">
-                      <Star className="h-3 w-3 text-yellow-400" />
+                      <Star className="h-3 w-3 text-yellow-400 flex-shrink-0" />
                       <span className="text-sm font-medium ml-1">{mentor.rating}</span>
-                      <span className="text-xs text-muted-foreground/80 ml-1">({mentor.reviewCount} reviews)</span>
+                      <span className="text-xs text-muted-foreground/80 ml-1 truncate">({mentor.reviewCount} reviews)</span>
                     </div>
                   </div>
                 </div>
 
-                <div>
+                <div className="flex-shrink-0">
                   <Button
-                    className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300 mt-2"
+                    className="w-full md:w-auto bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300 mt-2"
                     onClick={() => {
                       setSelectedMentor(mentor);
                       setIsRequestModalOpen(true);
@@ -264,7 +295,7 @@ function MentorshipPage() {
               </div>
 
               <div className="mt-4">
-                <p className="text-sm text-muted-foreground mb-3">{mentor.bio}</p>
+                <p className="text-sm text-muted-foreground mb-3 line-clamp-2 md:line-clamp-none">{mentor.bio}</p>
 
                 <div className="flex flex-wrap gap-2 mb-2">
                   {mentor.expertise.map((expertise: string) => (
@@ -405,7 +436,7 @@ function MentorshipPage() {
                     className="w-full bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 transform hover:scale-105 hover:shadow-lg transition-all duration-300"
                     onClick={() => setIsMentorModalOpen(true)}
                   >
-                    Become a Mentor
+                    {isMentor ? "Update Mentor Profile" : "Become a Mentor"}
                   </Button>
                 </CardContent>
               </Card>
@@ -490,108 +521,165 @@ function MentorshipPage() {
         </TabsContent>
         
         <TabsContent value="my">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">Your Mentorship Relationships</h2>
-            <p className="text-muted-foreground">Manage your ongoing mentorship connections and scheduled sessions.</p>
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold tracking-tight mb-2">Mentorship Management</h2>
+            <p className="text-muted-foreground">Manage your connections, tracking outgoing requests, and active sessions.</p>
           </div>
           
           {myMentorships.length === 0 && incomingRequests.length === 0 ? (
             <EmptyState
-              title="No active mentorships"
-              description="You don't have any active mentorship relationships yet."
+              title="No mentorship activity"
+              description="You haven't sent or received any mentorship requests yet."
               action={{
-                label: "Find a Mentor",
+                label: "Explore Mentors",
                 onClick: () => {
-                  document.querySelector<HTMLElement>('[data-value="find"]')?.click();
+                  const trigger = document.querySelector<HTMLElement>('[data-value="find"]');
+                  if (trigger) trigger.click();
                 }
               }}
             />
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-10">
+              {/* Incoming Requests Section (Mentor View) */}
               {incomingRequests.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Incoming Mentorship Requests</h3>
-                  <div className="grid gap-4 md:grid-cols-2">
+                <section>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-8 w-1 bg-primary rounded-full" />
+                    <h3 className="text-lg font-semibold">Incoming Requests</h3>
+                    <Badge variant="secondary" className="ml-2">{incomingRequests.length}</Badge>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {incomingRequests.map((request) => (
-                      <Card key={request.id} className="border border-border rounded-xl overflow-hidden">
-                        <CardContent className="p-5 space-y-3">
-                          <div className="flex gap-3 items-start">
-                            <Avatar className="h-12 w-12">
-                              <AvatarImage src={request.mentee.user.profileImage} />
-                              <AvatarFallback>{request.mentee.user.name?.charAt(0)}</AvatarFallback>
+                      <Card key={request.id} className="border border-border/60 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl overflow-hidden flex flex-col">
+                        <CardContent className="p-5 space-y-4 flex-grow">
+                          <div className="flex gap-4 items-start">
+                            <Avatar className="h-12 w-12 border border-border/50">
+                              <AvatarImage src={request.mentee?.user?.profileImage} />
+                              <AvatarFallback>{request.mentee?.user?.name?.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            <div>
-                              <p className="font-semibold">{request.mentee.user.name}</p>
-                              <p className="text-sm text-muted-foreground">{request.mentee.user.title}</p>
+                            <div className="min-w-0">
+                              <p className="font-bold truncate">{request.mentee?.user?.name}</p>
+                              <p className="text-sm text-muted-foreground truncate">{request.mentee?.user?.title || 'Alumni'}</p>
                             </div>
                           </div>
 
-                          {request.topic && <Badge variant="outline">Topic: {request.topic}</Badge>}
-                          <p className="text-sm text-muted-foreground">Preferred mode: {request.sessionMode || 'chat'}</p>
-                          {request.preferredSlot && (
-                            <p className="text-sm text-muted-foreground">
-                              Preferred slot: {request.preferredSlot.day} {request.preferredSlot.startTime}-{request.preferredSlot.endTime}
-                            </p>
-                          )}
-                          {request.message && <p className="text-sm">{request.message}</p>}
+                          <div className="space-y-2">
+                            {request.topic && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Star className="h-4 w-4 text-primary" />
+                                <span className="font-medium truncate">{request.topic}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <MessageSquare className="h-3.5 w-3.5" />
+                              <span>{request.sessionMode || 'Chat'} session</span>
+                            </div>
+                            {request.message && (
+                              <div className="bg-muted/40 p-3 rounded-lg text-sm italic text-foreground/80 line-clamp-3 mt-2 border border-border/30">
+                                "{request.message}"
+                              </div>
+                            )}
+                          </div>
                         </CardContent>
-                        <CardFooter className="bg-muted/30 border-t flex justify-end gap-2 px-5 py-3">
-                          <Button variant="outline" onClick={() => handleRespondMentorshipRequest(request, 'reject')}>Reject</Button>
-                          <Button className="bg-primary hover:bg-primary/90" onClick={() => handleRespondMentorshipRequest(request, 'accept')}>Accept</Button>
+                        <CardFooter className="bg-muted/20 border-t flex justify-end gap-2 p-4 mt-auto">
+                          <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleRespondMentorshipRequest(request, 'reject')}>Reject</Button>
+                          <Button size="sm" className="shadow-sm" onClick={() => handleRespondMentorshipRequest(request, 'accept')}>Accept Request</Button>
                         </CardFooter>
                       </Card>
                     ))}
                   </div>
-                </div>
+                </section>
               )}
 
-              <div className="grid gap-6 md:grid-cols-2">
-                {myMentorships.map(mentorship => (
-                <Card key={mentorship.id} className="border border-border hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 rounded-xl overflow-hidden">
-                  <CardContent className="p-6">
-                    <div className="flex gap-4 mb-4">
-                      <Avatar className="h-14 w-14">
-                        <AvatarImage src={mentorship.mentor.user.profileImage} />
-                        <AvatarFallback className="bg-primary/10 text-foreground/90 text-lg font-medium">
-                          {mentorship.mentor.user.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h4 className="font-semibold text-lg">{mentorship.mentor.user.name}</h4>
-                        <p className="text-sm text-muted-foreground">{mentorship.mentor.user.title}</p>
-                        <Badge className="mt-1 bg-green-100 text-green-800 hover:bg-green-100">
-                          Active Mentorship
-                        </Badge>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h5 className="text-sm font-medium text-foreground/80 mb-1">Focus Areas:</h5>
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {mentorship.topics.map((topic: string) => (
-                          <Badge key={topic} variant="outline" className="text-xs">{topic}</Badge>
-                        ))}
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground flex items-center mt-4">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        <span>Next Session: {new Date(mentorship.nextSession).toLocaleDateString()} at {new Date(mentorship.nextSession).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter className="bg-muted/30 px-6 py-3 flex justify-between gap-2 border-t">
-                    <Button variant="outline" size="sm">
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      Send Message
-                    </Button>
-                    <Button variant="default" size="sm" className="bg-primary hover:bg-primary/90">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      Schedule Session
-                    </Button>
-                  </CardFooter>
-                </Card>
-                ))}
-              </div>
+              {/* Active Connections & Sent Requests Section (Mentee View) */}
+              <section>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-8 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">My Mentorships & Requests</h3>
+                </div>
+                
+                {myMentorships.length === 0 ? (
+                  <div className="bg-muted/30 border-2 border-dashed rounded-2xl p-8 text-center">
+                    <p className="text-muted-foreground">No active sessions or sent requests found.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {myMentorships.map(mentorship => (
+                      <Card key={mentorship.id} className="border border-border/60 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 rounded-2xl overflow-hidden flex flex-col h-full">
+                        <CardContent className="p-6 flex-grow">
+                          <div className="flex gap-4 mb-5">
+                            <Avatar className="h-14 w-14 ring-2 ring-primary/10">
+                              <AvatarImage src={mentorship.mentor?.user?.profileImage} />
+                              <AvatarFallback className="bg-primary/10 text-primary font-bold text-xl">
+                                {mentorship.mentor?.user?.name?.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-lg leading-tight truncate">{mentorship.mentor?.user?.name}</h4>
+                              <p className="text-sm text-muted-foreground truncate mb-2">{mentorship.mentor?.experience || 'Expert Mentor'}</p>
+                              <Badge className={`shadow-none font-medium ${
+                                mentorship.status === 'accepted' 
+                                  ? 'bg-green-500/10 text-green-700 border-green-200 hover:bg-green-500/10' 
+                                  : 'bg-orange-500/10 text-orange-700 border-orange-200 hover:bg-orange-500/10'
+                              }`}>
+                                {mentorship.status === 'accepted' ? 'Active' : 'Awaiting Approval'}
+                              </Badge>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-4">
+                            <div className="p-3 bg-muted/30 rounded-xl border border-border/30">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Inquiry Focus</p>
+                              <p className="text-sm font-medium text-foreground line-clamp-2">{mentorship.topic || 'General Guidance'}</p>
+                            </div>
+                            
+                            {mentorship.status === 'accepted' && (
+                              <div className="flex items-center gap-3 py-1">
+                                <div className="flex-1 h-px bg-border/50" />
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-2">Ready to Connect</span>
+                                <div className="flex-1 h-px bg-border/50" />
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                        
+                        <CardFooter className="bg-muted/10 border-t p-4 flex flex-wrap gap-2 justify-end mt-auto">
+                          {mentorship.status === 'pending' ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors border-dashed"
+                              onClick={() => handleCancelRequest(mentorship.id)}
+                            >
+                              Withdraw Request
+                            </Button>
+                          ) : (
+                            <>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="gap-2 border-primary/20 hover:border-primary/50 text-primary"
+                                onClick={() => navigate(`/messages?user=${mentorship.mentor?.user?.id}`)}
+                              >
+                                <MessageSquare className="h-4 w-4" />
+                                Chat
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                className="gap-2 shadow-sm bg-primary hover:bg-primary/90"
+                                onClick={() => handleScheduleSession(mentorship)}
+                              >
+                                <Calendar className="h-4 w-4" />
+                                Meet
+                              </Button>
+                            </>
+                          )}
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
           )}
         </TabsContent>
@@ -601,6 +689,7 @@ function MentorshipPage() {
         isOpen={isMentorModalOpen}
         onClose={() => setIsMentorModalOpen(false)}
         onSubmit={handleBecomeMentor}
+        initialData={mentorProfile}
       />
       
       {selectedMentor && (

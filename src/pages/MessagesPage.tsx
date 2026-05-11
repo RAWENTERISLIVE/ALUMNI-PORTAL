@@ -487,15 +487,32 @@ export default function MessagesPage() {
                 />
               ) : (
                 messages.map((message) => {
-                  const isMine = message.senderId === currentUser?.id;
+                  const isMine = String(message.senderId) === String(currentUser?.id);
                   return (
-                    <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                    <div key={message.id} className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
                       <div
-                        className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
-                          isMine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                        className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm transition-all duration-200 relative ${
+                          isMine 
+                            ? "bg-primary text-primary-foreground rounded-tr-none ml-12" 
+                            : "bg-muted text-foreground rounded-tl-none mr-12"
                         }`}
                       >
-                        <p>{message.content}</p>
+                        {/* Message Tail */}
+                        <div className={`absolute top-0 w-3 h-3 ${isMine ? "-right-1 bg-primary" : "-left-1 bg-muted"}`} 
+                             style={{ clipPath: isMine ? 'polygon(0 0, 0 100%, 100% 0)' : 'polygon(0 0, 100% 100%, 100% 0)' }}></div>
+                        
+                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                        
+                        <div className={`flex items-center justify-end gap-1 mt-1 opacity-70`}>
+                          <span className="text-[10px]">
+                            {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {isMine && (
+                            <span className="text-[10px]">
+                              {message.isRead ? "✓✓" : "✓"}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

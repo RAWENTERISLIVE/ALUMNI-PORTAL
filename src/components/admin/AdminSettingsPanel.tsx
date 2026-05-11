@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Save, RotateCcw, X } from "lucide-react";
+import { Save, RotateCcw, X, Loader2 } from "lucide-react";
+import apiService from "@/services/apiService";
 
 type AdminRole = "user" | "moderator" | "admin" | "super_admin";
 type ModulePermission = "posts" | "groups" | "events" | "jobs" | "messages" | "mentorship" | "directory";
@@ -526,53 +527,128 @@ export default function AdminSettingsPanel() {
   const [newDomain, setNewDomain] = useState("");
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
+    const loadSettings = async () => {
+      setSaveState("saving");
+      try {
+        const response = await apiService.getAdminSettings();
+        const settingsData = response.data?.settings || response.settings;
+        
+        if (response.success && settingsData) {
+          const fetched = settingsData as any;
+          
+          // Deep merge helper
+          const deepMerge = (target: any, source: any) => {
+            const output = { ...target };
+            if (target && typeof target === 'object' && source && typeof source === 'object') {
+              Object.keys(source).forEach(key => {
+                if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+                  if (!(key in target)) {
+                    Object.assign(output, { [key]: source[key] });
+                  } else {
+                    output[key] = deepMerge(target[key], source[key]);
+                  }
+                } else {
+                  Object.assign(output, { [key]: source[key] });
+                }
+              });
+            }
+            return output;
+          };
 
-    try {
-      const parsed = JSON.parse(raw) as AdminSettingsData;
-      setSettings(parsed);
-      setSavedSettings(parsed);
-      setLastSavedAt(new Date().toISOString());
-    } catch {
-      setSettings(defaultSettings);
-      setSavedSettings(defaultSettings);
-    }
+          const merged: AdminSettingsData = deepMerge(defaultSettings, fetched);
+          
+          setSettings(merged);
+          setSavedSettings(merged);
+          setLastSavedAt(new Date().toISOString());
+        } else {
+          // Fallback to localStorage if backend is empty or failed
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw) as any;
+            const merged = deepMerge(defaultSettings, parsed);
+            setSettings(merged);
+            setSavedSettings(merged);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load settings from backend:", error);
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as any;
+          const merged = deepMerge(defaultSettings, parsed);
+          setSettings(merged);
+          setSavedSettings(merged);
+        }
+      } finally {
+        setSaveState("idle");
+      }
+    };
+
+    loadSettings();
   }, []);
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
     setSaveState("saving");
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-      const timestamp = new Date().toISOString();
-      setLastSavedAt(timestamp);
-      setSavedSettings(settings);
-      setSaveState("success");
-      toast({
-        title: "Settings Saved",
-        description: `Saved ${changedSections.length || 1} section${changedSections.length === 1 ? "" : "s"} successfully.`,
-      });
-    } catch {
+      // Save to backend
+      const response = await apiService.updateAdminSettings(settings);
+      
+      if (response.success) {
+        // Also sync to localStorage as secondary backup
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        
+        const timestamp = new Date().toISOString();
+        setLastSavedAt(timestamp);
+        setSavedSettings(settings);
+        setSaveState("success");
+        toast({
+          title: "Settings Saved",
+          description: `Saved ${changedSections.length || 1} section${changedSections.length === 1 ? "" : "s"} to backend successfully.`,
+        });
+      } else {
+        throw new Error(response.message || "Failed to save settings to backend");
+      }
+    } catch (error: any) {
       setSaveState("error");
       toast({
         title: "Save Failed",
-        description: "Could not save settings. Please try again.",
+        description: error.message || "Could not save settings. Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  const resetSettings = () => {
-    setSettings(defaultSettings);
-    setSavedSettings(defaultSettings);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultSettings));
-    const timestamp = new Date().toISOString();
-    setLastSavedAt(timestamp);
-    setSaveState("success");
-    toast({
-      title: "Defaults Restored",
-      description: "Settings were reset to default values.",
-    });
+  const resetSettings = async () => {
+    if (!globalThis.confirm("Are you sure you want to reset all settings to defaults?")) return;
+    
+    setSaveState("saving");
+    try {
+      const response = await apiService.updateAdminSettings(defaultSettings);
+      
+      if (response.success) {
+        setSettings(defaultSettings);
+        setSavedSettings(defaultSettings);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultSettings));
+        const timestamp = new Date().toISOString();
+        setLastSavedAt(timestamp);
+        setSaveState("success");
+        toast({
+          title: "Defaults Restored",
+          description: "Settings were reset to default values on backend.",
+        });
+      } else {
+        throw new Error(response.message || "Failed to reset settings");
+      }
+    } catch (error: any) {
+      setSaveState("error");
+      toast({
+        title: "Reset Failed",
+        description: error.message || "Could not reset settings.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaveState("idle");
+    }
   };
 
   const getSectionSnapshot = (allSettings: AdminSettingsData, sectionId: SettingsSection) => {
@@ -610,7 +686,7 @@ export default function AdminSettingsPanel() {
   const hasUnsavedChanges = changedSections.length > 0;
   const activeSectionMeta = sectionList.find((section) => section.id === activeSection);
 
-  const domainList = settings.institutionRules.allowedSignupDomainsCsv
+  const domainList = (settings.institutionRules.allowedSignupDomainsCsv || "")
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);

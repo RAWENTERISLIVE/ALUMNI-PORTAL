@@ -22,63 +22,7 @@ import { LoadingSpinner } from "@/shared/components/LoadingSpinner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import apiService from "@/services/apiService";
 
-const registerSchema = z
-  .object({
-    name: z.string().min(2, { message: "Full name is required" }),
-    email: z.string().email({ message: "Please enter a valid email address" }),
-    password: z.string().min(8, {
-      message: "Password must be at least 8 characters",
-    }),
-    confirmPassword: z.string(),
-    accountType: z.enum(["alumni", "faculty"]).default("alumni"),
-    forgotAdmissionNumber: z.boolean().default(false),
-    admissionNumber: z.string().optional(),
-    verificationDetails: z.string().optional(),
-    graduationYear: z.string().optional(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  })
-  .superRefine((data, ctx) => {
-    if (data.forgotAdmissionNumber) {
-      const details = (data.verificationDetails || '').trim();
-      if (details.length < 10) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Please provide at least 10 characters for manual verification.",
-          path: ["verificationDetails"],
-        });
-      }
-    } else {
-      const admissionNumber = (data.admissionNumber || '').trim();
-      if (!admissionNumber) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Admission number is required.",
-          path: ["admissionNumber"],
-        });
-      } else if (!/^[a-zA-Z0-9/-]{3,20}$/.test(admissionNumber)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Admission number is not valid.",
-          path: ["admissionNumber"],
-        });
-      }
-    }
-
-    if (data.graduationYear && data.graduationYear.trim() !== "") {
-      const year = Number.parseInt(data.graduationYear, 10);
-      const currentYear = new Date().getFullYear();
-      if (Number.isNaN(year) || year < 1989 || year > currentYear + 10) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Passing year must be between 1989 and ${currentYear + 10}.`,
-          path: ["graduationYear"],
-        });
-      }
-    }
-  });
+import { useEffect, useMemo } from "react";
 
 export default function RegisterPage() {
   const { register, isLoading } = useAuth();
@@ -87,6 +31,86 @@ export default function RegisterPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [facultyIdCardFile, setFacultyIdCardFile] = useState<File | null>(null);
   const [isUploadingIdCard, setIsUploadingIdCard] = useState(false);
+  const [publicSettings, setPublicSettings] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await apiService.getPublicSettings();
+        if (response.success && response.settings) {
+          setPublicSettings(response.settings);
+        }
+      } catch (error) {
+        console.error("Failed to fetch public settings:", error);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const registerSchema = useMemo(() => {
+    const rules = publicSettings?.institutionRules;
+    const minYear = rules?.minAdmissionYear || 1980;
+    const maxYear = rules?.maxAdmissionYear || new Date().getFullYear() + 1;
+    const admissionPattern = rules?.admissionNumberPattern || "^[A-Za-z0-9\\/-]{3,20}$";
+    const patternRegex = new RegExp(admissionPattern);
+
+    return z
+      .object({
+        name: z.string().min(2, { message: "Full name is required" }),
+        email: z.string().email({ message: "Please enter a valid email address" }),
+        password: z.string().min(8, {
+          message: "Password must be at least 8 characters",
+        }),
+        confirmPassword: z.string(),
+        accountType: z.enum(["alumni", "faculty"]).default("alumni"),
+        forgotAdmissionNumber: z.boolean().default(false),
+        admissionNumber: z.string().optional(),
+        verificationDetails: z.string().optional(),
+        graduationYear: z.string().optional(),
+      })
+      .refine((data) => data.password === data.confirmPassword, {
+        message: "Passwords do not match",
+        path: ["confirmPassword"],
+      })
+      .superRefine((data, ctx) => {
+        if (data.forgotAdmissionNumber) {
+          const details = (data.verificationDetails || '').trim();
+          if (details.length < 10) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Please provide at least 10 characters for manual verification.",
+              path: ["verificationDetails"],
+            });
+          }
+        } else {
+          const admissionNumber = (data.admissionNumber || '').trim();
+          if (!admissionNumber) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Admission number is required.",
+              path: ["admissionNumber"],
+            });
+          } else if (!patternRegex.test(admissionNumber)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Admission number format is invalid according to school records.",
+              path: ["admissionNumber"],
+            });
+          }
+        }
+
+        if (data.graduationYear && data.graduationYear.trim() !== "") {
+          const year = Number.parseInt(data.graduationYear, 10);
+          if (Number.isNaN(year) || year < minYear || year > maxYear) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Graduation year must be between ${minYear} and ${maxYear}.`,
+              path: ["graduationYear"],
+            });
+          }
+        }
+      });
+  }, [publicSettings]);
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),

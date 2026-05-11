@@ -397,27 +397,37 @@ export function PostCard({ post, onPostUpdate, onPostDelete }: Readonly<PostCard
             </h4>
             <div className="grid gap-2">
               {post.attachments.map((attachment, index) => (
-                <div 
-                  key={`${attachment.url}-${attachment.name}-${index}`} 
-                  className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/70"
-                >
-                  <div className="flex items-center gap-3">
-                    {getFileIcon(attachment.type)}
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{attachment.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatFileSize(attachment.size)}</p>
+                <div key={`${attachment.url}-${attachment.name}-${index}`}>
+                  {attachment.type === 'image' ? (
+                    <div className="mb-4 overflow-hidden rounded-xl border border-border/40 shadow-sm transition-all hover:shadow-md">
+                      <img 
+                        src={attachment.url} 
+                        alt={attachment.name || 'Post image'} 
+                        className="w-full h-auto max-h-[500px] object-cover cursor-zoom-in"
+                        onClick={() => window.open(attachment.url, '_blank')}
+                      />
                     </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    asChild
-                    className="text-foreground/90 hover:text-primary hover:bg-primary/10"
-                  >
-                    <a href={attachment.url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/70 mb-2">
+                      <div className="flex items-center gap-3">
+                        {getFileIcon(attachment.type)}
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{attachment.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatFileSize(attachment.size)}</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        asChild
+                        className="text-foreground/90 hover:text-primary hover:bg-primary/10"
+                      >
+                        <a href={attachment.url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

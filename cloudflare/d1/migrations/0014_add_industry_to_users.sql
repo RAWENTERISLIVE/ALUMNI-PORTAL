@@ -1,0 +1,2 @@
+-- Add industry column to users table
+-- ALTER TABLE users ADD COLUMN industry TEXT;

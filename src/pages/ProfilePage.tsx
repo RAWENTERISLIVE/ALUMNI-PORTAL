@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -32,7 +32,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { User, Briefcase, MapPin, GraduationCap, Mail, Phone, Globe, PlusCircle, Sparkles } from "lucide-react";
+import { User, Briefcase, MapPin, GraduationCap, Mail, Phone, Globe, PlusCircle, Sparkles, Loader2, Lock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -408,8 +408,6 @@ const profileSchema = z.object({
   company: z.string().optional(),
   position: z.string().optional(),
   location: z.string().optional(),
-  city: z.string().optional(),
-  country: z.string().optional(),
   website: z.string().optional(),
   linkedin: z.string().optional(),
   twitter: z.string().optional(),
@@ -448,6 +446,54 @@ export default function ProfilePage() {
   const [isRequestMentorshipModalOpen, setIsRequestMentorshipModalOpen] = useState(false);
   const [activeDetailedSection, setActiveDetailedSection] = useState<DetailedSectionKey>('projects');
   const [currentDetailedItem, setCurrentDetailedItem] = useState<DetailedProfileItem | null>(null);
+  const [profilePhotoLoading, setProfilePhotoLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { refreshUser } = useAuth();
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile) return;
+
+    try {
+      setProfilePhotoLoading(true);
+      const uploadResponse = await apiService.uploadFile(selectedFile);
+      const imageUrl = uploadResponse.data?.url;
+
+      if (!uploadResponse.success || !imageUrl) {
+        throw new Error(uploadResponse.message || "Failed to upload profile photo");
+      }
+
+      // Update backend
+      const profileResponse = await apiService.updateProfile({ profileImage: imageUrl });
+      if (!profileResponse.success) {
+        throw new Error(profileResponse.message || "Failed to update profile photo");
+      }
+
+      // Update local state
+      setProfile((prev: any) => ({ ...prev, profileImage: imageUrl }));
+      
+      // Update global user context if it's our own profile
+      if (isOwnProfile && refreshUser) {
+        await refreshUser();
+      }
+
+      toast({
+        title: "Photo Updated",
+        description: "Your profile photo has been updated.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile photo.",
+        variant: "destructive",
+      });
+    } finally {
+      setProfilePhotoLoading(false);
+      // Reset input so the same file can be selected again
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const [detailedFormData, setDetailedFormData] = useState<DetailedFormData>(createDetailedFormData('projects'));
   const [experienceFormData, setExperienceFormData] = useState<Omit<ExperienceItem, 'id'>>({
     title: '',
@@ -478,8 +524,6 @@ export default function ProfilePage() {
       company: "",
       position: "",
       location: "",
-      city: "",
-      country: "",
       website: "",
       linkedin: "",
       twitter: "",
@@ -577,9 +621,7 @@ export default function ProfilePage() {
         contactPhone: profile.contactPhone || "",
         company: profile.company || "",
         position: profile.jobTitle || "",
-        location: profile.location || profile.city || "",
-        city: profile.city || "",
-        country: profile.country || "",
+        location: profile.location || "",
         website: profile.website || profile?.privacySettings?.website || "",
         linkedin: profile.linkedInProfile || "",
         twitter: profile.twitterHandle || profile?.privacySettings?.twitterHandle || "",
@@ -1289,16 +1331,31 @@ export default function ProfilePage() {
               </Avatar>
               
               {isOwnProfile && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="mt-2 border-primary text-foreground hover:bg-primary/5 transition-colors"
-                  onClick={() => toast({
-                    description: "Profile image upload feature coming soon"
-                  })}
-                >
-                  Change Photo
-                </Button>
+                <>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                  />
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="mt-2 border-primary text-foreground hover:bg-primary/5 transition-colors"
+                    disabled={profilePhotoLoading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {profilePhotoLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      "Change Photo"
+                    )}
+                  </Button>
+                </>
               )}
             </div>
             
@@ -1330,21 +1387,21 @@ export default function ProfilePage() {
                   </div>
                 )}
                 
-                {(profile.contactEmail || profile.email) && (
+                {(profile.contactEmail || profile.email) && (isOwnProfile || profile?.privacySettings?.showEmail !== false) && (
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span>{profile.contactEmail || profile.email}</span>
                   </div>
                 )}
                 
-                {profile.contactPhone && !isOwnProfile && (
+                {profile.contactPhone && (isOwnProfile || profile?.privacySettings?.showPhone !== false) && (
                   <div className="flex items-center gap-2">
                     <Phone className="h-4 w-4 text-muted-foreground" />
                     <span>{profile.contactPhone}</span>
                   </div>
                 )}
                 
-                {(profile.website || profile?.privacySettings?.website) && (
+                {(profile.website || profile?.privacySettings?.website) && (isOwnProfile || profile?.privacySettings?.showEmail !== false) && (
                   <div className="flex items-center gap-2">
                     <Globe className="h-4 w-4 text-muted-foreground" />
                     <a
@@ -1358,7 +1415,7 @@ export default function ProfilePage() {
                   </div>
                 )}
                 
-                {profile.linkedInProfile && (
+                {profile.linkedInProfile && (isOwnProfile || profile?.privacySettings?.showEmail !== false) && (
                   <div className="flex items-center gap-2">
                     <Globe className="h-4 w-4 text-muted-foreground" />
                     <a href={profile.linkedInProfile} target="_blank" rel="noopener noreferrer" className="text-foreground/90 hover:underline">LinkedIn Profile</a>
@@ -1375,22 +1432,26 @@ export default function ProfilePage() {
               
               {!isOwnProfile && (
                 <div className="flex gap-2 mt-4">
-                  <Button
-                    onClick={handleConnectAction}
-                    disabled={isConnecting}
-                    variant={connectionState === 'connected' ? 'secondary' : 'default'}
-                  >
-                    {isConnecting
-                      ? 'Please wait...'
-                      : connectionState === 'incoming'
-                        ? 'Accept Request'
-                        : connectionState === 'connected'
-                          ? 'Connected'
-                          : connectionState === 'pending'
-                            ? 'Pending'
-                            : 'Connect'}
-                  </Button>
-                  <Button variant="outline" onClick={() => navigate(`/messages?user=${profile.id || profile._id}`)}>Message</Button>
+                  {(profile?.privacySettings?.allowConnection !== false || connectionState === 'connected' || connectionStatus === 'connected') && (
+                    <Button
+                      onClick={handleConnectAction}
+                      disabled={isConnecting}
+                      variant={connectionState === 'connected' ? 'secondary' : 'default'}
+                    >
+                      {isConnecting
+                        ? 'Please wait...'
+                        : connectionState === 'incoming'
+                          ? 'Accept Request'
+                          : connectionState === 'connected'
+                            ? 'Connected'
+                            : connectionState === 'pending'
+                              ? 'Pending'
+                              : 'Connect'}
+                    </Button>
+                  )}
+                  {profile?.privacySettings?.allowMessaging !== false && connectionState === 'connected' && (
+                    <Button variant="outline" onClick={() => navigate(`/messages?user=${profile.id || profile._id}`)}>Message</Button>
+                  )}
                   {profile.isAvailableAsMentor && (
                     <Button
                       variant="outline"
@@ -1418,6 +1479,27 @@ export default function ProfilePage() {
       </Card>
       
       <div>
+        {profile.isRestricted ? (
+          <div className="mt-8 text-center py-12 px-6 border-2 border-dashed rounded-3xl bg-muted/5 flex flex-col items-center">
+            <div className="p-4 rounded-full bg-muted mb-4">
+              <Lock className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-bold">Profile is Private</h3>
+            <p className="text-muted-foreground max-w-md mx-auto mt-2 text-sm">
+              {profile.name} has set their profile visibility to connections only. 
+              Send a connection request to see their full profile, experience, and education.
+            </p>
+            <div className="mt-6">
+              <Button 
+                onClick={handleConnectAction}
+                disabled={isConnecting}
+                className="rounded-full px-8 shadow-lg shadow-primary/20"
+              >
+                {connectionState === 'pending' ? 'Connection Pending' : 'Connect with Alumni'}
+              </Button>
+            </div>
+          </div>
+        ) : (
           <Tabs defaultValue="profile" className="mt-6">
             <TabsList className="bg-muted/30 p-1 rounded-lg w-full">
               <TabsTrigger 
@@ -1451,6 +1533,7 @@ export default function ProfilePage() {
                 Detailed Sections
               </TabsTrigger>
             </TabsList>
+
             <TabsContent value="profile" className="mt-4">
               <Card>
                 <CardContent className="pt-6">
@@ -1492,8 +1575,6 @@ export default function ProfilePage() {
                           company: data.company,
                           jobTitle: data.position,
                           location: data.location,
-                          city: data.city,
-                          country: data.country,
                           linkedInProfile: data.linkedin,
                           isAvailableAsMentor: data.availableAsMentor,
                           privacySettings: {
@@ -1632,35 +1713,7 @@ export default function ProfilePage() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="city"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>City</FormLabel>
-                              <FormControl>
-                                <Input {...field} disabled={!isOwnProfile} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
 
-                        <FormField
-                          control={form.control}
-                          name="country"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Country</FormLabel>
-                              <FormControl>
-                                <Input {...field} disabled={!isOwnProfile} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
@@ -2016,7 +2069,9 @@ export default function ProfilePage() {
               </Card>
             </TabsContent>
           </Tabs>
-        </div>
+        )}
+      </div>
+
 
       {hasDetailedSectionEntries && (
         <Card className="mt-6">

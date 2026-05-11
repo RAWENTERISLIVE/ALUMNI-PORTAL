@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Send, Users, Lock, Globe, ChevronsUpDown, Check, Link2, Copy } from "lucide-react";
+import { MessageSquare, Send, Users, Lock, Globe, ChevronsUpDown, Check, Link2, Copy, Camera, Image, Trash2, FilePlus, Loader2, X } from "lucide-react";
+import { useRef } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +60,12 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
   const [creatingInviteLink, setCreatingInviteLink] = useState(false);
   const [generatedInviteLink, setGeneratedInviteLink] = useState("");
   const [copyingInviteLink, setCopyingInviteLink] = useState(false);
+  const [groupPhotoLoading, setGroupPhotoLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const groupFileInputRef = useRef<HTMLInputElement>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
 
   const groupId = group?.id || group?._id;
   const activeGroup = groupDetails || group || {};
@@ -66,7 +73,12 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
 
   const isCurrentUserGroupAdmin =
     activeGroup?.creatorId?.toString?.() === currentUser?.id?.toString?.() ||
-    activeGroup?.creator?.id?.toString?.() === currentUser?.id?.toString?.();
+    activeGroup?.creator_id?.toString?.() === currentUser?.id?.toString?.() ||
+    activeGroup?.creator?.id?.toString?.() === currentUser?.id?.toString?.() ||
+    members.some((m: any) => 
+      (m.id?.toString() === currentUser?.id?.toString() || m._id?.toString() === currentUser?.id?.toString()) && 
+      m.role === 'ADMIN'
+    );
 
   const normalizedRole = (currentUser?.role || '').toLowerCase();
   const isWatcher = normalizedRole === 'admin' || normalizedRole === 'super_admin' || normalizedRole === 'moderator';
@@ -214,7 +226,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
   };
 
   const handleSaveSettings = async () => {
-    if (!groupId || !isCurrentUserGroupAdmin || savingSettings) return;
+    if (!groupId || (!isCurrentUserGroupAdmin && !isWatcher) || savingSettings) return;
 
     try {
       setSavingSettings(true);
@@ -223,6 +235,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
         description: settings.description.trim(),
         category: settings.category.trim(),
         privacy: settings.privacy === 'private' ? 'private' : 'public',
+        imageUrl: activeGroup?.imageUrl
       });
 
       if (response.success) {
@@ -245,17 +258,86 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
     }
   };
 
+  const handleGroupPhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !groupId) return;
+
+    try {
+      setGroupPhotoLoading(true);
+      const uploadResponse = await apiService.uploadFile(file);
+      if (!uploadResponse.success || !uploadResponse.data?.url) {
+        throw new Error(uploadResponse.message || "Upload failed");
+      }
+
+      const imageUrl = uploadResponse.data.url;
+      const updateResponse = await apiService.updateGroup(groupId, { imageUrl });
+      
+      if (updateResponse.success) {
+        setGroupDetails((prev: any) => ({ ...prev, imageUrl }));
+        toast({
+          title: "Success",
+          description: "Group profile picture updated.",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to upload group photo",
+        variant: "destructive",
+      });
+    } finally {
+      setGroupPhotoLoading(false);
+      if (groupFileInputRef.current) groupFileInputRef.current.value = '';
+    }
+  };
+
+  const handleChatImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedImage(reader.result as string);
+      setSelectedFile(file);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveSelectedImage = () => {
+    setSelectedImage(null);
+    setSelectedFile(null);
+    if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+  };
+
   const handlePostMessage = async () => {
-    if (!newMessage.trim() || sending || !isCurrentUserMember) return;
+    if ((!newMessage.trim() && !selectedFile) || sending || !isCurrentUserMember) return;
     
     try {
       setSending(true);
       if (!groupId) return;
-      const response = await apiService.sendGroupMessage(groupId, newMessage.trim());
+
+      let attachments = [];
+      if (selectedFile) {
+        setUploadingImage(true);
+        const uploadResponse = await apiService.uploadFile(selectedFile);
+        if (uploadResponse.success && uploadResponse.data?.url) {
+          attachments.push({
+            type: 'image',
+            url: uploadResponse.data.url,
+            name: selectedFile.name
+          });
+        }
+      }
+
+      const response = await apiService.sendGroupMessage(groupId, newMessage.trim(), attachments);
       
       if (response.success) {
         setMessages([...(messages || []), response.data]);
         setNewMessage("");
+        setSelectedImage(null);
+        setSelectedFile(null);
+        if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+        
         toast({
           title: "Message Sent",
           description: "Your message has been posted to the group.",
@@ -270,6 +352,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
       });
     } finally {
       setSending(false);
+      setUploadingImage(false);
     }
   };
 
@@ -439,7 +522,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
       const key = message.id || message._id || `msg-${idx}`;
       if (message.messageType === 'system') {
         return (
-          <div key={key} className="text-center py-1">
+          <div key={key} className="text-center py-2">
             <span className="inline-block text-xs px-3 py-1 rounded-full bg-muted/40 text-muted-foreground">
               {message.content}
             </span>
@@ -447,35 +530,63 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
         );
       }
 
+      const isMine = isCurrentUserMessage(message);
+
       return (
-        <div key={key} className="flex gap-3 hover:bg-muted/30 p-2 rounded-md transition-colors">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={message.author?.profileImage} />
-            <AvatarFallback className="bg-primary/10 text-foreground/90 font-medium">
-              {getMessageAuthorInitial(message)}
-            </AvatarFallback>
-          </Avatar>
-
-          <div className="flex-1">
-            <div className="flex justify-between">
-              <h4 className="font-semibold text-foreground">
-                {getMessageAuthorName(message)}
-                {isCurrentUserMessage(message) && (
-                  <span className="text-xs text-foreground/90 font-normal ml-1">(You)</span>
-                )}
-              </h4>
-              <span className="text-xs text-muted/300">
-                {formatTimestamp(message.createdAt)}
-              </span>
-            </div>
-
-            <p className="text-sm mt-1 whitespace-pre-wrap text-foreground/80 leading-relaxed">{message.content}</p>
-
-            {message.replyTo && (
-              <div className="bg-muted/30 rounded-lg p-2 mt-2 border-l-2 border-primary/30">
-                <p className="text-xs text-muted/300">Replying to a message</p>
-              </div>
+        <div key={key} className={`flex flex-col ${isMine ? "items-end" : "items-start"} mb-4`}>
+          <div className={`flex gap-2 max-w-[85%] md:max-w-[75%] ${isMine ? "flex-row-reverse" : "flex-row"}`}>
+            {!isMine && (
+              <Avatar className="h-8 w-8 mt-auto flex-shrink-0">
+                <AvatarImage src={message.author?.profileImage} />
+                <AvatarFallback className="bg-primary/10 text-xs font-medium">
+                  {getMessageAuthorInitial(message)}
+                </AvatarFallback>
+              </Avatar>
             )}
+            
+            <div className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
+              {!isMine && (
+                <span className="text-[10px] font-semibold text-primary/80 mb-1 ml-1">
+                  {getMessageAuthorName(message)}
+                </span>
+              )}
+              
+              <div
+                className={`px-4 py-2.5 rounded-2xl shadow-sm relative ${
+                  isMine 
+                    ? "bg-primary text-primary-foreground rounded-tr-none" 
+                    : "bg-muted text-foreground rounded-tl-none"
+                }`}
+              >
+                {/* Message Tail */}
+                <div className={`absolute top-0 w-3 h-3 ${isMine ? "-right-1 bg-primary" : "-left-1 bg-muted"}`} 
+                     style={{ clipPath: isMine ? 'polygon(0 0, 0 100%, 100% 0)' : 'polygon(0 0, 100% 100%, 100% 0)' }}></div>
+
+                <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                
+                {message.attachments && Array.isArray(message.attachments) && message.attachments.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {message.attachments.map((attachment: any, aIdx: number) => (
+                      attachment.type === 'image' ? (
+                        <img 
+                          key={aIdx}
+                          src={attachment.url} 
+                          alt={attachment.name || 'Attachment'} 
+                          className="max-h-64 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => window.open(attachment.url, '_blank')}
+                        />
+                      ) : null
+                    ))}
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-end gap-1 mt-1 opacity-70">
+                  <span className="text-[10px]">
+                    {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       );
@@ -490,7 +601,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
     joinRequestsContent = (
       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
         {joinRequests.map((request) => (
-          <div key={request.id} className="rounded-md border p-2">
+          <div key={request.id || request._id} className="rounded-md border p-2">
             <div className="flex items-center gap-2">
               <Avatar className="h-7 w-7">
                 <AvatarImage src={request.requester?.profileImage} />
@@ -533,31 +644,41 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] flex flex-col rounded-xl">
         <DialogHeader className="border-b pb-4">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-foreground">
-            {activeGroup?.privacy === 'private' 
-              ? <Lock className="h-5 w-5 text-foreground" /> 
-              : <Globe className="h-5 w-5 text-foreground" />}
-            {activeGroup?.name || 'Group Discussion'}
-            {activeGroup?.category && (
-              <Badge variant="outline" className="ml-2 border-primary/20 bg-primary/5 text-foreground/80">
-                {activeGroup.category}
-              </Badge>
-            )}
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            Group chat with admin, members, and group settings.
-          </DialogDescription>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-            <Users className="h-4 w-4 text-foreground" />
-            <span className="font-medium">{activeGroup?.totalMembers || activeGroup?.memberCount || members.length || 0} members</span>
-            <span className="text-xs text-muted-foreground">•</span>
-            <span>{activeGroup?.privacy === 'private' ? 'Private Group' : 'Public Group'}</span>
-            {activeGroup?.creator?.name && (
-              <>
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16 border-2 border-primary/20">
+              <AvatarImage src={activeGroup?.imageUrl} />
+              <AvatarFallback className="bg-primary/10 text-primary">
+                <Users className="h-8 w-8 opacity-20" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-foreground">
+                {activeGroup?.privacy === 'private' 
+                  ? <Lock className="h-5 w-5 text-foreground" /> 
+                  : <Globe className="h-5 w-5 text-foreground" />}
+                {activeGroup?.name || 'Group Discussion'}
+                {activeGroup?.category && (
+                  <Badge variant="outline" className="ml-2 border-primary/20 bg-primary/5 text-foreground/80">
+                    {activeGroup.category}
+                  </Badge>
+                )}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                Group chat with admin, members, and group settings.
+              </DialogDescription>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                <Users className="h-4 w-4 text-foreground" />
+                <span className="font-medium">{activeGroup?.totalMembers || activeGroup?.memberCount || members.length || 0} members</span>
                 <span className="text-xs text-muted-foreground">•</span>
-                <span>Admin: {activeGroup.creator.name}</span>
-              </>
-            )}
+                <span>{activeGroup?.privacy === 'private' ? 'Private Group' : 'Public Group'}</span>
+                {activeGroup?.creator?.name && (
+                  <>
+                    <span className="text-xs text-muted-foreground">•</span>
+                    <span>Admin: {activeGroup.creator.name}</span>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
           <p className="text-sm mt-2 text-foreground/80 leading-relaxed">{activeGroup?.description || 'No description available.'}</p>
         </DialogHeader>
@@ -602,13 +723,16 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
                 {members.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No member list available.</p>
                 ) : (
-                  members.map((member: any) => {
-                    const isAdmin =
-                      member?.id?.toString?.() === activeGroup?.creatorId?.toString?.() ||
-                      member?.id?.toString?.() === activeGroup?.creator?.id?.toString?.();
+                  members.map((member: any, idx: number) => {
+                    const memberId = member.id || member._id || `member-${idx}`;
+                    const isAdmin = 
+                      member.role === 'ADMIN' || 
+                      memberId.toString() === activeGroup?.creatorId?.toString() ||
+                      memberId.toString() === activeGroup?.creator_id?.toString() ||
+                      memberId.toString() === activeGroup?.creator?.id?.toString();
 
                     return (
-                      <div key={typeof member === 'string' ? member : (member.id || member._id)} className="flex items-center gap-2">
+                      <div key={memberId} className="flex items-center gap-2">
                         <Avatar className="h-7 w-7">
                           <AvatarImage src={member.profileImage} />
                           <AvatarFallback className="bg-primary/10 text-foreground/90 text-xs font-medium">
@@ -617,7 +741,7 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
                         </Avatar>
                         <p className="text-sm truncate flex-1">{member.name || member.email?.split('@')[0] || 'Member'}</p>
                         {isAdmin && (
-                          <Badge variant="outline" className="text-[10px]">Admin</Badge>
+                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">Admin</Badge>
                         )}
                       </div>
                     );
@@ -629,6 +753,38 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
             {isCurrentUserGroupAdmin && (
               <div className="space-y-2 border-t pt-3">
                 <h3 className="font-semibold text-sm text-foreground">Group Settings</h3>
+
+                <div className="space-y-2 mb-4">
+                  <Label>Group Image</Label>
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16 border-2 border-primary/20">
+                      <AvatarImage src={activeGroup?.imageUrl} />
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        <Users className="h-8 w-8 opacity-20" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => groupFileInputRef.current?.click()}
+                        disabled={groupPhotoLoading}
+                      >
+                        {groupPhotoLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Camera className="h-4 w-4 mr-2" />}
+                        Change Photo
+                      </Button>
+                      <input
+                        type="file"
+                        ref={groupFileInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleGroupPhotoUpload}
+                      />
+                      <p className="text-[10px] text-muted-foreground">Recommended: 400x400px</p>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="space-y-1">
                   <Label htmlFor="group-name">Name</Label>
@@ -826,26 +982,58 @@ export function GroupDiscussionModal({ group, isOpen, onClose }: Readonly<GroupD
         </div>
         
         <div className="border-t pt-4">
+          {selectedImage && (
+            <div className="mb-2 relative inline-block">
+              <img src={selectedImage} alt="Preview" className="h-20 w-20 object-cover rounded-lg border shadow-sm" />
+              <button
+                onClick={handleRemoveSelectedImage}
+                className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 shadow-md hover:bg-destructive/90"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
           <div className="flex gap-2">
-            <Textarea
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={isCurrentUserMember ? "Type your message..." : "Join group to chat"}
-              className="flex-1 min-h-[80px] focus:border-primary/30 focus:ring-primary/30 rounded-lg resize-none"
-              disabled={!isCurrentUserMember}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handlePostMessage();
-                }
-              }}
-            />
+            <div className="flex-1 relative">
+              <Textarea
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder={isCurrentUserMember ? "Type your message..." : "Join group to chat"}
+                className="w-full min-h-[80px] focus:border-primary/30 focus:ring-primary/30 rounded-lg resize-none pr-10"
+                disabled={!isCurrentUserMember}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handlePostMessage();
+                  }
+                }}
+              />
+              <div className="absolute right-2 bottom-2 flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-primary"
+                  onClick={() => chatFileInputRef.current?.click()}
+                  disabled={!isCurrentUserMember || uploadingImage}
+                >
+                  {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
+                </Button>
+                <input
+                  type="file"
+                  ref={chatFileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleChatImageSelect}
+                />
+              </div>
+            </div>
             <Button 
               onClick={handlePostMessage} 
-              disabled={!newMessage.trim() || sending || !isCurrentUserMember}
+              disabled={(!newMessage.trim() && !selectedFile) || sending || !isCurrentUserMember}
               className="px-4 bg-primary hover:bg-primary/90 text-white transform hover:scale-105 hover:shadow-md transition-all duration-300"
             >
-              <Send className="h-4 w-4" />
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
           <p className="text-xs text-muted/300 mt-2">

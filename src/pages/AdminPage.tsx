@@ -397,8 +397,12 @@ export default function AdminPage() {
     );
   }
 
-  const manualVerificationPendingUsers = pendingUsers.filter((user) => user.needsManualVerification);
-  const regularPendingUsers = pendingUsers.filter((user) => !user.needsManualVerification);
+  const manualVerificationPendingUsers = pendingUsers.filter((user) => 
+    user.needsManualVerification || (user.accountType === 'faculty' && !user.isVerified)
+  );
+  const regularPendingUsers = pendingUsers.filter((user) => 
+    !user.needsManualVerification && !(user.accountType === 'faculty' && !user.isVerified)
+  );
 
   return (
     <div className="space-y-6">

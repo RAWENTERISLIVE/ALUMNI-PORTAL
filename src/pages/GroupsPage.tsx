@@ -447,7 +447,14 @@ export default function GroupsPage() {
                         })()}
                       </Button>
 
-                      {isSuperAdmin && (
+                      {(isSuperAdmin || 
+                        group.creator_id === currentUser?.id || 
+                        group.creatorId === currentUser?.id ||
+                        group.creator?.id === currentUser?.id ||
+                        (Array.isArray(group.members) && group.members.some((m: any) => 
+                          (m.id === currentUser?.id || m._id === currentUser?.id) && m.role === 'ADMIN'
+                        ))
+                      ) && (
                         <Button
                           size="sm"
                           variant="outline"

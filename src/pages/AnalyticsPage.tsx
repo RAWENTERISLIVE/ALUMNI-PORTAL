@@ -15,22 +15,24 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
   AreaChart,
-  Area
+  Area,
+  Legend
 } from 'recharts';
 import {
   Users,
   Newspaper,
   Briefcase,
-  MessageSquare,
-  TrendingUp,
-  TrendingDown,
   Activity,
   Calendar,
   Download,
-  RefreshCw
+  RefreshCw,
+  UserCheck,
+  Users2,
+  GraduationCap,
+  TrendingUp,
+  MessageSquare,
+  Globe
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useToast } from "@/hooks/use-toast";
@@ -40,9 +42,9 @@ import { useAuth } from "@/contexts/AuthContext";
 interface AnalyticsData {
   users: {
     total: number;
-    approved: number;
+    active: number;
     pending: number;
-    suspended: number;
+    recent: number;
     growth: number;
   };
   posts: {
@@ -57,10 +59,17 @@ interface AnalyticsData {
     applications: number;
     growth: number;
   };
-  engagement: {
-    dailyActive: number;
-    weeklyActive: number;
-    monthlyActive: number;
+  mentorship: {
+    total: number;
+    pending: number;
+    active: number;
+  };
+  events: {
+    total: number;
+    upcoming: number;
+  };
+  groups: {
+    total: number;
   };
 }
 
@@ -88,7 +97,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     loadAnalytics();
-  }, [timeRange]);
+  }, []);
 
   const loadAnalytics = async (refresh = false) => {
     try {
@@ -98,42 +107,13 @@ export default function AnalyticsPage() {
         setLoading(true);
       }
 
-      // Fetch real analytics data from API
-      const [userStats, postStats, jobStats] = await Promise.all([
-        apiService.getUserStats().catch(() => ({ data: null })),
-        apiService.getPostStats().catch(() => ({ data: null })),
-        apiService.getJobStats().catch(() => ({ data: null }))
-      ]);
-
-      // Use real data from API or defaults for missing data
-      const analyticsData: AnalyticsData = {
-        users: {
-          total: userStats.data?.totalUsers || 0,
-          approved: userStats.data?.approvedUsers || 0,
-          pending: userStats.data?.pendingUsers || 0,
-          suspended: userStats.data?.suspendedUsers || 0,
-          growth: userStats.data?.growth || 0
-        },
-        posts: {
-          total: postStats.data?.totalPosts || 0,
-          featured: postStats.data?.featuredPosts || 0,
-          schoolUpdates: postStats.data?.schoolUpdates || 0,
-          growth: postStats.data?.growth || 0
-        },
-        jobs: {
-          total: jobStats.data?.totalJobs || 0,
-          active: jobStats.data?.activeJobs || 0,
-          applications: jobStats.data?.totalApplications || 0,
-          growth: jobStats.data?.growth || 0
-        },
-        engagement: {
-          dailyActive: userStats.data?.dailyActive || 0,
-          weeklyActive: userStats.data?.weeklyActive || 0,
-          monthlyActive: userStats.data?.monthlyActive || 0
-        }
-      };
-
-      setAnalytics(analyticsData);
+      const response = await apiService.getAdminStats();
+      
+      if (response.success && response.data) {
+        setAnalytics(response.data);
+      } else {
+        throw new Error(response.message || "Failed to load analytics");
+      }
     } catch (error) {
       console.error('Error loading analytics:', error);
       toast({
@@ -159,49 +139,49 @@ export default function AnalyticsPage() {
     // Implement export functionality
   };
 
-  // Chart data based on real analytics
+  // Mocked historical data for charts based on current totals
   const userGrowthData = analytics ? [
-    { name: 'Jan', users: Math.max(0, analytics.users.total - 125), active: Math.max(0, analytics.users.approved - 67) },
-    { name: 'Feb', users: Math.max(0, analytics.users.total - 110), active: Math.max(0, analytics.users.approved - 53) },
-    { name: 'Mar', users: Math.max(0, analytics.users.total - 97), active: Math.max(0, analytics.users.approved - 40) },
-    { name: 'Apr', users: Math.max(0, analytics.users.total - 83), active: Math.max(0, analytics.users.approved - 27) },
-    { name: 'May', users: Math.max(0, analytics.users.total - 60), active: Math.max(0, analytics.users.approved - 14) },
-    { name: 'Jun', users: Math.max(0, analytics.users.total - 35), active: Math.max(0, analytics.users.approved - 7) },
-    { name: 'Jul', users: analytics.users.total, active: analytics.users.approved }
+    { name: 'Jan', users: Math.floor(analytics.users.total * 0.4), active: Math.floor(analytics.users.active * 0.3) },
+    { name: 'Feb', users: Math.floor(analytics.users.total * 0.5), active: Math.floor(analytics.users.active * 0.4) },
+    { name: 'Mar', users: Math.floor(analytics.users.total * 0.6), active: Math.floor(analytics.users.active * 0.5) },
+    { name: 'Apr', users: Math.floor(analytics.users.total * 0.75), active: Math.floor(analytics.users.active * 0.7) },
+    { name: 'May', users: Math.floor(analytics.users.total * 0.85), active: Math.floor(analytics.users.active * 0.8) },
+    { name: 'Jun', users: Math.floor(analytics.users.total * 0.95), active: Math.floor(analytics.users.active * 0.9) },
+    { name: 'Jul', users: analytics.users.total, active: analytics.users.active }
   ] : [];
 
-  const engagementData = [
-    { name: 'Posts', value: 45, color: '#8884d8' },
-    { name: 'Jobs', value: 25, color: '#82ca9d' },
-    { name: 'Groups', value: 20, color: '#ffc658' },
-    { name: 'Directory', value: 10, color: '#ff7300' }
-  ];
+  const featureUsageData = analytics ? [
+    { name: 'Posts', value: analytics.posts.total || 1, color: '#6366f1' },
+    { name: 'Jobs', value: analytics.jobs.total || 1, color: '#10b981' },
+    { name: 'Groups', value: analytics.groups.total || 1, color: '#f59e0b' },
+    { name: 'Mentorship', value: analytics.mentorship.total || 1, color: '#ef4444' }
+  ] : [];
 
   const activityData = [
-    { name: 'Mon', posts: 12, jobs: 5, logins: 34 },
-    { name: 'Tue', posts: 19, jobs: 8, logins: 42 },
-    { name: 'Wed', posts: 15, jobs: 12, logins: 38 },
-    { name: 'Thu', posts: 22, jobs: 7, logins: 45 },
-    { name: 'Fri', posts: 18, jobs: 15, logins: 52 },
-    { name: 'Sat', posts: 8, jobs: 3, logins: 28 },
-    { name: 'Sun', posts: 5, jobs: 2, logins: 19 }
+    { name: 'Mon', posts: 12, jobs: 5, mentorship: 3 },
+    { name: 'Tue', posts: 19, jobs: 8, mentorship: 5 },
+    { name: 'Wed', posts: 15, jobs: 12, mentorship: 7 },
+    { name: 'Thu', posts: 22, jobs: 7, mentorship: 4 },
+    { name: 'Fri', posts: 18, jobs: 15, mentorship: 9 },
+    { name: 'Sat', posts: 8, jobs: 3, mentorship: 2 },
+    { name: 'Sun', posts: 5, jobs: 2, mentorship: 1 }
   ];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-96">
         <LoadingSpinner />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-10">
       <PageHeader
         title="Analytics Dashboard"
-        description="Monitor platform metrics and user engagement"
+        description="Monitor platform metrics, user engagement, and growth"
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <Button
               variant="outline"
               onClick={handleRefresh}
@@ -216,186 +196,308 @@ export default function AnalyticsPage() {
               className="flex items-center gap-2"
             >
               <Download className="h-4 w-4" />
-              Export
+              Export Report
             </Button>
           </div>
         }
       />
 
-      {/* Key Metrics Cards */}
+      {/* Main Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
+        <Card className="border-t-4 border-t-indigo-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Community</CardTitle>
+            <Users className="h-4 w-4 text-indigo-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics?.users.total.toLocaleString()}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
+            <div className="text-3xl font-bold">{analytics?.users.total.toLocaleString()}</div>
+            <div className="flex items-center text-xs mt-1">
               <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-              +{analytics?.users.growth}% from last month
+              <span className="text-green-500 font-medium">+{analytics?.users.growth}%</span>
+              <span className="text-muted-foreground ml-1">growth</span>
             </div>
-            <div className="mt-2 space-y-1">
-              <div className="flex justify-between text-xs">
-                <span>Approved: {analytics?.users.approved}</span>
-                <span>Pending: {analytics?.users.pending}</span>
+            <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]">
+              <div className="bg-muted p-1.5 rounded text-center">
+                <div className="font-bold text-indigo-600">{analytics?.users.active}</div>
+                <div className="text-muted-foreground uppercase tracking-wider">Active</div>
+              </div>
+              <div className="bg-muted p-1.5 rounded text-center">
+                <div className="font-bold text-amber-600">{analytics?.users.pending}</div>
+                <div className="text-muted-foreground uppercase tracking-wider">Pending</div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-4 border-t-emerald-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Posts</CardTitle>
-            <Newspaper className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Job Opportunities</CardTitle>
+            <Briefcase className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics?.posts.total.toLocaleString()}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
+            <div className="text-3xl font-bold">{analytics?.jobs.total.toLocaleString()}</div>
+            <div className="flex items-center text-xs mt-1">
               <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-              +{analytics?.posts.growth}% from last month
+              <span className="text-green-500 font-medium">+{analytics?.jobs.growth}%</span>
+              <span className="text-muted-foreground ml-1">this month</span>
             </div>
-            <div className="mt-2 space-y-1">
-              <div className="flex justify-between text-xs">
-                <span>Featured: {analytics?.posts.featured}</span>
-                <span>School Updates: {analytics?.posts.schoolUpdates}</span>
+            <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]">
+              <div className="bg-muted p-1.5 rounded text-center">
+                <div className="font-bold text-emerald-600">{analytics?.jobs.active}</div>
+                <div className="text-muted-foreground uppercase tracking-wider">Open</div>
+              </div>
+              <div className="bg-muted p-1.5 rounded text-center">
+                <div className="font-bold text-blue-600">{analytics?.jobs.applications}</div>
+                <div className="text-muted-foreground uppercase tracking-wider">Apps</div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-4 border-t-rose-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Job Board</CardTitle>
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Mentorships</CardTitle>
+            <GraduationCap className="h-4 w-4 text-rose-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics?.jobs.total.toLocaleString()}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
-              <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-              +{analytics?.jobs.growth}% from last month
+            <div className="text-3xl font-bold">{analytics?.mentorship.total.toLocaleString()}</div>
+            <div className="text-xs text-muted-foreground mt-1 flex items-center">
+              <UserCheck className="h-3 w-3 mr-1" />
+              {analytics?.mentorship.active} active connections
             </div>
-            <div className="mt-2 space-y-1">
-              <div className="flex justify-between text-xs">
-                <span>Active: {analytics?.jobs.active}</span>
-                <span>Applications: {analytics?.jobs.applications}</span>
+            <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]">
+              <div className="bg-muted p-1.5 rounded text-center">
+                <div className="font-bold text-rose-600">{analytics?.mentorship.active}</div>
+                <div className="text-muted-foreground uppercase tracking-wider">Connected</div>
+              </div>
+              <div className="bg-muted p-1.5 rounded text-center">
+                <div className="font-bold text-amber-600">{analytics?.mentorship.pending}</div>
+                <div className="text-muted-foreground uppercase tracking-wider">Requests</div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-4 border-t-blue-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Platform Activity</CardTitle>
+            <Activity className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics?.engagement.dailyActive}</div>
-            <div className="text-xs text-muted-foreground">Daily active users</div>
-            <div className="mt-2 space-y-1">
-              <div className="flex justify-between text-xs">
-                <span>Weekly: {analytics?.engagement.weeklyActive}</span>
-                <span>Monthly: {analytics?.engagement.monthlyActive}</span>
+            <div className="text-3xl font-bold">{analytics?.posts.total.toLocaleString()}</div>
+            <div className="text-xs text-muted-foreground mt-1 flex items-center">
+              <Globe className="h-3 w-3 mr-1" />
+              {analytics?.groups.total} active groups
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]">
+              <div className="bg-muted p-1.5 rounded text-center">
+                <div className="font-bold text-blue-600">{analytics?.posts.featured}</div>
+                <div className="text-muted-foreground uppercase tracking-wider">Featured</div>
+              </div>
+              <div className="bg-muted p-1.5 rounded text-center">
+                <div className="font-bold text-indigo-600">{analytics?.events.upcoming}</div>
+                <div className="text-muted-foreground uppercase tracking-wider">Events</div>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Section */}
-      <Tabs value={timeRange} onValueChange={setTimeRange} className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Analytics Overview</h3>
-          <TabsList>
-            <TabsTrigger value="7d">7 Days</TabsTrigger>
-            <TabsTrigger value="30d">30 Days</TabsTrigger>
-            <TabsTrigger value="90d">90 Days</TabsTrigger>
+      {/* Secondary Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+         <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-none shadow-md">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <Users2 className="h-8 w-8 opacity-80" />
+                <Badge variant="secondary" className="bg-white/20 text-white border-none">
+                  Growth
+                </Badge>
+              </div>
+              <div className="text-4xl font-bold mb-1">+{analytics?.users.recent}</div>
+              <div className="text-sm opacity-90">New members in last 30 days</div>
+              <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
+                 <div className="text-xs opacity-75 italic text-nowrap">Expanding community...</div>
+                 <Button size="sm" variant="ghost" className="text-white hover:bg-white/10">View All</Button>
+              </div>
+            </CardContent>
+         </Card>
+
+         <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-none shadow-md">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <Calendar className="h-8 w-8 opacity-80" />
+                <Badge variant="secondary" className="bg-white/20 text-white border-none">
+                  Events
+                </Badge>
+              </div>
+              <div className="text-4xl font-bold mb-1">{analytics?.events.upcoming}</div>
+              <div className="text-sm opacity-90">Upcoming events planned</div>
+              <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
+                 <div className="text-xs opacity-75 italic text-nowrap">Engaging the alumni...</div>
+                 <Button size="sm" variant="ghost" className="text-white hover:bg-white/10">Manage</Button>
+              </div>
+            </CardContent>
+         </Card>
+
+         <Card className="bg-gradient-to-br from-amber-500 to-orange-600 text-white border-none shadow-md">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <MessageSquare className="h-8 w-8 opacity-80" />
+                <Badge variant="secondary" className="bg-white/20 text-white border-none">
+                  Content
+                </Badge>
+              </div>
+              <div className="text-4xl font-bold mb-1">{analytics?.posts.schoolUpdates}</div>
+              <div className="text-sm opacity-90">School updates & announcements</div>
+              <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
+                 <div className="text-xs opacity-75 italic text-nowrap">Keeping info fresh...</div>
+                 <Button size="sm" variant="ghost" className="text-white hover:bg-white/10">Post Now</Button>
+              </div>
+            </CardContent>
+         </Card>
+      </div>
+
+      {/* Detailed Charts */}
+      <Tabs defaultValue="overview" className="space-y-6">
+        <div className="flex justify-between items-center bg-muted/50 p-1 rounded-lg">
+          <TabsList className="bg-transparent">
+            <TabsTrigger value="overview">Performance Overview</TabsTrigger>
+            <TabsTrigger value="engagement">User Engagement</TabsTrigger>
           </TabsList>
+          
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs text-muted-foreground">Range:</span>
+            <select 
+              className="bg-transparent text-xs font-medium border-none focus:ring-0 cursor-pointer"
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+            >
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="90d">Last 90 Days</option>
+            </select>
+          </div>
         </div>
 
-        <TabsContent value={timeRange} className="space-y-6">
+        <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* User Growth Chart */}
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>User Growth</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-indigo-500" />
+                  Growth & Adoption
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={userGrowthData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Area
-                      type="monotone"
-                      dataKey="users"
-                      stackId="1"
-                      stroke="#8884d8"
-                      fill="#8884d8"
-                      fillOpacity={0.6}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="active"
-                      stackId="2"
-                      stroke="#82ca9d"
-                      fill="#82ca9d"
-                      fillOpacity={0.6}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <div className="h-[350px] w-100%">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={userGrowthData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorActive" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#666' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#666' }} />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="users"
+                        name="Total Registered"
+                        stroke="#6366f1"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorUsers)"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="active"
+                        name="Active Users"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorActive)"
+                      />
+                      <Legend verticalAlign="top" height={36}/>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
 
             {/* Feature Usage */}
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>Feature Usage</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-emerald-500" />
+                  Feature Distribution
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={engagementData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {engagementData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Weekly Activity */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Weekly Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={activityData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="posts" fill="#8884d8" name="Posts" />
-                    <Bar dataKey="jobs" fill="#82ca9d" name="Jobs" />
-                    <Bar dataKey="logins" fill="#ffc658" name="Logins" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="h-[350px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={featureUsageData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={80}
+                        outerRadius={110}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {featureUsageData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                      />
+                      <Legend verticalAlign="bottom" height={36}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="engagement" className="space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-amber-500" />
+                Weekly Platform Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={activityData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                    <YAxis axisLine={false} tickLine={false} />
+                    <Tooltip 
+                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    />
+                    <Legend />
+                    <Bar dataKey="posts" fill="#6366f1" radius={[4, 4, 0, 0]} name="New Posts" />
+                    <Bar dataKey="jobs" fill="#10b981" radius={[4, 4, 0, 0]} name="Jobs Posted" />
+                    <Bar dataKey="mentorship" fill="#ef4444" radius={[4, 4, 0, 0]} name="Mentorship Connections" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

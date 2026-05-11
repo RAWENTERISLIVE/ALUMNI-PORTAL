@@ -1,5 +1,14 @@
 {
 	"name": "mpsajmer-connect",
+	"observability": {
+		"logs": {
+			"enabled": true,
+			"invocation_logs": true
+		},
+		"traces": {
+			"enabled": true
+		}
+	},
 	"main": "worker/index.js",
 	"assets": {
 		"directory": "./dist",

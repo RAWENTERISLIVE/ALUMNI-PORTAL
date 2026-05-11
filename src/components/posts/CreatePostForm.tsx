@@ -202,7 +202,10 @@ export function CreatePostForm({
 
   // Real file upload function
   const uploadFile = async (file: File): Promise<string> => {
-    const result = await apiService.uploadFile(file);
+    const result = await apiService.uploadFile(file, (percent) => {
+      setUploadProgress(prev => ({ ...prev, [file.name]: percent }));
+    });
+    
     if (!result.success || !result.data?.url) {
       throw new Error(result.message || 'Failed to upload file');
     }
@@ -513,9 +516,20 @@ export function CreatePostForm({
                   {selectedFiles.map((file, index) => (
                     <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/60">
                       <div className="flex items-center gap-3">
-                        {getFileIcon(file)}
+                        {file.type.startsWith('image/') ? (
+                          <div className="h-10 w-10 rounded border border-border overflow-hidden bg-muted">
+                            <img 
+                              src={URL.createObjectURL(file)} 
+                              alt="preview" 
+                              className="h-full w-full object-cover"
+                              onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                            />
+                          </div>
+                        ) : (
+                          getFileIcon(file)
+                        )}
                         <div>
-                          <p className="text-sm font-medium text-foreground">{file.name}</p>
+                          <p className="text-sm font-medium text-foreground truncate max-w-[200px]">{file.name}</p>
                           <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                         </div>
                       </div>

@@ -62,6 +62,9 @@ class ApiService {
       ...((payload.isAvailableAsMentor ?? payload.availableAsMentor) !== undefined
         ? { isAvailableAsMentor: payload.isAvailableAsMentor ?? payload.availableAsMentor }
         : {}),
+      ...(payload.graduationYear !== undefined ? { graduationYear: payload.graduationYear } : {}),
+      ...(payload.admissionYear !== undefined ? { admissionYear: payload.admissionYear } : {}),
+      ...(payload.classYear !== undefined ? { classYear: payload.classYear } : {}),
       ...(payload.experiences !== undefined ? { experiences: payload.experiences } : {}),
       ...(payload.educations !== undefined ? { educations: payload.educations } : {}),
       ...(payload.skills !== undefined ? { skills: payload.skills } : {}),
@@ -1219,13 +1222,39 @@ class ApiService {
   }
 
   // File upload method
-  async uploadFile(file: File): Promise<ApiResponse> {
-    const formData = new FormData();
-    formData.append('file', file);
+  async uploadFile(file: File, onProgress?: (percent: number) => void): Promise<ApiResponse> {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
 
-    return await this.request('/uploads/single', {
-      method: 'POST',
-      body: formData,
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent);
+        }
+      });
+
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === 4) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (e) {
+            resolve({ success: false, message: 'Failed to parse upload response' });
+          }
+        }
+      };
+
+      xhr.onerror = () => {
+        resolve({ success: false, message: 'Network error during upload' });
+      };
+
+      xhr.open('POST', `${this.baseURL}/uploads/single`);
+      if (this.accessToken) {
+        xhr.setRequestHeader('Authorization', `Bearer ${this.accessToken}`);
+      }
+      xhr.send(formData);
     });
   }
 
@@ -1305,6 +1334,7 @@ class ApiService {
     description?: string;
     category?: string;
     privacy?: 'public' | 'private';
+    imageUrl?: string;
   }): Promise<ApiResponse> {
     try {
       return await this.request(`/groups/${groupId}`, {
@@ -1530,7 +1560,7 @@ class ApiService {
     }
   }
 
-  async respondToRequest(requestId: string, action: 'accept' | 'reject'): Promise<ApiResponse> {
+  async respondMentorshipRequest(requestId: string, action: 'accept' | 'reject' | 'cancel'): Promise<ApiResponse> {
     try {
       return await this.request(`/mentorship/request/${requestId}/${action}`, {
         method: 'POST'
@@ -1538,6 +1568,13 @@ class ApiService {
     } catch (error: any) {
       return { success: false, message: error.message || `Failed to ${action} request.` };
     }
+  }
+
+  /**
+   * @deprecated Use respondMentorshipRequest instead
+   */
+  async respondToRequest(requestId: string, action: 'accept' | 'reject' | 'cancel'): Promise<ApiResponse> {
+    return this.respondMentorshipRequest(requestId, action);
   }
   async changePassword(currentPassword: string, newPassword: string): Promise<ApiResponse> {
     try {
@@ -1590,11 +1627,19 @@ class ApiService {
     }
   }
 
-  async updateNotificationSettings(data: any): Promise<ApiResponse> {
+  async getPublicSettings(): Promise<ApiResponse> {
+    try {
+      return await this.request('/settings/public');
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch public settings.' };
+    }
+  }
+
+  async updateNotificationSettings(settings: any): Promise<ApiResponse> {
     try {
       return await this.request('/auth/notification-settings', {
         method: 'PATCH',
-        body: JSON.stringify(data)
+        body: JSON.stringify(settings)
       });
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to update notification settings.' };
@@ -1697,12 +1742,12 @@ class ApiService {
     }
   }
 
-  async sendGroupMessage(groupId: string, message: string): Promise<ApiResponse> {
+  async sendGroupMessage(groupId: string, message: string, attachments?: any[]): Promise<ApiResponse> {
     try {
       const content = message.trim();
       return await this.request(`/groups/${groupId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ content })
+        body: JSON.stringify({ content, attachments })
       });
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to send message.' };
@@ -1942,6 +1987,34 @@ class ApiService {
       return await this.request(`/help-tickets/search?${params.toString()}`);
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to search help tickets.' };
+    }
+  }
+
+  // Admin methods
+  async getAdminStats(): Promise<ApiResponse> {
+    try {
+      return await this.request('/admin/stats');
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch admin stats.' };
+    }
+  }
+
+  async getAdminSettings(): Promise<ApiResponse> {
+    try {
+      return await this.request('/admin/settings');
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to fetch admin settings.' };
+    }
+  }
+
+  async updateAdminSettings(settings: any): Promise<ApiResponse> {
+    try {
+      return await this.request('/admin/settings', {
+        method: 'PATCH',
+        body: JSON.stringify(settings),
+      });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to update admin settings.' };
     }
   }
 }

@@ -8,13 +8,22 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
+  MessageSquare,
+  ShieldCheck,
+  CheckCircle2,
   Search,
+  Building,
   MapPin,
   GraduationCap,
-  Building,
   User,
   Users,
-  MessageSquare,
+  Briefcase,
+  Calendar,
+  Mail,
+  ExternalLink,
+  Clock,
+  Filter,
+  X
 } from "lucide-react";
 import apiService from "@/services/apiService";
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +39,9 @@ interface AlumniUser {
   skills?: string[];
   industry?: string;
   bio?: string;
-  connectionStatus?: "connected" | "pending" | "none";
+  connectionStatus?: "connected" | "pending" | "incoming" | "none";
+  isVerified?: boolean;
+  accountType?: 'alumni' | 'faculty';
 }
 
 interface DirectoryFilters {
@@ -101,13 +112,14 @@ const mergeUniqueNumbers = (values: Array<number | null | undefined>) => {
 
 const getConnectionButtonVariant = (status: ConnectionState) => {
   if (status === "connected") return "secondary";
-  if (status === "pending") return "outline";
+  if (status === "pending" || status === "incoming") return "outline";
   return "default";
 };
 
 const getConnectionLabel = (status: ConnectionState) => {
   if (status === "connected") return "Connected";
   if (status === "pending") return "Pending";
+  if (status === "incoming") return "Accept Request";
   return "Connect";
 };
 
@@ -200,8 +212,11 @@ export default function DirectoryPage() {
       const response = await apiService.getAlumniDirectory(query);
       
       if (response.success) {
-        const users = response.data || response.users || [];
-        setAlumni(users.map((u: any) => ({
+        const rawUsers = response.data || response.users || [];
+        // Deduplicate users by ID to prevent UI errors and duplicate cards
+        const uniqueUsers = Array.from(new Map(rawUsers.map((u: any) => [u.id || u._id, u])).values());
+        
+        setAlumni(uniqueUsers.map((u: any) => ({
           ...u,
           id: u.id || u._id,
           name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Alumni Member',
@@ -212,7 +227,9 @@ export default function DirectoryPage() {
           graduationYear: u.graduationYear || (u.admissionYear ? Number(u.admissionYear) : undefined),
           skills: u.skills || [],
           industry: typeof u.industry === 'string' ? u.industry : undefined,
-          bio: u.bio
+          bio: u.bio,
+          isVerified: u.isVerified,
+          accountType: u.accountType
         })));
 
         const apiFilters = response.filters || {};
@@ -267,9 +284,14 @@ export default function DirectoryPage() {
     const isDisconnect = target.connectionStatus === "connected";
 
     try {
-      const response = isDisconnect
-        ? await apiService.disconnectFromUser(userId)
-        : await apiService.connectWithUser(userId);
+      let response;
+      if (isDisconnect) {
+        response = await apiService.disconnectFromUser(userId);
+      } else if (target.connectionStatus === "incoming") {
+        response = await apiService.acceptConnectionRequest(userId);
+      } else {
+        response = await apiService.connectWithUser(userId);
+      }
 
       if (!response.success) {
         toast({
@@ -280,7 +302,9 @@ export default function DirectoryPage() {
         return;
       }
 
-      const nextStatus = response.data?.connectionStatus || (isDisconnect ? "none" : "pending");
+      const nextStatus =
+        response.data?.connectionStatus ||
+        (isDisconnect ? "none" : target.connectionStatus === "incoming" ? "connected" : "pending");
       let toastTitle = "Request Sent";
       let toastDescription = "Connection request sent successfully.";
 
@@ -346,7 +370,7 @@ export default function DirectoryPage() {
           const connectionStatus = person.connectionStatus || "none";
 
           return (
-            <Card key={person.id} className="overflow-hidden hover:shadow-md transition-shadow">
+            <Card key={person.id} className="overflow-hidden hover:shadow-md transition-shadow flex flex-col h-full border-border/50 bg-card/30 backdrop-blur-sm">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4 mb-4">
                   <Avatar className="h-14 w-14">
@@ -356,8 +380,22 @@ export default function DirectoryPage() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold text-foreground/90">{person.name}</h3>
-                    <p className="text-sm text-muted-foreground truncate">{person.title}</p>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="font-semibold text-foreground/90 truncate">{person.name}</h3>
+                      {person.isVerified && (
+                        <div className="flex-shrink-0" title="Verified Member">
+                          <CheckCircle2 className="h-4 w-4 text-blue-500 fill-blue-500/10" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-sm text-muted-foreground line-clamp-1">{person.title}</p>
+                      {person.accountType === 'faculty' && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 bg-purple-50 text-purple-700 border-purple-200 flex-shrink-0">
+                          FACULTY
+                        </Badge>
+                      )}
+                    </div>
                     {person.industry && (
                       <Badge variant="secondary" className="mt-1 text-xs">
                         {person.industry}
@@ -369,8 +407,8 @@ export default function DirectoryPage() {
                 <div className="space-y-3 mb-4">
                   {person.company && (
                     <div className="flex items-center text-sm text-muted-foreground">
-                      <Building className="h-4 w-4 mr-2" />
-                      <span>{person.company}</span>
+                      <Building className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <span className="line-clamp-1">{person.company}</span>
                     </div>
                   )}
                   
@@ -383,8 +421,8 @@ export default function DirectoryPage() {
                   
                   {Boolean(person.graduationYear) && (
                     <div className="flex items-center text-sm text-muted-foreground">
-                      <GraduationCap className="h-4 w-4 mr-2" />
-                      <span>Class of {person.graduationYear}</span>
+                      <GraduationCap className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <span className="line-clamp-1">Class of {person.graduationYear}</span>
                     </div>
                   )}
                 </div>
@@ -393,8 +431,8 @@ export default function DirectoryPage() {
                   <div className="mb-4">
                     <div className="text-sm font-medium text-muted-foreground mb-1">Skills</div>
                     <div className="flex flex-wrap gap-1">
-                      {person.skills.map((skill) => (
-                        <Badge key={skill} variant="outline" className="text-xs">
+                      {person.skills.map((skill, index) => (
+                        <Badge key={`${skill}-${index}`} variant="outline" className="text-xs">
                           {skill}
                         </Badge>
                       ))}
@@ -402,37 +440,39 @@ export default function DirectoryPage() {
                   </div>
                 )}
                 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-4 border-t border-gray-100">
+                <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100 mt-auto">
                   <Button 
                     size="sm" 
-                    className="w-full"
+                    className="flex-1 min-w-[100px] h-9"
                     onClick={() => navigate(`/directory/profile/${person.id}`)}
                     variant="outline"
                   >
-                    <User className="h-3 w-3 mr-1" />
+                    <User className="h-3.5 w-3.5 mr-1.5" />
                     Profile
                   </Button>
                   
                   <Button
                     size="sm"
-                    className="w-full"
+                    className="flex-1 min-w-[100px] h-9"
                     variant={getConnectionButtonVariant(connectionStatus)}
                     onClick={() => handleConnection(person.id)}
                     disabled={connectionStatus === "pending" || connectionStatus === "connected"}
                   >
-                    <Users className="h-3 w-3 mr-1" />
+                    <Users className="h-3.5 w-3.5 mr-1.5" />
                     {getConnectionLabel(connectionStatus)}
                   </Button>
                   
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => navigate(`/messages?user=${person.id}`)}
-                  >
-                    <MessageSquare className="h-3 w-3 mr-1" />
-                    Message
-                  </Button>
+                  {connectionStatus === "connected" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 min-w-[100px] h-9"
+                      onClick={() => navigate(`/messages?user=${person.id}`)}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                      Message
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -451,7 +491,7 @@ export default function DirectoryPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="mb-6 sm:mb-8 flex flex-col md:flex-row gap-3 sm:gap-4">
+      <div className="mb-6 sm:mb-8 flex flex-col md:flex-row items-stretch md:items-center gap-3 sm:gap-4">
         <div className="relative flex-grow">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -473,13 +513,13 @@ export default function DirectoryPage() {
         <div className="space-y-4">
           <div>
             <h3 className="text-sm font-medium text-muted/300 mb-2">Filter by Industry</h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
               {industries.map((industry) => (
                 <Button
                   key={industry}
                   variant={filterIndustry === industry ? "default" : "outline"}
                   size="sm"
-                  className={`h-auto min-h-9 px-3 py-1.5 text-xs sm:text-sm whitespace-normal break-words text-left justify-start ${
+                  className={`h-auto py-1.5 text-xs sm:text-sm ${
                     filterIndustry === industry ? "bg-primary hover:bg-primary/90" : ""
                   }`}
                   onClick={() => setFilterIndustry(filterIndustry === industry ? null : industry)}

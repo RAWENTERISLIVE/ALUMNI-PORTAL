@@ -1,5 +1,14 @@
 {
   "name": "mpsajmer-connect-api",
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true
+    }
+  },
   "account_id": "fe22ba5acbed9f6925bb8d7ea1ee8a4d",
   "main": "src/index.ts",
   "compatibility_date": "2026-03-31",
