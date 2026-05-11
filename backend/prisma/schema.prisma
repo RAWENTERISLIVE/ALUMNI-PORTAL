@@ -254,6 +254,7 @@ model PostReaction {
 
   @@unique([postId, userId]) // User can only react once per post
   @@index([userId, postId, type])
+  @@index([postId, type])
 }
 
 model Comment {
@@ -273,6 +274,9 @@ model Comment {
   updatedAt DateTime @updatedAt
 
   likes User[] @relation("CommentLikes")
+
+  @@index([postId, parentCommentId, createdAt])
+  @@index([authorId, createdAt])
 }
 
 model Job {
@@ -430,6 +434,8 @@ model GroupMessage {
   reactions Json? // [{emoji: string, users: string[]}]
   isEdited  Boolean   @default(false)
   editedAt  DateTime?
+
+  @@index([groupId, createdAt])
 
   createdAt DateTime @default(now())
 }
