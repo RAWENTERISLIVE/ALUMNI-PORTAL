@@ -65,10 +65,24 @@ export default function AdminUserEditModal({
 
   useEffect(() => {
     if (user) {
+      let fName = user.firstName || "";
+      let lName = user.lastName || "";
+      
+      // Try to split name if first/last are missing
+      if (!fName && !lName && user.name) {
+        const parts = user.name.trim().split(/\s+/);
+        if (parts.length > 1) {
+          fName = parts[0];
+          lName = parts.slice(1).join(" ");
+        } else {
+          fName = parts[0];
+        }
+      }
+
       setFormData({
         email: user.email || "",
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
+        firstName: fName,
+        lastName: lName,
         name: user.name || "",
         admissionNumber: user.admissionNumber || "",
         admissionYear: user.admissionYear || "",
@@ -190,7 +204,7 @@ export default function AdminUserEditModal({
                   id="firstName"
                   value={formData.firstName}
                   onChange={(e) => handleChange("firstName", e.target.value)}
-                  placeholder="John"
+                  placeholder="First name"
                 />
               </div>
               <div>
@@ -199,7 +213,7 @@ export default function AdminUserEditModal({
                   id="lastName"
                   value={formData.lastName}
                   onChange={(e) => handleChange("lastName", e.target.value)}
-                  placeholder="Doe"
+                  placeholder="Last name"
                 />
               </div>
             </div>

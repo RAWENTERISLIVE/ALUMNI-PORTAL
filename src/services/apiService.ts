@@ -1,4 +1,6 @@
 const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
+const DEFAULT_PROD_API_URL = 'https://mpsajmer-connect-api.futurist-raghav.workers.dev/api';
+
 const API_BASE_URL = rawApiUrl
   ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/+$/, '')}/api`)
   : '/api';
@@ -160,10 +162,16 @@ class ApiService {
 
       return data;
     } catch (error: any) {
-      console.error('API Error:', error);
+      console.error('API Error details:', {
+        url,
+        method: config.method,
+        errorName: error.name,
+        errorMessage: error.message
+      });
       
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Unable to connect to server. Please check your internet connection and try again.');
+      const msg = error.message?.toLowerCase() || '';
+      if (error.name === 'TypeError' || msg.includes('fetch') || msg.includes('network') || msg.includes('unreachable')) {
+        throw new Error('Unable to connect to the server. Please check your internet connection or try again later.');
       }
       
       throw error;

@@ -18,10 +18,13 @@ app.use('*', cors({
   origin: (origin) => {
     if (!origin) return null;
     const url = new URL(origin);
-    if (url.hostname === 'localhost' || 
-        url.hostname.endsWith('.workers.dev') || 
-        url.hostname.endsWith('.pages.dev') || 
-        url.hostname.endsWith('raghavagarwal.com')) {
+    const isLocalhost = url.hostname === 'localhost';
+    const isCapacitor = origin === 'capacitor://localhost';
+    const isApprovedDomain = url.hostname.endsWith('.workers.dev') || 
+                             url.hostname.endsWith('.pages.dev') || 
+                             url.hostname.endsWith('raghavagarwal.com');
+
+    if (isLocalhost || isCapacitor || isApprovedDomain) {
       return origin;
     }
     return null;
@@ -206,6 +209,19 @@ const getDocs = (c: any) => c.json({
 api.get('/docs', getDocs);
 api.get('/v1/docs', getDocs);
 
+// Health check for monitoring and frontend status manager
+api.get('/health', (c) => c.json({ 
+  success: true, 
+  status: 'ok',
+  message: 'MPSAJMER CONNECT API is healthy',
+  timestamp: new Date().toISOString(),
+  environment: c.env.ENVIRONMENT || 'production'
+}));
+
+api.post('/auth/logout', async (c) => {
+  return c.json({ success: true, message: 'Logged out successfully' });
+});
+
 // Auth
 api.post('/auth/login', async (c) => {
   try {
@@ -227,6 +243,18 @@ api.post('/auth/login', async (c) => {
     if (!user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
       const hashed = await hashPassword(password);
       await c.env.DB.prepare('UPDATE users SET password = ? WHERE id = ?').bind(hashed, user.id).run();
+    }
+
+    if (user.status === 'PENDING') {
+      return c.json({ success: false, message: 'Your account is currently pending approval by an administrator.' }, 403);
+    }
+
+    if (user.status === 'REJECTED') {
+      return c.json({ success: false, message: 'Your account registration has been rejected. Please contact support.' }, 403);
+    }
+
+    if (user.status === 'SUSPENDED') {
+      return c.json({ success: false, message: 'Your account has been suspended. Please contact support.' }, 403);
     }
 
     const token = await createJWT(user.id, user.email, user.role, user.name || 'User', c.env.JWT_SECRET);
@@ -268,10 +296,25 @@ api.post('/auth/register', async (c) => {
 
     const id = crypto.randomUUID();
     const hashedPassword = await hashPassword(password);
-    const dbRole = toDbRole(role || 'ALUMNI');
+    const dbRole = toDbRole(role || 'USER');
     
-    // Determine status - if manual verification is needed, set to PENDING
-    const status = needsManualVerification ? 'PENDING' : 'ACTIVE';
+    // Fetch global settings to check if all registrations require approval
+    let requireApproval = false;
+    try {
+      const settingsResult: any = await c.env.DB.prepare('SELECT value FROM system_settings WHERE key = ?').bind('global_settings').first();
+      if (settingsResult) {
+        const settings = parseJSON(settingsResult.value);
+        requireApproval = settings?.registration?.requireApproval === true;
+      }
+    } catch (e) {
+      console.error('Error fetching settings during registration:', e);
+    }
+
+    // Determine status - if manual verification is needed or global approval is required, set to PENDING
+    const status = (needsManualVerification || requireApproval) ? 'PENDING' : 'ACTIVE';
+
+    // Normalize accountType to uppercase to satisfy DB CHECK constraint
+    const normalizedAccountType = (accountType || 'ALUMNI').toString().toUpperCase();
     
     await c.env.DB.prepare(`
       INSERT INTO users (
@@ -283,7 +326,7 @@ api.post('/auth/register', async (c) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `).bind(
       id, email, hashedPassword, name, dbRole, status,
-      accountType || 'ALUMNI', admissionNumber || null, admissionYear || null, graduationYear || null,
+      normalizedAccountType, admissionNumber || null, admissionYear || null, graduationYear || null,
       needsManualVerification ? 1 : 0, verificationDetails || null, facultyIdCardUrl || null
     ).run();
 
@@ -298,7 +341,7 @@ api.post('/auth/register', async (c) => {
         name,
         role: toClientRole(dbRole),
         status,
-        accountType: accountType || 'ALUMNI',
+        accountType: normalizedAccountType,
         needsManualVerification: !!needsManualVerification,
         facultyIdCardUrl
       }
@@ -341,55 +384,68 @@ api.get('/auth/sessions', authMiddleware, async (c) => {
 });
 
 const updateUserProfileLogic = async (c: any, userId: string, body: any) => {
-  const fieldMap: Record<string, string> = {
-    email: 'email', name: 'name', firstName: 'first_name', lastName: 'last_name',
-    role: 'role', status: 'status', accountType: 'account_type',
-    admissionNumber: 'admission_number', admissionYear: 'admission_year',
-    graduationYear: 'graduation_year', classYear: 'class_year',
-    contactEmail: 'contact_email', contactPhone: 'contact_phone',
-    city: 'city', country: 'country', company: 'company', jobTitle: 'job_title',
-    location: 'location', bio: 'bio', headline: 'headline',
-    linkedinProfile: 'linkedin_profile', linkedInProfile: 'linkedin_profile', profileImage: 'profile_image',
-    isAvailableAsMentor: 'is_available_as_mentor', isVerified: 'is_verified',
-    hasPremiumBadge: 'has_premium_badge', skills: 'skills', interests: 'interests',
-    experiences: 'experiences', educations: 'educations',
-    notificationSettings: 'notification_settings', privacySettings: 'privacy_settings'
-  };
+  try {
+    const fieldMap: Record<string, string> = {
+      email: 'email', name: 'name', firstName: 'first_name', lastName: 'last_name',
+      role: 'role', status: 'status', accountType: 'account_type',
+      admissionNumber: 'admission_number', admissionYear: 'admission_year',
+      graduationYear: 'graduation_year', classYear: 'class_year',
+      contactEmail: 'contact_email', contactPhone: 'contact_phone',
+      city: 'city', country: 'country', company: 'company', jobTitle: 'job_title',
+      location: 'location', bio: 'bio', headline: 'headline',
+      linkedinProfile: 'linkedin_profile', linkedInProfile: 'linkedin_profile', profileImage: 'profile_image',
+      isAvailableAsMentor: 'is_available_as_mentor', isVerified: 'is_verified',
+      hasPremiumBadge: 'has_premium_badge', skills: 'skills', interests: 'interests',
+      experiences: 'experiences', educations: 'educations',
+      notificationSettings: 'notification_settings', privacySettings: 'privacy_settings',
+      industry: 'industry'
+    };
 
-  const updates: string[] = [];
-  const params: any[] = [];
-  
-  // Fetch current user data for JSON merging
-  const currentUser: any = await c.env.DB.prepare('SELECT notification_settings, privacy_settings FROM users WHERE id = ?').bind(userId).first();
+    const updates: string[] = [];
+    const params: any[] = [];
+    
+    // Fetch current user data for JSON merging
+    const currentUser: any = await c.env.DB.prepare('SELECT notification_settings, privacy_settings FROM users WHERE id = ?').bind(userId).first();
 
-  for (const [key, value] of Object.entries(body)) {
-    const dbField = fieldMap[key];
-    if (dbField) {
-      updates.push(`${dbField} = ?`);
-      
-      if ((key === 'notificationSettings' || key === 'privacySettings') && typeof value === 'object' && value !== null) {
-        // Merge with existing settings
-        const currentVal = parseJSON(currentUser[dbField] || '{}');
-        const merged = { ...currentVal, ...value };
-        params.push(JSON.stringify(merged));
-      } else if (typeof value === 'boolean') {
-        params.push(value ? 1 : 0);
-      } else if (typeof value === 'object' && value !== null) {
-        params.push(JSON.stringify(value));
-      } else {
-        params.push(value);
+    for (let [key, value] of Object.entries(body)) {
+      const dbField = fieldMap[key];
+      if (dbField) {
+        // Normalize values for fields with CHECK constraints
+        if (typeof value === 'string' && (key === 'status' || key === 'role' || key === 'accountType')) {
+          value = value.toUpperCase();
+        }
+
+        updates.push(`${dbField} = ?`);
+        
+        if ((key === 'notificationSettings' || key === 'privacySettings') && typeof value === 'object' && value !== null) {
+          // Merge with existing settings
+          const currentVal = parseJSON((currentUser && currentUser[dbField]) || '{}');
+          const merged = { ...currentVal, ...value };
+          params.push(JSON.stringify(merged));
+        } else if (typeof value === 'boolean') {
+          params.push(value ? 1 : 0);
+        } else if (typeof value === 'object' && value !== null) {
+          params.push(JSON.stringify(value));
+        } else {
+          params.push(value);
+        }
       }
     }
+    
+    if (updates.length === 0) return c.json({ success: true, message: 'No fields to update' });
+    
+    updates.push("updated_at = datetime('now')");
+    params.push(userId);
+    
+    const query = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
+    await c.env.DB.prepare(query).bind(...params).run();
+    
+    const updatedUser = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+    return c.json({ success: true, data: transformUser(updatedUser), user: transformUser(updatedUser) });
+  } catch (error: any) {
+    console.error(`Update User Error: ${error.message}`, error);
+    return c.json({ success: false, message: `Failed to update profile: ${error.message}` }, 500);
   }
-  
-  if (updates.length === 0) return c.json({ success: true, message: 'No fields to update' });
-  
-  updates.push("updated_at = datetime('now')");
-  params.push(userId);
-  
-  await c.env.DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...params).run();
-  const updatedUser = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
-  return c.json({ success: true, data: transformUser(updatedUser), user: transformUser(updatedUser) });
 };
 
 
@@ -2495,7 +2551,32 @@ api.get('/reports', authMiddleware, async (c) => {
   });
 });
 
-api.patch('/users/:id/edit', authMiddleware, async (c) => {
+// Admin actions on users
+api.on(['POST', 'PATCH'], '/users/:id/approve', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  await c.env.DB.prepare("UPDATE users SET status = 'ACTIVE', is_verified = 1 WHERE id = ?").bind(id).run();
+  
+  return c.json({ success: true, message: 'User approved and verified' });
+});
+
+api.on(['POST', 'PATCH'], '/users/:id/reject', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  await c.env.DB.prepare("UPDATE users SET status = 'REJECTED' WHERE id = ?").bind(id).run();
+  
+  return c.json({ success: true, message: 'User rejected' });
+});
+
+api.patch('/users/:id/premium-badge', authMiddleware, async (c) => {
   const admin = c.get('user');
   if (admin.role !== 'admin' && admin.role !== 'super_admin') {
     return c.json({ success: false, message: 'Unauthorized' }, 403);
@@ -2503,7 +2584,60 @@ api.patch('/users/:id/edit', authMiddleware, async (c) => {
 
   const id = c.req.param('id');
   const body = await c.req.json();
-  return await updateUserProfileLogic(c, id, body);
+  const hasPremiumBadge = body.hasPremiumBadge ?? body.enabled;
+  
+  await c.env.DB.prepare("UPDATE users SET has_premium_badge = ? WHERE id = ?")
+    .bind(hasPremiumBadge ? 1 : 0, id).run();
+    
+  return c.json({ success: true, message: `Premium badge ${hasPremiumBadge ? 'granted' : 'removed'}` });
+});
+
+api.patch('/users/:id/promote-moderator', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  await c.env.DB.prepare("UPDATE users SET role = 'MODERATOR' WHERE id = ?").bind(id).run();
+  
+  return c.json({ success: true, message: 'User promoted to moderator' });
+});
+
+api.patch('/users/:id/promote', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Only super admins can promote others to admin' }, 403);
+  }
+
+  const id = c.req.param('id');
+  await c.env.DB.prepare("UPDATE users SET role = 'ADMIN' WHERE id = ?").bind(id).run();
+  
+  return c.json({ success: true, message: 'User promoted to admin' });
+});
+
+api.patch('/users/:id/demote', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  await c.env.DB.prepare("UPDATE users SET role = 'USER' WHERE id = ?").bind(id).run();
+  
+  return c.json({ success: true, message: 'User demoted to regular user' });
+});
+
+api.post('/users/:id/block', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  await c.env.DB.prepare("UPDATE users SET status = 'SUSPENDED' WHERE id = ?").bind(id).run();
+  
+  return c.json({ success: true, message: 'User blocked' });
 });
 
 // User Profile (Moved down to avoid shadowing static /users routes)
@@ -2566,40 +2700,15 @@ api.get('/users/:id', authMiddleware, async (c) => {
 });
 
 
-api.on(['POST', 'PATCH'], '/users/:id/approve', authMiddleware, async (c) => {
+api.patch('/users/:id/edit', authMiddleware, async (c) => {
   const admin = c.get('user');
   if (admin.role !== 'admin' && admin.role !== 'super_admin') {
     return c.json({ success: false, message: 'Unauthorized' }, 403);
   }
 
   const id = c.req.param('id');
-  await c.env.DB.prepare("UPDATE users SET status = 'ACTIVE', is_verified = 1 WHERE id = ?").bind(id).run();
-  
-  return c.json({ success: true, message: 'User approved and verified' });
-});
-
-api.on(['POST', 'PATCH'], '/users/:id/reject', authMiddleware, async (c) => {
-  const admin = c.get('user');
-  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
-    return c.json({ success: false, message: 'Unauthorized' }, 403);
-  }
-
-  const id = c.req.param('id');
-  await c.env.DB.prepare("UPDATE users SET status = 'REJECTED' WHERE id = ?").bind(id).run();
-  
-  return c.json({ success: true, message: 'User rejected' });
-});
-
-api.post('/users/:id/block', authMiddleware, async (c) => {
-  const admin = c.get('user');
-  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
-    return c.json({ success: false, message: 'Unauthorized' }, 403);
-  }
-
-  const id = c.req.param('id');
-  await c.env.DB.prepare("UPDATE users SET status = 'SUSPENDED' WHERE id = ?").bind(id).run();
-  
-  return c.json({ success: true, message: 'User blocked' });
+  const body = await c.req.json();
+  return await updateUserProfileLogic(c, id, body);
 });
 
 api.get('/users/messages/conversations', authMiddleware, async (c) => {

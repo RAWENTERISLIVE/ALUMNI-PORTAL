@@ -223,3 +223,64 @@
 .tabs-mobile {
   @apply min-h-[48px];
 }
+
+/* ============================================
+   PWA & CAPACITOR MOBILE ENHANCEMENTS
+   ============================================ */
+
+/* Respect iOS safe areas (notch, home indicator) */
+:root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+}
+
+/* Apply safe area to body so content avoids the notch */
+body {
+  padding-top: var(--safe-area-top);
+  padding-left: var(--safe-area-left);
+  padding-right: var(--safe-area-right);
+  /* Bottom padding handled by nav + safe area */
+  padding-bottom: var(--safe-area-bottom);
+}
+
+/* When running as installed PWA / Capacitor native app */
+@media (display-mode: standalone) {
+  body {
+    /* Remove web browser chrome spacing adjustments */
+    overscroll-behavior: none;
+  }
+
+  /* Ensure bottom nav clears the home indicator */
+  .nav-mobile {
+    padding-bottom: calc(8px + var(--safe-area-bottom));
+  }
+}
+
+/* Prevent font size inflation on orientation change (iOS) */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Disable pull-to-refresh on native (handled by app) */
+.capacitor-app {
+  overscroll-behavior-y: contain;
+}
+
+/* Smooth scrolling everywhere */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Better tap highlights on mobile */
+a, button, [role="button"] {
+  -webkit-tap-highlight-color: rgba(139, 0, 0, 0.1);
+}
+
+/* Focus ring visibility on mobile (accessibility) */
+:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}

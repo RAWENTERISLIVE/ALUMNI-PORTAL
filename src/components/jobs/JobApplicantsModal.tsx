@@ -24,7 +24,7 @@ import {
   FileText, 
   ExternalLink,
   User,
-  Linkedin,
+  Link2,
   Download
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -157,7 +157,7 @@ export function JobApplicantsModal({
                             {app.applicantLinkedin && (
                               <Button variant="outline" size="xs" className="h-7 text-[10px] gap-1.5 px-2 hover:border-[#0077b5] hover:text-[#0077b5]" asChild>
                                 <a href={app.applicantLinkedin} target="_blank" rel="noopener noreferrer">
-                                  <Linkedin className="h-3 w-3" />
+                                  <Link2 className="h-3 w-3" />
                                   LinkedIn
                                 </a>
                               </Button>

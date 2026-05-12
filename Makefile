@@ -1,4 +1,4 @@
-.PHONY: help install setup dev build start clean lint test db-start db-migrate db-seed db-reset deploy stop logs status
+.PHONY: help install setup dev build start clean lint test db-start db-migrate db-seed db-reset deploy stop logs status cap-init cap-sync cap-android cap-ios cap-icons pwa-build
 
 # Color output
 CYAN := \033[0;36m
@@ -38,9 +38,11 @@ help: ## Show this help message
 	@echo "  make setup          # Setup project first time"
 	@echo "  make dev            # Start development environment"
 	@echo "  make build          # Build production artifacts"
-	@echo "  make build          # Build production artifacts"
-	@echo "  make deploy         # Deploy production build (Local/Docker)"
-	@echo "  make cf-deploy      # Deploy to Cloudflare (Pages + Workers + D1)"
+	@echo "  make deploy         # Deploy to Cloudflare"
+	@echo "  make pwa-build      # Build PWA (with service worker)"
+	@echo "  make cap-sync       # Sync web build to native iOS/Android"
+	@echo "  make cap-android    # Open Android Studio"
+	@echo "  make cap-ios        # Open Xcode for iOS"
 	@echo ""
 
 ## 🔧 Setup Commands
@@ -289,3 +291,57 @@ diagnose: ## Diagnose common issues
 	@echo ""
 
 .DEFAULT_GOAL := help
+
+## 📱 Mobile & PWA Commands
+
+cap-icons: ## Generate all PWA and native mobile assets (Icons/Splash)
+	@echo "$(CYAN)Generating padded native assets...$(NC)"
+	@npm install --save-dev sharp @capacitor/assets 2>/dev/null | tail -1
+	node scripts/prepare-native-assets.mjs
+	npx @capacitor/assets generate --assetPath assets-native --ios --android
+	@echo "$(GREEN)✓ Native icons and splash screens updated$(NC)"
+
+cap-init: ## Initialize Capacitor (run once after first clone)
+	@echo "$(CYAN)Initializing Capacitor...$(NC)"
+	npx cap init "MPS Ajmer Connect" "in.mpsajmer.alumni" --web-dir dist
+	@echo "$(GREEN)✓ Capacitor initialized$(NC)"
+
+cap-add-android: ## Add Android platform to Capacitor project
+	@echo "$(CYAN)Adding Android platform...$(NC)"
+	npx cap add android
+	@echo "$(GREEN)✓ Android platform added - see android/ directory$(NC)"
+
+cap-add-ios: ## Add iOS platform to Capacitor project
+	@echo "$(CYAN)Adding iOS platform...$(NC)"
+	npx cap add ios
+	@echo "$(GREEN)✓ iOS platform added - see ios/ directory$(NC)"
+
+pwa-build: ## Build frontend with PWA service worker enabled
+	@echo "$(CYAN)Building PWA...$(NC)"
+	npm run build
+	@echo "$(GREEN)✓ PWA build complete (service worker + manifest generated)$(NC)"
+	@echo "$(CYAN)Generated files:$(NC)"
+	@ls dist/sw.js dist/manifest.webmanifest 2>/dev/null && echo "  ✓ sw.js & manifest.webmanifest present" || echo "  $(YELLOW)⚠ Check dist/ for sw.js and manifest.webmanifest$(NC)"
+
+cap-sync: pwa-build ## Build PWA then sync to Android and iOS native projects
+	@echo "$(CYAN)Syncing web build to native platforms...$(NC)"
+	npx cap sync
+	@echo "$(GREEN)✓ Synced to Android and iOS$(NC)"
+
+cap-android: cap-sync ## Sync and open Android Studio
+	@echo "$(CYAN)Opening Android Studio...$(NC)"
+	npx cap open android
+	@echo "$(YELLOW)📌 In Android Studio: Build → Generate Signed Bundle → .aab → upload to Play Console$(NC)"
+
+cap-ios: cap-sync ## Sync and open Xcode for iOS
+	@echo "$(CYAN)Opening Xcode...$(NC)"
+	npx cap open ios
+	@echo "$(YELLOW)📌 In Xcode: Product → Archive → Distribute App → App Store Connect$(NC)"
+
+cap-run-android: cap-sync ## Run on connected Android device / emulator
+	@echo "$(CYAN)Running on Android...$(NC)"
+	npx cap run android
+
+cap-run-ios: cap-sync ## Run on iOS Simulator
+	@echo "$(CYAN)Running on iOS Simulator...$(NC)"
+	npx cap run ios

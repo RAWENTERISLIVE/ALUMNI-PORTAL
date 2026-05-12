@@ -7,7 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { MainLayout } from "@/shared/layout/MainLayout";
 import { ThemeProvider } from "@/components/theme-provider";
-
+import { PWAInstallBanner } from "@/components/mobile/InstallPrompt";
 // Public Pages
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/AuthPages/LoginPage";
@@ -29,15 +29,26 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import EventsPage from "./pages/EventsPage";
 import MessagesPage from "./pages/MessagesPage";
 
+import { GlobalErrorBoundary, NetworkStatusManager } from "@/components/NetworkStatusManager";
+
+import { useEffect } from "react";
+
 const queryClient = new QueryClient();
 
 function App() {
+  useEffect(() => {
+    // Mobile/PWA init logic can go here if needed later
+  }, []);
+
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-      <QueryClientProvider client={queryClient}>
+    <GlobalErrorBoundary>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+        <NetworkStatusManager>
+          <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <PWAInstallBanner />
           <BrowserRouter>
             <AuthProvider>
               <Routes>
@@ -98,8 +109,10 @@ function App() {
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+          </QueryClientProvider>
+        </NetworkStatusManager>
+      </ThemeProvider>
+    </GlobalErrorBoundary>
   );
 }
 
