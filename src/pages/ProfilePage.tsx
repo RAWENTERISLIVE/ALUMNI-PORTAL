@@ -2541,7 +2541,7 @@ export default function ProfilePage() {
               name: profile?.name,
               title: profile?.jobTitle,
               company: profile?.company,
-              graduationYear: profile?.admissionYear,
+              graduationYear: profile?.graduationYear,
               profileImage: profile?.profileImage,
             },
           }}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -12,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import apiService from '@/services/apiService';
 
 export default function PostsPage() {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState<any[]>([]);
   const [savedPosts, setSavedPosts] = useState<any[]>([]);
   const [feedPosts, setFeedPosts] = useState<any[]>([]);
@@ -236,7 +238,7 @@ export default function PostsPage() {
                   } : {
                     label: "Sign in to post",
                     onClick: () => {
-                      globalThis.location.href = '/login';
+                      navigate('/login');
                     }
                   }}
                 />
@@ -291,7 +293,7 @@ export default function PostsPage() {
                       action={{
                         label: "Explore Directory",
                         onClick: () => {
-                          globalThis.location.href = '/directory';
+                          navigate('/directory');
                         }
                       }}
                     />

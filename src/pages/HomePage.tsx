@@ -23,18 +23,26 @@ export default function HomePage() {
       {/* Navigation Bar */}
       <nav className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md border-b border-border/50 shadow-sm transition-all duration-300">
         <div className="container mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="MPS Ajmer Logo" className="w-10 h-10 object-contain drop-shadow-md" />
-            <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Maheshwari Public School, Ajmer
-            </span>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <img src="/logo.png" alt="MPS Ajmer Logo" className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-md" />
+            <div className="flex flex-col sm:flex-row sm:items-center">
+              <span className="text-base sm:text-lg lg:text-xl font-bold tracking-tight gradient-text hidden lg:inline-block">
+                Maheshwari Public School, Ajmer
+              </span>
+              <span className="text-base sm:text-lg font-bold tracking-tight gradient-text hidden sm:inline-block lg:hidden">
+                MPS Ajmer Alumni
+              </span>
+              <span className="text-base font-bold tracking-tight gradient-text sm:hidden">
+                MPS Ajmer
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <ThemeToggle />
-            <Button asChild variant="outline" className="hidden sm:inline-flex border-primary/20 hover:bg-primary/10 transition-colors text-foreground">
+            <Button asChild variant="ghost" className="px-3 sm:px-4 text-foreground hover:bg-primary/10 transition-colors">
               <Link to="/login">Sign In</Link>
             </Button>
-            <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 rounded-full px-6">
+            <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 rounded-full px-4 sm:px-6 text-sm sm:text-base">
               <Link to="/register">Join Network</Link>
             </Button>
           </div>
@@ -55,9 +63,9 @@ export default function HomePage() {
               <span>The Official Global Alumni Network</span>
             </div>
 
-            <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
+            <h1 className="fluid-heading-1 font-extrabold tracking-tight leading-[1.1]">
               Reconnect with your <br className="hidden lg:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary animate-gradient-x">Alma Mater</span>
+              <span className="gradient-text animate-gradient-x">Alma Mater</span>
             </h1>
 
             <p className="text-lg lg:text-xl text-muted-foreground font-light max-w-2xl mx-auto lg:mx-0 leading-relaxed">
@@ -77,7 +85,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="flex-1 relative hidden md:block">
+          <div className="flex-1 relative hidden lg:block">
             <div className="relative w-full max-w-lg mx-auto aspect-square">
               {/* Decorative rings */}
               <div className="absolute inset-0 border border-primary/20 rounded-full animate-[spin_60s_linear_infinite]"></div>
@@ -181,10 +189,10 @@ export default function HomePage() {
               Don't miss out on the value of the MPS Ajmer alumni network. Join your fellow graduates today.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Button asChild size="lg" className="h-16 px-10 text-lg rounded-full bg-white text-[#8B0000] hover:bg-gray-100 shadow-xl hover:-translate-y-1 transition-all">
+              <Button asChild size="lg" className="h-16 px-10 text-lg rounded-full bg-white text-primary hover:bg-gray-100 shadow-xl hover:-translate-y-1 transition-all border-none">
                 <Link to="/register">Create Your Profile</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="h-16 px-10 text-lg rounded-full border-white text-white hover:bg-white/20 hover:-translate-y-1 transition-all">
+              <Button asChild size="lg" variant="ghost" className="h-16 px-10 text-lg rounded-full border border-white/60 bg-transparent text-white hover:bg-white/10 hover:text-white hover:-translate-y-1 transition-all">
                 <Link to="/login">Sign In to Dashboard</Link>
               </Button>
             </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WifiOff, RefreshCcw, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { API_BASE_URL } from '@/services/apiService';
 
 export const NetworkStatusManager: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [status, setStatus] = useState<'online' | 'offline' | 'api-unreachable'>('online');
@@ -16,10 +17,10 @@ export const NetworkStatusManager: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       // Use a timeout to avoid hanging forever
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       // Ping our newly created health endpoint
-      const response = await fetch('https://mpsajmer-connect-api.futurist-raghav.workers.dev/api/health', { 
+      const response = await fetch(`${API_BASE_URL}/health`, { 
         method: 'GET',
         signal: controller.signal 
       });

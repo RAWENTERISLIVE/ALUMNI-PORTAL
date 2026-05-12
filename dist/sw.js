@@ -87,7 +87,7 @@ define(['./workbox-8d0d8005'], (function (workbox) { 'use strict';
     "revision": "340c702e315e273199f3904ba607b6fc"
   }, {
     "url": "index.html",
-    "revision": "0b8069bc889646b13f4b5c00431ea672"
+    "revision": "eaba0c254d34baf92de65a1a54c4f9d9"
   }, {
     "url": "hero-mpsajmer.png",
     "revision": "1d1fb2cac04975daa5893d562d7e3e5e"
@@ -149,10 +149,10 @@ define(['./workbox-8d0d8005'], (function (workbox) { 'use strict';
     "url": "icons/icon-128.png",
     "revision": "55e8ea99ebeb74e97fcfe5dd9021ab45"
   }, {
-    "url": "assets/index-CLw2KEyL.js",
+    "url": "assets/index-CERPxJZ4.css",
     "revision": null
   }, {
-    "url": "assets/index-C6PNLo7N.css",
+    "url": "assets/index-C82mvtI5.js",
     "revision": null
   }, {
     "url": "favicon.ico",

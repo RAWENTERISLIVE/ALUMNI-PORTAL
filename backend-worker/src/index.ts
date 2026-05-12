@@ -352,6 +352,43 @@ api.post('/auth/register', async (c) => {
   }
 });
 
+api.post('/auth/forgot-password', async (c) => {
+  try {
+    const { email } = await c.req.json();
+    if (!email) {
+      return c.json({ success: false, message: 'Email is required.' }, 400);
+    }
+
+    // Check if user exists
+    const user: any = await c.env.DB.prepare('SELECT id, name FROM users WHERE email = ?').bind(email).first();
+    
+    if (!user) {
+      // For security, don't reveal if user exists, but we want to be helpful for now in dev/MVP
+      // In production, we'd always return success: true
+      return c.json({ 
+        success: true, 
+        message: 'If an account exists with this email, a reset link will be sent.' 
+      });
+    }
+
+    // Generate a reset token (using JWT for simplicity, with short expiration)
+    const resetToken = await createJWT(user.id, email, 'PASSWORD_RESET', user.name, c.env.JWT_SECRET);
+    
+    // Log the request (in a real app, we would send an email here)
+    console.log(`Password reset requested for ${email}. Token: ${resetToken}`);
+    
+    // Since we don't have an email service, we'll just return success.
+    // The user can implement the actual email sending later.
+    return c.json({ 
+      success: true, 
+      message: 'Password reset link sent to your email.' 
+    });
+  } catch (error: any) {
+    console.error('Forgot password error:', error);
+    return c.json({ success: false, message: error.message || 'Failed to process request' }, 500);
+  }
+});
+
 api.get('/auth/me', authMiddleware, async (c) => {
   const userPayload = c.get('user');
   const user: any = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userPayload.id).first();

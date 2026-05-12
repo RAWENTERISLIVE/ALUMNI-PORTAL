@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Users, Briefcase, BookOpen } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ import apiService from '@/services/apiService';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [featuredPosts, setFeaturedPosts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -133,9 +135,9 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="xl:col-span-2 space-y-6">
             {/* Create Post Section */}
             {isAuthenticated && (
               <Card className="bg-card border-border shadow-sm hover:shadow-md transition-shadow duration-300 rounded-2xl overflow-hidden">
@@ -202,7 +204,7 @@ export default function DashboardPage() {
                     variant="outline" 
                     size="sm"
                     onClick={() => {
-                      globalThis.location.href = '/posts';
+                      navigate('/posts');
                     }}
                     className="border-border/80 text-foreground/90 hover:bg-muted/30"
                   >
@@ -248,7 +250,7 @@ export default function DashboardPage() {
                     <button
                       key={action.href}
                       onClick={() => {
-                        globalThis.location.href = action.href;
+                        navigate(action.href);
                       }}
                       className={`w-full p-4 border border-border rounded-xl text-left transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 group ${action.color}`}
                     >
@@ -298,7 +300,7 @@ export default function DashboardPage() {
                       variant="outline" 
                       className="w-full border-border hover:bg-primary/5 hover:text-primary font-semibold rounded-xl transition-all"
                       onClick={() => {
-                        globalThis.location.href = '/profile';
+                        navigate('/profile');
                       }}
                     >
                       View Full Profile

@@ -2,7 +2,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { 
   Home, User, Users, MessageSquare, MessageCircle,
-  Briefcase, Menu, GraduationCap, Shield, BarChart3, Settings, Calendar
+  Briefcase, Menu, GraduationCap, Shield, BarChart3, Settings, Calendar, LayoutGrid
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -31,8 +31,9 @@ export const MobileNavbar = () => {
   const navigation = [
     { name: "Home", href: "/dashboard", icon: Home },
     { name: "Directory", href: "/directory", icon: Users },
-    { name: "Groups", href: "/groups", icon: MessageSquare },
+    { name: "Groups", href: "/groups", icon: LayoutGrid },
     { name: "Jobs", href: "/jobs", icon: Briefcase },
+    { name: "Messages", href: "/messages", icon: MessageSquare },
   ];
   
   const allLinks = [
@@ -60,7 +61,7 @@ export const MobileNavbar = () => {
   return (
     <>
       {/* Bottom navigation bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t flex justify-between items-center px-1 h-16 z-50">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t flex justify-between items-center px-1 min-h-[4rem] z-50 safe-bottom">
         {navigation.map((item) => (
           <Link
             key={item.name}

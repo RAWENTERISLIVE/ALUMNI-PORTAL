@@ -17,13 +17,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Search, UserX, Check, X, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw, Edit } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, UserX, Check, X, Users, Briefcase, MessageSquare, Shield, Trash2, UserPlus, UserMinus, RotateCcw, Edit, Eye, Upload } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import apiService from "@/services/apiService";
 import AdminSettingsPanel from "@/components/admin/AdminSettingsPanel";
 import AdminUserEditModal from "@/components/admin/AdminUserEditModal";
+import BulkUserUploadModal from "@/components/admin/BulkUserUploadModal";
 
 interface User {
   id: string;
@@ -102,9 +105,10 @@ export default function AdminPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [roleFilter, setRoleFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
 
   // Check if user has admin permissions
@@ -142,8 +146,8 @@ export default function AdminPage() {
         apiService.getAllUsers({
           page: currentPage,
           limit: 10,
-          status: statusFilter || undefined,
-          role: roleFilter || undefined,
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          role: roleFilter === 'all' ? undefined : roleFilter,
           search: searchTerm || undefined,
         }),
         apiService.getPendingUsers(),
@@ -353,28 +357,28 @@ export default function AdminPage() {
   };
 
   const getRoleColor = (role: string) => {
-    switch (role) {
+    switch (role?.toLowerCase()) {
       case 'super_admin':
-        return 'bg-red-100 text-red-800';
+        return 'border-red-500/50 text-red-600 dark:text-red-400 bg-red-500/10';
       case 'moderator':
-        return 'bg-amber-100 text-amber-800';
+        return 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10';
       case 'admin':
-        return 'bg-primary/10 text-blue-800';
+        return 'border-blue-500/50 text-blue-600 dark:text-blue-400 bg-blue-500/10';
       default:
-        return 'bg-gray-100 text-foreground/90';
+        return 'border-slate-500/50 text-slate-600 dark:text-slate-400 bg-slate-500/10';
     }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'active':
-        return 'bg-green-100 text-green-800';
+        return 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10';
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10';
       case 'suspended':
-        return 'bg-red-100 text-red-800';
+        return 'border-red-500/50 text-red-600 dark:text-red-400 bg-red-500/10';
       default:
-        return 'bg-gray-100 text-foreground/90';
+        return 'border-slate-500/50 text-slate-600 dark:text-slate-400 bg-slate-500/10';
     }
   };
 
@@ -480,39 +484,50 @@ export default function AdminPage() {
         <TabsContent value="users">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <CardTitle>User Management</CardTitle>
-                <div className="flex gap-2 flex-wrap">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <div className="flex flex-col md:flex-row gap-2 flex-wrap flex-1 md:max-w-3xl justify-end">
+                  <div className="relative flex-1 md:max-w-xs">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search users..."
-                      className="pl-8 w-64"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 h-10 bg-muted/20 border-border/50 rounded-xl"
                     />
                   </div>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="active">Active</option>
-                    <option value="pending">Pending</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
-                  <select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  >
-                    <option value="">All Roles</option>
-                    <option value="user">User</option>
-                    <option value="moderator">Moderator</option>
-                    <option value="admin">Admin</option>
-                    <option value="super_admin">Super Admin</option>
-                  </select>
+                  <div className="flex gap-2 flex-wrap">
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-[130px] h-10 bg-muted/20 border-border/50 rounded-xl">
+                        <SelectValue placeholder="All Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="suspended">Suspended</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
+                      <SelectTrigger className="w-[130px] h-10 bg-muted/20 border-border/50 rounded-xl">
+                        <SelectValue placeholder="All Roles" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="moderator">Moderator</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      onClick={() => setBulkUploadOpen(true)}
+                      variant="outline"
+                      className="h-10 px-4 rounded-xl border-primary/20 hover:bg-primary/5 text-primary flex items-center gap-2"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Bulk Upload
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -526,8 +541,9 @@ export default function AdminPage() {
                     <TableHead>Status</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Badge</TableHead>
-                    <TableHead>Admission</TableHead>
-                    <TableHead>Year</TableHead>
+                    <TableHead>Admission No.</TableHead>
+                    <TableHead>Adm. Year</TableHead>
+                    <TableHead>Class of</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -536,13 +552,13 @@ export default function AdminPage() {
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <Badge className={getRoleColor(user.role)}>
+                       <TableCell>
+                        <Badge variant="outline" className={getRoleColor(user.role)}>
                           {user.role.replace('_', ' ').toUpperCase()}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(user.status)}>
+                       <TableCell>
+                        <Badge variant="outline" className={getStatusColor(user.status)}>
                           {user.status.toUpperCase()}
                         </Badge>
                       </TableCell>
@@ -550,25 +566,17 @@ export default function AdminPage() {
                         <Badge variant="outline">{(user.accountType || 'alumni').toUpperCase()}</Badge>
                       </TableCell>
                       <TableCell>
-                        {(() => {
-                          const classYear = user.graduationYear || user.admissionYear;
-                          return (
-                            <div className="flex flex-wrap gap-1">
-                              {classYear ? (
-                                <Badge variant="outline">{classYear}</Badge>
-                              ) : null}
-                              {user.hasPremiumBadge ? (
-                                <Badge className="bg-amber-100 text-amber-800">PREMIUM</Badge>
-                              ) : null}
-                              {!classYear && !user.hasPremiumBadge ? (
-                                <span className="text-xs text-muted-foreground">-</span>
-                              ) : null}
-                            </div>
-                          );
-                        })()}
+                        <div className="flex flex-wrap gap-1">
+                          {user.hasPremiumBadge ? (
+                            <Badge variant="outline" className="border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10">PREMIUM</Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{user.admissionNumber}</TableCell>
-                      <TableCell>{user.admissionYear}</TableCell>
+                      <TableCell>{user.admissionYear || '-'}</TableCell>
+                      <TableCell>{user.graduationYear ? `Class of ${user.graduationYear}` : '-'}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           <Button
@@ -840,16 +848,31 @@ export default function AdminPage() {
                         </TableCell>
                         <TableCell>
                           {user.facultyIdCardUrl ? (
-                            <a
-                              href={user.facultyIdCardUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-primary hover:underline"
-                            >
-                              View ID
-                            </a>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm" className="gap-1">
+                                  <Eye className="h-3 w-3" />
+                                  View
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-3xl">
+                                <DialogHeader>
+                                  <DialogTitle>Verification Document - {user.name}</DialogTitle>
+                                </DialogHeader>
+                                <div className="mt-4 overflow-hidden rounded-lg border border-border">
+                                  <img 
+                                    src={user.facultyIdCardUrl} 
+                                    alt="Verification Document" 
+                                    className="w-full h-auto object-contain max-h-[70vh]"
+                                  />
+                                </div>
+                                <div className="mt-4 p-4 bg-muted rounded-lg text-sm italic">
+                                  {user.verificationDetails || "No additional details provided."}
+                                </div>
+                              </DialogContent>
+                            </Dialog>
                           ) : (
-                            <span className="text-xs text-muted-foreground">N/A</span>
+                            <span className="text-xs text-muted-foreground italic">No document</span>
                           )}
                         </TableCell>
                         <TableCell className="max-w-[360px] whitespace-pre-wrap break-words text-sm">
@@ -992,6 +1015,12 @@ export default function AdminPage() {
           onUserUpdated={handleUserUpdated}
         />
       )}
+      {/* Bulk Upload Modal */}
+      <BulkUserUploadModal
+        isOpen={bulkUploadOpen}
+        onClose={() => setBulkUploadOpen(false)}
+        onUploadSuccess={() => loadData()}
+      />
     </div>
   );
 }

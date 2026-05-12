@@ -1,7 +1,7 @@
 const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
 const DEFAULT_PROD_API_URL = 'https://mpsajmer-connect-api.futurist-raghav.workers.dev/api';
 
-const API_BASE_URL = rawApiUrl
+export const API_BASE_URL = rawApiUrl
   ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/+$/, '')}/api`)
   : '/api';
 
@@ -278,6 +278,20 @@ class ApiService {
       console.error('Logout error:', error);
     } finally {
       this.handleLogout();
+    }
+  }
+
+  async forgotPassword(email: string): Promise<ApiResponse> {
+    try {
+      return await this.request('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to send reset link.',
+      };
     }
   }
 
@@ -998,14 +1012,28 @@ class ApiService {
 
   async adminEditUser(userId: string, userData: Record<string, any>): Promise<ApiResponse> {
     try {
-      return await this.request(`/users/${userId}/edit`, {
-        method: 'PATCH',
+      return await this.request(`/admin/users/${userId}/edit`, {
+        method: 'POST',
         body: JSON.stringify(userData)
       });
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Failed to edit user.'
+        message: error.message || 'Failed to edit user'
+      };
+    }
+  }
+
+  async bulkCreateUsers(users: any[]): Promise<ApiResponse> {
+    try {
+      return await this.request('/admin/users/bulk-create', {
+        method: 'POST',
+        body: JSON.stringify({ users })
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to bulk create users'
       };
     }
   }

@@ -224,7 +224,7 @@ export default function DirectoryPage() {
           title: u.jobTitle || u.headline || u.currentRole || u.title,
           company: u.company,
           location: u.location,
-          graduationYear: u.graduationYear || (u.admissionYear ? Number(u.admissionYear) : undefined),
+          graduationYear: u.graduationYear ? Number(u.graduationYear) : undefined,
           skills: u.skills || [],
           industry: typeof u.industry === 'string' ? u.industry : undefined,
           bio: u.bio,

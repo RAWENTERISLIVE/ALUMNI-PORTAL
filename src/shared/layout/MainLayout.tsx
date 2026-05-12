@@ -12,6 +12,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useEffect, useMemo, useState } from "react";
 import apiService from "@/services/apiService";
 import { useToast } from "@/hooks/use-toast";
+import { useNotifications, NotificationItem } from "@/contexts/NotificationContext";
 import {
   Sheet,
   SheetContent,
@@ -21,25 +22,22 @@ import {
 } from "@/components/ui/sheet";
 import { Footer } from "./Footer";
 
-interface NotificationItem {
-  id: string;
-  title: string;
-  message: string;
-  type?: string;
-  actionUrl?: string;
-  metadata?: Record<string, unknown>;
-  isSeen: boolean;
-  createdAt: string;
-}
+// NotificationItem moved to context
 
 export const MainLayout = () => {
   const isMobile = useIsMobile();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [unseenCount, setUnseenCount] = useState(0);
-  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const { 
+    notifications, 
+    unseenCount, 
+    isLoading: isLoadingNotifications, 
+    markSeen: handleMarkSeen,
+    markAllSeen: handleMarkAllSeen,
+    dismiss: handleDismiss,
+    loadNotifications
+  } = useNotifications();
   const [joiningInviteNotificationId, setJoiningInviteNotificationId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -53,71 +51,11 @@ export const MainLayout = () => {
     [notifications]
   );
 
-  const loadNotifications = async () => {
-    if (!currentUser) return;
-
-    setIsLoadingNotifications(true);
-    const response = await apiService.getNotifications(25);
-
-    if (response.success) {
-      setNotifications((response.data || []) as NotificationItem[]);
-      setUnseenCount(typeof response.unseenCount === 'number' ? response.unseenCount : 0);
-    }
-
-    setIsLoadingNotifications(false);
-  };
-
-  useEffect(() => {
-    if (!currentUser) return;
-    loadNotifications();
-
-    const interval = setInterval(() => {
-      loadNotifications();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [currentUser]);
-
   useEffect(() => {
     if (isNotificationOpen) {
       loadNotifications();
     }
-  }, [isNotificationOpen]);
-
-  const handleMarkSeen = async (notification: NotificationItem) => {
-    if (notification.isSeen) return;
-
-    await apiService.markNotificationSeen(notification.id);
-    setNotifications((prev) =>
-      prev.map((item) =>
-        item.id === notification.id ? { ...item, isSeen: true } : item
-      )
-    );
-    setUnseenCount((prev) => Math.max(0, prev - 1));
-  };
-
-  const handleDismiss = async (notificationId: string) => {
-    const response = await apiService.dismissNotification(notificationId);
-    if (!response.success) return;
-
-    setNotifications((prev) => {
-      const target = prev.find((item) => item.id === notificationId);
-      if (target && !target.isSeen) {
-        setUnseenCount((count) => Math.max(0, count - 1));
-      }
-      return prev.filter((item) => item.id !== notificationId);
-    });
-  };
-
-  const handleMarkAllSeen = async () => {
-    if (!hasUnseen) return;
-
-    const response = await apiService.markAllNotificationsSeen();
-    if (!response.success) return;
-
-    setNotifications((prev) => prev.map((item) => ({ ...item, isSeen: true })));
-    setUnseenCount(0);
-  };
+  }, [isNotificationOpen, loadNotifications]);
 
   const handleNotificationClick = async (notification: NotificationItem) => {
     await handleMarkSeen(notification);
@@ -177,18 +115,26 @@ export const MainLayout = () => {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header - Fixed Top */}
-      <header className="h-14 bg-background border-b border-border fixed top-0 left-0 right-0 z-50">
+      <header className="min-h-[3.5rem] bg-background border-b border-border fixed top-0 left-0 right-0 z-50 safe-top">
         <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo */}
-          <Link to="/dashboard" className="flex items-center gap-3 shrink-0 group hover:opacity-90 transition-opacity">
-            <img src="/logo.png" alt="MPS Ajmer Logo" className="h-10 w-10 object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-300" />
-            <span className="hidden md:inline-block font-bold text-lg lg:text-xl tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Maheshwari Public School, Ajmer
-            </span>
+          <Link to="/dashboard" className="flex items-center gap-2 sm:gap-3 shrink-0 group hover:opacity-90 transition-opacity">
+            <img src="/logo.png" alt="MPS Ajmer Logo" className="h-8 w-8 sm:h-10 sm:w-10 object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-300" />
+            <div className="flex flex-col">
+              <span className="hidden xl:inline-block font-bold text-lg xl:text-xl tracking-tight gradient-text">
+                Maheshwari Public School, Ajmer
+              </span>
+              <span className="hidden lg:inline-block xl:hidden font-bold text-lg tracking-tight gradient-text">
+                MPS Ajmer Alumni
+              </span>
+              <span className="hidden sm:inline-block lg:hidden font-bold text-base tracking-tight gradient-text">
+                MPS Ajmer
+              </span>
+            </div>
           </Link>
 
           {/* Global Search - Center */}
-          <div className="hidden sm:block flex-1 max-w-md mx-2 md:mx-6">
+          <div className="flex-1 max-w-md mx-2 md:mx-6">
             <GlobalSearch />
           </div>
 
@@ -325,12 +271,12 @@ export const MainLayout = () => {
       </header>
 
       {/* Main Layout */}
-      <div className="flex flex-1 pt-14">
+      <div className="flex flex-1 pt-[calc(3.5rem+var(--safe-area-top))] pb-16 lg:pb-0">
         {/* Left Sidebar */}
         {!isMobile && <Sidebar />}
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-x-hidden">
+        <main className="flex-1">
           <div className="p-3 sm:p-4 md:p-6 pb-20 md:pb-6 max-w-5xl mx-auto">
             <Outlet />
           </div>

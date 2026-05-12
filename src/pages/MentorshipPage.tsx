@@ -411,8 +411,8 @@ function MentorshipPage() {
         </TabsList>
         
         <TabsContent value="find">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <div className="xl:col-span-2">
               <div className="flex flex-col md:flex-row items-start gap-3 mb-6">
                 <div className="relative flex-grow w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -429,7 +429,7 @@ function MentorshipPage() {
               {renderMentorResults()}
             </div>
             
-            <div className="lg:col-span-1">
+            <div className="xl:col-span-1">
               <Card className="mb-6 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-border rounded-xl">
                 <CardContent className="p-6">
                   <Button 
@@ -548,7 +548,7 @@ function MentorshipPage() {
                     <h3 className="text-lg font-semibold">Incoming Requests</h3>
                     <Badge variant="secondary" className="ml-2">{incomingRequests.length}</Badge>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {incomingRequests.map((request) => (
                       <Card key={request.id} className="border border-border/60 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl overflow-hidden flex flex-col">
                         <CardContent className="p-5 space-y-4 flex-grow">
@@ -603,7 +603,7 @@ function MentorshipPage() {
                     <p className="text-muted-foreground">No active sessions or sent requests found.</p>
                   </div>
                 ) : (
-                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                     {myMentorships.map(mentorship => (
                       <Card key={mentorship.id} className="border border-border/60 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 rounded-2xl overflow-hidden flex flex-col h-full">
                         <CardContent className="p-6 flex-grow">

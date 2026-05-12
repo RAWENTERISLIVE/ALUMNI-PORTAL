@@ -9,14 +9,14 @@ export const Footer = ({ showFullFooter = false, isLandingPage = false }: Footer
   const currentYear = new Date().getFullYear();
   
   return (
-    <footer className={`border-t border-border px-4 pt-8 pb-24 md:pb-8 bg-card/50 backdrop-blur-sm relative z-10 ${isLandingPage ? 'pt-20 pb-16 md:pb-10 bg-card' : ''}`}>
+    <footer className={`border-t border-border px-4 pt-8 pb-24 lg:pb-8 bg-card/50 backdrop-blur-sm relative z-10 ${isLandingPage ? 'pt-20 pb-16 lg:pb-10 bg-card' : ''}`}>
       <div className="container mx-auto px-4 max-w-5xl">
         {showFullFooter && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
             <div className="space-y-6">
               <div className="flex items-center gap-3">
                 <img src="/logo.png" alt="MPS Ajmer Logo" className="w-8 h-8" />
-                <span className="text-xl font-bold">Maheshwari Public School, Ajmer</span>
+                <span className="text-lg sm:text-xl font-bold max-w-[200px] sm:max-w-none break-words">Maheshwari Public School, Ajmer</span>
               </div>
               <div className="text-muted-foreground leading-relaxed space-y-2 text-sm">
                 <p className="font-semibold text-foreground">Contact Us</p>
@@ -63,7 +63,7 @@ export const Footer = ({ showFullFooter = false, isLandingPage = false }: Footer
           <div className="flex flex-col items-center md:items-start gap-2">
             <div className="flex items-center gap-2">
               <img src="/logo.png" alt="Logo" className="w-6 h-6 opacity-80" />
-              <a href="https://mpsajmer.com" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-foreground/80 tracking-tight hover:text-primary transition-colors">
+              <a href="https://mpsajmer.com" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-foreground/80 tracking-tight hover:text-primary transition-colors max-w-[150px] sm:max-w-none inline-block">
                 Maheshwari Public School, Ajmer
               </a>
             </div>
