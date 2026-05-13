@@ -217,7 +217,7 @@ export const uploadMultipleFiles = asyncHandler(async (req: AuthRequest, res: Re
 
 // Serve uploaded files
 export const serveFile = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const { filename } = req.params;
+  const filename = req.params.filename as string;
   
   if (!filename) {
     res.status(400).json({
@@ -227,7 +227,9 @@ export const serveFile = asyncHandler(async (req: Request, res: Response): Promi
     return;
   }
 
-  const filePath = path.join(__dirname, '../../uploads', filename);
+  // Sanitize filename to prevent path traversal
+  const sanitizedFilename = path.basename(filename);
+  const filePath = path.join(__dirname, '../../uploads', sanitizedFilename);
 
   if (!fs.existsSync(filePath)) {
     res.status(404).json({
