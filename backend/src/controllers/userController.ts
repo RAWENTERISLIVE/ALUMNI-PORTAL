@@ -823,9 +823,47 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     return;
   }
 
+  const {
+    name,
+    firstName,
+    lastName,
+    bio,
+    headline,
+    city,
+    country,
+    company,
+    jobTitle,
+    contactEmail,
+    contactPhone,
+    linkedInProfile,
+    location,
+    isAvailableAsMentor,
+    skills,
+    interests,
+    profileImage
+  } = req.body;
+
   const profile = await prisma.user.update({
     where: { id },
-    data: { ...req.body }
+    data: {
+      name,
+      firstName,
+      lastName,
+      bio,
+      headline,
+      city,
+      country,
+      company,
+      jobTitle,
+      contactEmail,
+      contactPhone,
+      linkedInProfile,
+      location,
+      isAvailableAsMentor,
+      skills,
+      interests,
+      profileImage
+    }
   });
 
   res.status(200).json({ success: true, data: serializeUser(profile) });
