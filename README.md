@@ -8,6 +8,13 @@ A secure, modular platform for students, alumni, and faculty to network, share r
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ---
+Deployed Website: https://mpsajmer.raghavagarwal.com/
+Test Credentials:
+Email: test@admin.com
+Password: Admin@123
+Website Screenshots: [https://drive.google.com/drive/folders/1px8VhWWFlGz1Z8YAAIzHErHgjhKm9AYl?usp=sharing](https://drive.google.com/drive/folders/1px8VhWWFlGz1Z8YAAIzHErHgjhKm9AYl?usp=sharing)
+
+---
 
 ## ✨ Core Features
 
@@ -66,125 +73,10 @@ A secure, modular platform for students, alumni, and faculty to network, share r
   - Audit logs & analytics dashboard (DAU, sign-ups, posts, job apps)
 
 ---
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js ≥ 16  
-- MongoDB ≥ 4.4  
-- npm 
-
-### Installation
-
-1. **Clone repository**  
-   ```bash
-   git clone https://github.com/your-org/alma-connect-sphere.git
-   cd alma-connect-sphere
-````
-
-2. **Install dependencies**
-
-   ```bash
-   npm install
-   cd backend && npm install
-   cd ../frontend && npm install
-   cd ..
-   ```
-
-3. **Configure environment**
-
-   * **backend/.env**
-
-     ```env
-     PORT=5000
-     MONGODB_URI=your-mongo-url
-     JWT_SECRET=your-jwt-secret
-     JWT_REFRESH_SECRET=your-refresh-secret
-     UPLOADS_DIR=./uploads
-     NODE_ENV=development
-     ```
-   * **frontend/.env**
-
-     ```env
-     VITE_API_URL=http://localhost:5000/api
-     ```
-
-4. **Prepare uploads directory**
-
-   ```bash
-   mkdir -p ./backend/uploads
-   ```
-
-5. **Run in development**
-
-   ```bash
-   npm run dev:full
-   ```
-
-   * Frontend → [http://localhost:8080](http://localhost:8080)
-   * Backend API → [http://localhost:5000/api](http://localhost:5000/api)
-
----
-
-## 🛠️ Technology Stack
-
-| Layer      | Technology                               |
-| ---------- | ---------------------------------------- |
-| Frontend   | React 18, TypeScript, Vite, Tailwind CSS |
-| Backend    | Node.js, Express.js, TypeScript, MongoDB |
-| File Store | Multer (diskStorage)                     |
-| Auth       | JWT, bcryptjs, TOTP (speakeasy)          |
-| Validation | express-validator                        |
-| DevOps     | Docker, GitHub Actions, ESLint, Prettier |
-
----
-
-## 🔧 Scripts
-
-```bash
-# Start both services
-npm run dev:full
-
-# Frontend
-npm run dev       # Vite
-npm run build     # Production build
-
-# Backend
-cd backend
-npm run dev       # nodemon
-npm run build     # Compile TS
-npm start         # Production server
-```
-
----
-
-## 📦 Deployment
-
-1. **Build**
-
-   ```bash
-   cd frontend && npm run build
-   cd ../backend && npm run build
-   ```
-2. **Configure** production `.env` (point `UPLOADS_DIR` to persistent storage)
-3. **Start** via PM2, Docker, or your host’s process manager
-4. **Serve** static `/uploads` folder (e.g. with Nginx) under `/media/` endpoint
-
----
-
-## 🤝 Contributing
-
-1. Fork & clone
-2. Create branch (`feature/…`)
-3. Commit & push
-4. Open PR
-5. Ensure tests pass & docs updated
-
----
-
 ## 📄 License
 
-MIT © Your Organization
+MIT © RAGHAV AGARWAL
+[https://raghavagarwal.com/](https://raghavagarwal.com)
 
 ```
 ```
