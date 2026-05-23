@@ -6,4 +6,4 @@ Disallow: /admin
 Disallow: /settings
 Disallow: /messages
 
-Sitemap: https://alumni.mpsajmer.in/sitemap.xml
+Sitemap: https://mpsajmer.raghavagarwal.com/sitemap.xml

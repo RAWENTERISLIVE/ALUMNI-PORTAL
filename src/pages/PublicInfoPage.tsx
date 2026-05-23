@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { SEO } from "@/components/SEO";
 import { Footer } from "@/shared/layout/Footer";
 
 type PublicInfoKey = "about" | "news" | "donate" | "privacy" | "terms" | "contact";
@@ -22,8 +23,8 @@ const PAGE_CONTENT: Record<PublicInfoKey, PublicInfoContent> = {
       {
         heading: "Our Legacy",
         paragraphs: [
-          "Maheshwari Public School, Ajmer has been a beacon of quality education and holistic development. Our alumni have spread across the globe, making significant contributions in various fields such as medicine, engineering, civil services, business, and arts.",
-          "The MPS Ajmer Connect platform is an exclusive networking hub designed to bring our diverse and accomplished alumni together on a single platform to foster collaboration, mentorship, and lifelong relationships.",
+          "As a leading institution, Maheshwari Public School, Ajmer has been a beacon of quality education and holistic development. Our MPS Ajmer alumni network spans the globe, making significant contributions in various fields such as medicine, engineering, civil services, business, and arts.",
+          "The official MPS Ajmer Connect platform is an exclusive alumni directory and networking hub designed to bring our diverse and accomplished graduates together on a single platform to foster collaboration, mentorship, and lifelong relationships.",
         ],
       },
       {
@@ -36,7 +37,7 @@ const PAGE_CONTENT: Record<PublicInfoKey, PublicInfoContent> = {
       {
         heading: "What We Offer",
         paragraphs: [
-          "Alumni can access a comprehensive directory, post and apply for exclusive job opportunities, and engage in interest-based community groups.",
+          "Alumni can access a comprehensive MPS Ajmer alumni directory, post and apply for exclusive job opportunities, and engage in interest-based community groups.",
           "The platform also hosts a dedicated Mentorship Program, allowing experienced professionals to guide the next generation of MPS graduates.",
         ],
       },
@@ -204,6 +205,11 @@ export default function PublicInfoPage({ pageKey }: PublicInfoPageProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO 
+        title={`${content.title} | MPS Ajmer Alumni Connect`} 
+        description={content.subtitle} 
+        url={`/${pageKey}`} 
+      />
       {/* Navigation spacer since navbar is fixed */}
       <div className="h-20"></div>
       

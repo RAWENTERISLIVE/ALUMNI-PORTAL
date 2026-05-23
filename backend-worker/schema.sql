@@ -22,7 +22,7 @@ CREATE TABLE users (
     last_name TEXT,
     admission_number TEXT,
     admission_year TEXT,
-    account_type TEXT DEFAULT 'ALUMNI' CHECK(account_type IN ('ALUMNI', 'FACULTY')),
+    account_type TEXT DEFAULT 'ALUMNI' CHECK(account_type IN ('ALUMNI', 'FACULTY', 'STUDENT', 'STAFF')),
     role TEXT DEFAULT 'USER' CHECK(role IN ('USER', 'MODERATOR', 'ADMIN', 'SUPER_ADMIN')),
     status TEXT DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'ACTIVE', 'SUSPENDED', 'DELETED')),
     is_verified INTEGER DEFAULT 0,
