@@ -2748,6 +2748,37 @@ api.patch('/users/:id/edit', authMiddleware, async (c) => {
   return await updateUserProfileLogic(c, id, body);
 });
 
+// Fallback for older cached frontends
+api.post('/admin/users/:id/edit', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Unauthorized' }, 403);
+  }
+
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  return await updateUserProfileLogic(c, id, body);
+});
+
+api.delete('/users/:id', authMiddleware, async (c) => {
+  const admin = c.get('user');
+  if (admin.role !== 'super_admin') {
+    return c.json({ success: false, message: 'Only super admins can delete users' }, 403);
+  }
+
+  const id = c.req.param('id');
+  
+  // Protect hidden system accounts from deletion
+  const targetUser: any = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(id).first();
+  if (targetUser && targetUser.email === 'futurist.raghav@gmail.com') {
+    return c.json({ success: false, message: 'System accounts cannot be deleted' }, 403);
+  }
+
+  await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+  
+  return c.json({ success: true, message: 'User deleted successfully' });
+});
+
 api.get('/users/messages/conversations', authMiddleware, async (c) => {
   const user = c.get('user');
   

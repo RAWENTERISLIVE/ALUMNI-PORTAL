@@ -1012,8 +1012,8 @@ class ApiService {
 
   async adminEditUser(userId: string, userData: Record<string, any>): Promise<ApiResponse> {
     try {
-      return await this.request(`/admin/users/${userId}/edit`, {
-        method: 'POST',
+      return await this.request(`/users/${userId}/edit`, {
+        method: 'PATCH',
         body: JSON.stringify(userData)
       });
     } catch (error: any) {

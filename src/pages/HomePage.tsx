@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import {
   GraduationCap,
@@ -20,6 +21,10 @@ import { Footer } from "@/shared/layout/Footer";
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col font-sans bg-background selection:bg-primary/30 text-foreground overflow-x-hidden">
+      <SEO 
+        title="Maheshwari Public School, Ajmer Alumni Connect | MPS Ajmer" 
+        description="Welcome to the official Maheshwari Public School, Ajmer Alumni Connect portal. Reconnect with former classmates, discover exclusive career opportunities, and mentor the next generation of MPS graduates."
+      />
       {/* Navigation Bar */}
       <nav className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-md border-b border-border/50 shadow-sm transition-all duration-300">
         <div className="container mx-auto px-6 h-20 flex items-center justify-between">
@@ -64,12 +69,12 @@ export default function HomePage() {
             </div>
 
             <h1 className="fluid-heading-1 font-extrabold tracking-tight leading-[1.1]">
-              Reconnect with your <br className="hidden lg:block" />
-              <span className="gradient-text animate-gradient-x">Alma Mater</span>
+              Reconnect with the Official <br className="hidden lg:block" />
+              <span className="gradient-text animate-gradient-x">MPS Ajmer Alumni Network</span>
             </h1>
 
             <p className="text-lg lg:text-xl text-muted-foreground font-light max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-              Step into the official community for Maheshwari Public School, Ajmer alumni. Reconnect with classmates, share opportunities, and support the community.
+              Welcome to the official Maheshwari Public School, Ajmer Alumni Connect portal. Reconnect with former classmates, discover exclusive career opportunities, and mentor the next generation of MPS graduates.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">

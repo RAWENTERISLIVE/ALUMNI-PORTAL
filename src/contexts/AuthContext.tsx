@@ -91,12 +91,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkExistingSession = async () => {
       try {
         const accessToken = localStorage.getItem('accessToken');
+        const cachedUserStr = localStorage.getItem('user');
 
         if (!accessToken) {
           apiService.clearAuthState();
           setCurrentUser(null);
           setUserProfile(null);
           return;
+        }
+
+        // Tentatively restore cached user to avoid unauthenticated state flash and support offline mode
+        if (cachedUserStr) {
+          try {
+            const cachedUser = JSON.parse(cachedUserStr);
+            setCurrentUser(cachedUser);
+            setUserProfile(cachedUser);
+          } catch (e) {
+            console.warn('Failed to parse cached user:', e);
+          }
         }
 
         const response = await apiService.getCurrentUser();
@@ -109,8 +121,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         throw new Error('Session validation failed');
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error checking existing session:', error);
+        
+        // Check if this is a transient network/connection or abort error
+        const errorMsg = error.message?.toLowerCase() || '';
+        const isNetworkError =
+          error.name === 'AbortError' ||
+          error.name === 'TypeError' ||
+          errorMsg.includes('fetch') ||
+          errorMsg.includes('network') ||
+          errorMsg.includes('unreachable') ||
+          errorMsg.includes('unable to connect') ||
+          errorMsg.includes('signal is aborted');
+
+        if (isNetworkError && localStorage.getItem('accessToken') && localStorage.getItem('user')) {
+          console.log('Network error occurred during session check. Preserving cached session.');
+          return;
+        }
+
         apiService.clearAuthState();
         setCurrentUser(null);
         setUserProfile(null);
