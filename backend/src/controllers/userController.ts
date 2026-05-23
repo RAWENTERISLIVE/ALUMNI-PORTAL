@@ -823,9 +823,42 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     return;
   }
 
+  // Security: Use a whitelist of allowed fields to prevent mass assignment
+  // of sensitive fields like role, status, or isVerified.
+  const {
+    name, firstName, lastName, bio, headline, profileImage,
+    city, country, company, jobTitle, contactEmail, contactPhone,
+    linkedInProfile, location, isAvailableAsMentor,
+    notificationSettings, privacySettings,
+    experiences, educations, skills, interests
+  } = req.body;
+
+  const updateData: any = {};
+  if (name !== undefined) updateData.name = name;
+  if (firstName !== undefined) updateData.firstName = firstName;
+  if (lastName !== undefined) updateData.lastName = lastName;
+  if (bio !== undefined) updateData.bio = bio;
+  if (headline !== undefined) updateData.headline = headline;
+  if (profileImage !== undefined) updateData.profileImage = profileImage;
+  if (city !== undefined) updateData.city = city;
+  if (country !== undefined) updateData.country = country;
+  if (company !== undefined) updateData.company = company;
+  if (jobTitle !== undefined) updateData.jobTitle = jobTitle;
+  if (contactEmail !== undefined) updateData.contactEmail = contactEmail;
+  if (contactPhone !== undefined) updateData.contactPhone = contactPhone;
+  if (linkedInProfile !== undefined) updateData.linkedInProfile = linkedInProfile;
+  if (location !== undefined) updateData.location = location;
+  if (isAvailableAsMentor !== undefined) updateData.isAvailableAsMentor = isAvailableAsMentor;
+  if (notificationSettings !== undefined) updateData.notificationSettings = notificationSettings;
+  if (privacySettings !== undefined) updateData.privacySettings = privacySettings;
+  if (experiences !== undefined) updateData.experiences = experiences;
+  if (educations !== undefined) updateData.educations = educations;
+  if (skills !== undefined) updateData.skills = skills;
+  if (interests !== undefined) updateData.interests = interests;
+
   const profile = await prisma.user.update({
     where: { id },
-    data: { ...req.body }
+    data: updateData
   });
 
   res.status(200).json({ success: true, data: serializeUser(profile) });
