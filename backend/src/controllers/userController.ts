@@ -78,6 +78,13 @@ const isAdminRole = (role?: string) => {
 
 const isSuperAdminRole = (role?: string) => normalizeRole(role) === 'SUPER_ADMIN';
 
+const ALLOWED_PROFILE_FIELDS = [
+  'name', 'firstName', 'lastName', 'bio', 'headline', 'profileImage',
+  'city', 'country', 'company', 'jobTitle', 'contactEmail', 'contactPhone',
+  'linkedInProfile', 'location', 'isAvailableAsMentor', 'notificationSettings',
+  'privacySettings', 'experiences', 'educations', 'skills', 'interests'
+];
+
 const hiddenSystemEmails = () => [...getHiddenSystemAccountEmails()];
 
 const notHiddenSystemAccountsFilter = () => ({ notIn: hiddenSystemEmails() });
@@ -823,9 +830,17 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     return;
   }
 
+  // Security: Whitelist fields to prevent mass assignment (e.g. changing role/status)
+  const updateData: Record<string, any> = {};
+  for (const field of ALLOWED_PROFILE_FIELDS) {
+    if (req.body[field] !== undefined) {
+      updateData[field] = req.body[field];
+    }
+  }
+
   const profile = await prisma.user.update({
     where: { id },
-    data: { ...req.body }
+    data: updateData
   });
 
   res.status(200).json({ success: true, data: serializeUser(profile) });
