@@ -1,0 +1,4 @@
+## 2026-05-27 - [Rate Limiting Implementation]
+**Vulnerability:** Rate limiting was effectively disabled across the entire backend due to a hardcoded `skip: () => true` in the middleware configuration. Additionally, critical authentication endpoints lacked specific rate limiting, making them vulnerable to brute-force attacks.
+**Learning:** Middleware can be defined but left inactive or bypassed through hardcoded logic, creating a false sense of security. Always verify that security middleware is both properly configured and actively applied to the relevant routes.
+**Prevention:** Avoid hardcoded bypasses in middleware. Use environment-based logic (e.g., `process.env.NODE_ENV === 'test'`) to skip security checks only when necessary for automated testing. Ensure all sensitive endpoints (login, register, password reset) have explicit rate limiting applied.
