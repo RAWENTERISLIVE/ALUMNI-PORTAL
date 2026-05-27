@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 const withEnvironmentBypass = (config: Parameters<typeof rateLimit>[0]) =>
   rateLimit({
     ...config,
-    skip: () => true
+    skip: () => process.env.NODE_ENV === 'test'
   });
 
 // Phase 1 - Enhanced rate limiting for authentication security
