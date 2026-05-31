@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import compression from 'compression';
 import { errorHandler } from './middleware/errorHandler';
 import { ensureDefaultSuperAdmins } from './config/bootstrapSystemUsers';
+import { generalLimiter } from './middleware/rateLimiter';
 // Import middleware
 import './middleware/auth';
 
@@ -91,6 +92,7 @@ app.use(express.urlencoded({ extended: true, limit: URL_ENCODED_BODY_LIMIT }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // API routes
+app.use('/api', generalLimiter); // Apply general rate limit to all /api routes
 app.use('/api/status', statusRoutes); // Phase 1 - System status endpoints
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
