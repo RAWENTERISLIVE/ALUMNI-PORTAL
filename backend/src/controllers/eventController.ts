@@ -127,12 +127,30 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
+    const {
+      title, description, date, endDate, time, location,
+      maxAttendees, isVirtual, meetingLink, category,
+      imageUrl, isSchoolEvent, tags
+    } = req.body;
+
     const created = await prisma.event.create({
       data: {
-        ...req.body,
+        title,
+        description,
+        date: date ? new Date(date) : undefined,
+        endDate: endDate ? new Date(endDate) : null,
+        time,
+        location,
+        maxAttendees: maxAttendees ? Number.parseInt(maxAttendees, 10) : null,
+        isVirtual: Boolean(isVirtual),
+        meetingLink,
+        category,
+        imageUrl,
+        isSchoolEvent: Boolean(isSchoolEvent),
+        tags: Array.isArray(tags) ? tags : [],
         organizerId: userId,
         attendees: { connect: [] }
-      },
+      } as any,
       include: includeEventRelations
     });
 
@@ -163,9 +181,31 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
+    const {
+      title, description, date, endDate, time, location,
+      maxAttendees, isVirtual, meetingLink, category,
+      imageUrl, isSchoolEvent, tags, status
+    } = req.body;
+
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (date !== undefined) updateData.date = new Date(date);
+    if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
+    if (time !== undefined) updateData.time = time;
+    if (location !== undefined) updateData.location = location;
+    if (maxAttendees !== undefined) updateData.maxAttendees = maxAttendees ? Number.parseInt(maxAttendees, 10) : null;
+    if (isVirtual !== undefined) updateData.isVirtual = Boolean(isVirtual);
+    if (meetingLink !== undefined) updateData.meetingLink = meetingLink;
+    if (category !== undefined) updateData.category = category;
+    if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
+    if (isSchoolEvent !== undefined) updateData.isSchoolEvent = Boolean(isSchoolEvent);
+    if (tags !== undefined) updateData.tags = Array.isArray(tags) ? tags : [];
+    if (status !== undefined) updateData.status = status;
+
     const updated = await prisma.event.update({
       where: { id: eventId },
-      data: req.body,
+      data: updateData,
       include: includeEventRelations
     });
 
