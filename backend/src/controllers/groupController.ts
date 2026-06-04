@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createNotification } from '../utils/notifications';
+import { getJwtSecret } from '../config/secrets';
 
 interface AuthRequest extends Request {
   user?: {
@@ -81,7 +82,7 @@ const normalizeInviteEmail = (email?: string) => {
   return email.trim().toLowerCase();
 };
 
-const getInviteTokenSecret = () => process.env.JWT_SECRET || 'your-secret-key';
+const getInviteTokenSecret = () => getJwtSecret();
 
 const getInviteLinkBaseUrl = () => {
   const raw = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost';

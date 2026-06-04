@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
+import { getJwtSecret as getGlobalJwtSecret } from '../config/secrets';
 
 interface AuthRequest extends Request {
   user?: {
@@ -64,7 +65,7 @@ const setOAuthStatus = (userId: string, status: Omit<LinkedInOAuthImportStatus, 
   });
 };
 
-const getJwtSecret = () => process.env.JWT_SECRET || 'linkedin-oauth-fallback-secret';
+const getJwtSecret = () => getGlobalJwtSecret();
 
 const normalizeLinkedInProfileUrl = (input?: string | null): string | undefined => {
   if (!input || typeof input !== 'string') return undefined;

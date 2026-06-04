@@ -5,6 +5,7 @@ import { Role, Status } from '@prisma/client';
 import prisma from '../config/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
 import bcrypt from 'bcryptjs';
+import { getJwtSecret } from '../config/secrets';
 
 // Extend Express Request to include user
 interface AuthRequest extends Request {
@@ -92,7 +93,7 @@ const generateTokens = (userId: string) => {
   
   const accessToken = jwt.sign(
     payload, 
-    process.env.JWT_SECRET || 'fallback_secret',
+    getJwtSecret(),
     { expiresIn: ACCESS_TOKEN_EXPIRES_IN as NonNullable<SignOptions['expiresIn']> }
   );
 
