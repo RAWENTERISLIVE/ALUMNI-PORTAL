@@ -1,0 +1,4 @@
+## 2025-05-15 - [Path Traversal in File Serving]
+**Vulnerability:** The `serveFile` function in `backend/src/controllers/uploadController.ts` was joining user-supplied `req.params.filename` directly to the uploads directory path. This allowed an attacker to use "dot-dot-slash" (`../`) sequences to access files outside the intended directory.
+**Learning:** Even when using `path.join()`, user input must be sanitized. `path.join()` happily resolves `..` segments, potentially leading to directory traversal if the input is not constrained to a single filename.
+**Prevention:** Always use `path.basename()` on user-supplied filenames before joining them to a base directory. Additionally, replacing backslashes with forward slashes before calling `path.basename()` ensures cross-platform consistency when handling malicious paths.
