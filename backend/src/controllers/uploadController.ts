@@ -218,16 +218,18 @@ export const uploadMultipleFiles = asyncHandler(async (req: AuthRequest, res: Re
 // Serve uploaded files
 export const serveFile = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { filename } = req.params;
-  
-  if (!filename) {
+
+  if (!filename || typeof filename !== 'string') {
     res.status(400).json({
       success: false,
-      message: 'Filename is required'
+      message: 'Valid filename is required'
     });
     return;
   }
 
-  const filePath = path.join(__dirname, '../../uploads', filename);
+  // Sanitize filename to prevent path traversal
+  const sanitizedFilename = path.basename(filename.replace(/\\/g, '/'));
+  const filePath = path.join(__dirname, '../../uploads', sanitizedFilename);
 
   if (!fs.existsSync(filePath)) {
     res.status(404).json({
