@@ -1,0 +1,4 @@
+## 2025-05-15 - [Mass Assignment Protection in User Profile Updates]
+**Vulnerability:** A mass assignment vulnerability existed in the `updateProfile` function of `userController.ts`, where the spread operator (`...req.body`) was used directly in the Prisma `update` call. This allowed authenticated users to potentially overwrite sensitive fields like `role`, `status`, or `isVerified`.
+**Learning:** Using the spread operator on request bodies in database update operations bypasses intended field restrictions and introduces a common security risk where internal state can be manipulated by external input.
+**Prevention:** Always use a strict whitelist or a dedicated DTO (Data Transfer Object) pattern to explicitly pick only the allowed fields from the request body before passing them to database update or create operations.
