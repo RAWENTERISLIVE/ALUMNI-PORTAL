@@ -1,0 +1,4 @@
+## 2026-06-11 - [Path Traversal in serveFile]
+**Vulnerability:** Path traversal in `backend/src/controllers/uploadController.ts` via the `serveFile` controller allowed unauthorized access to files outside the intended `uploads/` directory by manipulating the `filename` parameter (e.g., using `../../package.json`).
+**Learning:** Using `path.join` with unsanitized user input in file operations is a classic vulnerability. Even if a base directory is provided, `..` segments can "escape" it.
+**Prevention:** Always sanitize user-provided filenames using `path.basename()` and normalize path separators (especially for cross-platform compatibility, e.g., replacing `\` with `/`) before joining them with a base directory. Additionally, ensuring input types (e.g., `typeof filename === 'string'`) prevents unexpected behavior.
