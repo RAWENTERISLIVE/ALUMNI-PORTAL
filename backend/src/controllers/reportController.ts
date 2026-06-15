@@ -7,10 +7,37 @@ interface AuthRequest extends Request {
 }
 
 export const createReport = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+  if (!req.user?.id) {
+    res.status(401).json({ message: 'Not authenticated' });
+    return;
+  }
+
+  const {
+    type,
+    description,
+    reason,
+    reportedUserId,
+    reportedPostId,
+    reportedCommentId,
+    reportedGroupId,
+    reportedJobId
+  } = req.body;
+
+  // Mass assignment protection: only allow whitelisted fields
   const report = await prisma.report.create({
-    data: { ...req.body, reportedById: req.user.id }
+    data: {
+      type,
+      description,
+      reason,
+      reportedUserId,
+      reportedPostId,
+      reportedCommentId,
+      reportedGroupId,
+      reportedJobId,
+      reportedById: req.user.id
+    }
   });
+
   res.status(201).json({ success: true, data: report });
 });
 
