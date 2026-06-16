@@ -823,9 +823,44 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     return;
   }
 
+  // Whitelist allowed fields for profile update to prevent mass assignment
+  const {
+    name, bio, headline, city, country, company, jobTitle,
+    contactEmail, contactPhone, linkedInProfile, location,
+    isAvailableAsMentor, profileImage, experiences,
+    educations, skills, interests, notificationSettings,
+    privacySettings
+  } = req.body;
+
+  const updateData: any = {};
+  if (name !== undefined) updateData.name = name;
+  if (bio !== undefined) updateData.bio = bio;
+  if (headline !== undefined) updateData.headline = headline;
+  if (city !== undefined) updateData.city = city;
+  if (country !== undefined) updateData.country = country;
+  if (company !== undefined) updateData.company = company;
+  if (jobTitle !== undefined) updateData.jobTitle = jobTitle;
+  if (contactEmail !== undefined) updateData.contactEmail = contactEmail;
+  if (contactPhone !== undefined) updateData.contactPhone = contactPhone;
+  if (linkedInProfile !== undefined) updateData.linkedInProfile = linkedInProfile;
+  if (location !== undefined) updateData.location = location;
+  if (isAvailableAsMentor !== undefined) updateData.isAvailableAsMentor = isAvailableAsMentor;
+  if (profileImage !== undefined) updateData.profileImage = profileImage;
+  if (experiences !== undefined) updateData.experiences = experiences;
+  if (educations !== undefined) updateData.educations = educations;
+  if (skills !== undefined) updateData.skills = skills;
+  if (interests !== undefined) updateData.interests = interests;
+  if (notificationSettings !== undefined) updateData.notificationSettings = notificationSettings;
+  if (privacySettings !== undefined) updateData.privacySettings = privacySettings;
+
+  if (Object.keys(updateData).length === 0) {
+    res.status(400).json({ success: false, message: 'No valid fields provided for update' });
+    return;
+  }
+
   const profile = await prisma.user.update({
     where: { id },
-    data: { ...req.body }
+    data: updateData
   });
 
   res.status(200).json({ success: true, data: serializeUser(profile) });
