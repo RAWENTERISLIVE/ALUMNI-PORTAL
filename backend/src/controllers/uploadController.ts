@@ -227,7 +227,9 @@ export const serveFile = asyncHandler(async (req: Request, res: Response): Promi
     return;
   }
 
-  const filePath = path.join(__dirname, '../../uploads', filename);
+  // Use path.basename to prevent path traversal
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(__dirname, '../../uploads', safeFilename);
 
   if (!fs.existsSync(filePath)) {
     res.status(404).json({
