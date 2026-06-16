@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import compression from 'compression';
 import { errorHandler } from './middleware/errorHandler';
 import { ensureDefaultSuperAdmins } from './config/bootstrapSystemUsers';
+import { generalLimiter } from './middleware/rateLimiter';
 // Import middleware
 import './middleware/auth';
 
@@ -63,6 +64,7 @@ app.set('trust proxy', TRUST_PROXY_HOPS);
 app.disable('x-powered-by');
 
 app.use(helmet());
+app.use('/api', generalLimiter);
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) {
