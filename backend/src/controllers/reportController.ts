@@ -8,8 +8,28 @@ interface AuthRequest extends Request {
 
 export const createReport = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+
+  const allowedFields = [
+    'type',
+    'description',
+    'reason',
+    'reportedUserId',
+    'reportedPostId',
+    'reportedCommentId',
+    'reportedGroupId',
+    'reportedJobId'
+  ];
+
+  const reportData: any = { reportedById: req.user.id };
+
+  allowedFields.forEach(field => {
+    if (req.body[field] !== undefined) {
+      reportData[field] = req.body[field];
+    }
+  });
+
   const report = await prisma.report.create({
-    data: { ...req.body, reportedById: req.user.id }
+    data: reportData
   });
   res.status(201).json({ success: true, data: report });
 });
