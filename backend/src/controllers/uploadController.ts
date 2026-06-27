@@ -219,23 +219,31 @@ export const uploadMultipleFiles = asyncHandler(async (req: AuthRequest, res: Re
 export const serveFile = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { filename } = req.params;
   
-  if (!filename) {
+  if (!filename || typeof filename !== 'string') {
     res.status(400).json({
       success: false,
-      message: 'Filename is required'
+      message: 'Valid filename is required'
     });
     return;
   }
 
-  const filePath = path.join(__dirname, '../../uploads', filename);
+  // Sanitize filename to prevent path traversal
+  // 1. Replace backslashes with forward slashes for consistent handling
+  // 2. Use path.basename to extract only the filename part
+  const sanitizedFilename = path.basename(filename.replace(/\\/g, '/'));
+  const filePath = path.join(__dirname, '../../uploads', sanitizedFilename);
 
-  if (!fs.existsSync(filePath)) {
-    res.status(404).json({
-      success: false,
-      message: 'File not found'
-    });
+  // Verify the file exists and is actually a file (not a directory)
+  try {
+    const stats = fs.statSync(filePath);
+    if (!stats.isFile()) {
+      res.status(404).json({ success: false, message: 'File not found' });
+      return;
+    }
+  } catch (error) {
+    res.status(404).json({ success: false, message: 'File not found' });
     return;
   }
 
-  res.sendFile(filePath);
+  res.sendFile(path.resolve(filePath));
 });
