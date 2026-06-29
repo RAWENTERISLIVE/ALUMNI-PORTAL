@@ -1,0 +1,4 @@
+## 2025-05-15 - [Mass Assignment Protection in updateUserProfile]
+**Vulnerability:** Mass assignment vulnerability in the `updateProfile` function of `backend/src/controllers/userController.ts`. The implementation used the spread operator (`...req.body`) directly in the Prisma `update` call, allowing users to modify system-managed fields such as `role`, `status`, `isVerified`, and `hasPremiumBadge`.
+**Learning:** Even when validation middleware is present in routes, the controller itself should enforce strict whitelisting of fields to ensure defense in depth and prevent unintended side effects if route-level validation is bypassed or updated incorrectly.
+**Prevention:** Always use an explicit whitelist when processing user input for database updates. In Prisma, map only allowed keys from `req.body` to a clean `updateData` object before passing it to the database client.

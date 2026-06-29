@@ -823,9 +823,29 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     return;
   }
 
+  // Strictly whitelist fields to prevent mass assignment vulnerabilities
+  const allowedFields = [
+    'name', 'firstName', 'lastName', 'bio', 'headline', 'city', 'country',
+    'company', 'jobTitle', 'contactEmail', 'contactPhone', 'linkedInProfile',
+    'location', 'isAvailableAsMentor', 'experiences', 'educations', 'skills',
+    'interests', 'profileImage'
+  ];
+
+  const updateData: any = {};
+  for (const field of allowedFields) {
+    if (req.body[field] !== undefined) {
+      updateData[field] = req.body[field];
+    }
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    res.status(400).json({ success: false, message: 'No valid fields provided for update' });
+    return;
+  }
+
   const profile = await prisma.user.update({
     where: { id },
-    data: { ...req.body }
+    data: updateData
   });
 
   res.status(200).json({ success: true, data: serializeUser(profile) });
