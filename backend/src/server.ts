@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { ensureDefaultSuperAdmins } from './config/bootstrapSystemUsers';
 // Import middleware
 import './middleware/auth';
+import { generalLimiter } from './middleware/rateLimiter';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -91,6 +92,7 @@ app.use(express.urlencoded({ extended: true, limit: URL_ENCODED_BODY_LIMIT }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // API routes
+app.use('/api', generalLimiter);
 app.use('/api/status', statusRoutes); // Phase 1 - System status endpoints
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
