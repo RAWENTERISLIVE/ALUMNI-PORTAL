@@ -34,7 +34,7 @@ const storage = multer.diskStorage({
 });
 
 // File filter to allow specific file types
-const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (_req: Request | unknown, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedTypes = [
     'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
     'application/pdf',
@@ -62,7 +62,7 @@ export const upload = multer({
 });
 
 export const handleUploadError = (
-  err: any,
+  err: unknown,
   _req: Request,
   res: Response,
   next: NextFunction
@@ -88,9 +88,10 @@ export const handleUploadError = (
     return;
   }
 
+  const errorMessage = err instanceof Error ? err.message : 'Unsupported file type';
   res.status(400).json({
     success: false,
-    message: err.message || 'Unsupported file type'
+    message: errorMessage
   });
 };
 
@@ -219,17 +220,29 @@ export const uploadMultipleFiles = asyncHandler(async (req: AuthRequest, res: Re
 export const serveFile = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { filename } = req.params;
   
-  if (!filename) {
+  if (typeof filename !== 'string' || !filename) {
     res.status(400).json({
       success: false,
-      message: 'Filename is required'
+      message: 'Filename is required and must be a string'
     });
     return;
   }
 
-  const filePath = path.join(__dirname, '../../uploads', filename);
+  // Sanitize the filename to prevent path traversal
+  const safeFilename = path.basename(filename.replace(/\\/g, '/'));
 
-  if (!fs.existsSync(filePath)) {
+  if (!safeFilename || safeFilename === '.' || safeFilename === '..') {
+    res.status(400).json({
+      success: false,
+      message: 'Invalid filename'
+    });
+    return;
+  }
+
+  const filePath = path.resolve(__dirname, '../../uploads', safeFilename);
+
+  // Check if file exists and is indeed a file (not a directory) to prevent directory listing or access
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
     res.status(404).json({
       success: false,
       message: 'File not found'
