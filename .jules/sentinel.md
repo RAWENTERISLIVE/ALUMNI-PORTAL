@@ -1,0 +1,4 @@
+## 2026-05-24 - File Path Traversal Protection
+**Vulnerability:** Path Traversal in File Serving Controller. The endpoint `serveFile` accepted unsanitized `filename` via request parameters and served any file on the disk resolved through `path.join(__dirname, '../../uploads', filename)`.
+**Learning:** Standard `path.join` with user-supplied filename enables directory traversal attacks (e.g., using `../../` or `..\..\`). On UNIX environments, Windows-style backslashes (`\`) may bypass some sanitizers unless converted to forward slashes. Furthermore, folder paths could be resolved unless explicitly checked to be a file using `fs.statSync(filePath).isFile()`.
+**Prevention:** Always sanitize user-provided file names using `path.basename` after replacing backslashes with forward slashes (`filename.replace(/\\/g, '/')`). Always verify that the resolved path is indeed a file using `.isFile()` rather than just checking existence.
