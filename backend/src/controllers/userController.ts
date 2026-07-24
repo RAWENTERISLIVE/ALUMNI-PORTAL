@@ -823,9 +823,25 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     return;
   }
 
+  // ✅ GOOD: Strict input whitelist mapping to prevent Mass Assignment vulnerability
+  // (e.g., preventing standard users from modifying 'role', 'isVerified', 'hasPremiumBadge', etc.)
+  const allowedFields = [
+    'name', 'firstName', 'lastName', 'bio', 'headline', 'city', 'country',
+    'company', 'jobTitle', 'contactEmail', 'contactPhone', 'linkedInProfile',
+    'location', 'isAvailableAsMentor', 'experiences', 'educations', 'skills',
+    'interests', 'profileImage', 'notificationSettings', 'privacySettings'
+  ];
+
+  const updateData: any = {};
+  for (const field of allowedFields) {
+    if (req.body[field] !== undefined) {
+      updateData[field] = req.body[field];
+    }
+  }
+
   const profile = await prisma.user.update({
-    where: { id },
-    data: { ...req.body }
+    where: { id: String(id) },
+    data: updateData
   });
 
   res.status(200).json({ success: true, data: serializeUser(profile) });
