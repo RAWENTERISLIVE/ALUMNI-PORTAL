@@ -1,0 +1,4 @@
+## 2025-05-20 - [Mass Assignment Protection in User Profile Update]
+**Vulnerability:** The `updateProfile` and `updateUserProfile` controller in `userController.ts` was utilizing `data: { ...req.body }` directly inside the Prisma update query, which allowed authenticated users to escalate privileges (e.g., modifying `role`, `isVerified`, `hasPremiumBadge`, etc.) via mass assignment.
+**Learning:** Over-reliance on the spread operator (`...req.body`) inside Prisma updates creates mass assignment vectors if the request payload is not strictly destructured or whitelisted beforehand.
+**Prevention:** Always implement a strict, explicit whitelist of user-modifiable fields for update operations, map properties safely to a dedicated update data object, and cast identifier keys to resolve implicit typing errors in Prisma.
