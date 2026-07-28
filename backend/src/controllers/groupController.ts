@@ -132,8 +132,33 @@ const getNextAdminCandidateId = async (
 
 export const createGroup = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+
+  // Whitelist and sanitize safe user input fields to prevent mass assignment
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
+  const privacy = req.body?.privacy === 'private' ? 'private' : 'public';
+  const category = typeof req.body?.category === 'string' ? req.body.category.trim() : 'professional';
+
+  // Validate required fields
+  if (!name) {
+    res.status(400).json({ success: false, message: 'Group name is required and cannot be empty' });
+    return;
+  }
+  if (!description) {
+    res.status(400).json({ success: false, message: 'Group description is required and cannot be empty' });
+    return;
+  }
+
   const group = await prisma.group.create({
-    data: { ...req.body, creatorId: req.user.id, members: { connect: { id: req.user.id } } },
+    data: {
+      name,
+      description,
+      privacy,
+      category,
+      creatorId: req.user.id,
+      memberCount: 1, // Start with 1 member (the creator)
+      members: { connect: { id: req.user.id } }
+    },
     include: { creator: true, members: true }
   });
   res.status(201).json({ success: true, data: group });
