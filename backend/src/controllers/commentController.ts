@@ -108,9 +108,9 @@ export const createComment = async (req: AuthRequest, res: Response) => {
       message: 'Comment added successfully',
       data: created
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating comment:', error);
-    return res.status(500).json({ success: false, message: 'Failed to create comment', error: error.message });
+    return res.status(500).json({ success: false, message: 'Failed to create comment' });
   }
 };
 
@@ -146,9 +146,9 @@ export const getPostComments = async (req: Request, res: Response) => {
         pages: Math.ceil(total / limit)
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching comments:', error);
-    return res.status(500).json({ success: false, message: 'Failed to fetch comments', error: error.message });
+    return res.status(500).json({ success: false, message: 'Failed to fetch comments' });
   }
 };
 
@@ -184,9 +184,9 @@ export const getCommentReplies = async (req: Request, res: Response) => {
         pages: Math.ceil(total / limit)
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching replies:', error);
-    return res.status(500).json({ success: false, message: 'Failed to fetch replies', error: error.message });
+    return res.status(500).json({ success: false, message: 'Failed to fetch replies' });
   }
 };
 
@@ -244,9 +244,9 @@ export const likeComment = async (req: AuthRequest, res: Response) => {
       message: 'Comment liked successfully',
       data: { likeCount: updated.likes.length }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error liking comment:', error);
-    return res.status(500).json({ success: false, message: 'Failed to like comment', error: error.message });
+    return res.status(500).json({ success: false, message: 'Failed to like comment' });
   }
 };
 
@@ -283,9 +283,9 @@ export const unlikeComment = async (req: AuthRequest, res: Response) => {
       message: 'Comment unliked successfully',
       data: { likeCount: updated.likes.length }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error unliking comment:', error);
-    return res.status(500).json({ success: false, message: 'Failed to unlike comment', error: error.message });
+    return res.status(500).json({ success: false, message: 'Failed to unlike comment' });
   }
 };
 
@@ -321,8 +321,8 @@ export const deleteComment = async (req: AuthRequest, res: Response) => {
     });
 
     return res.status(200).json({ success: true, message: 'Comment deleted successfully' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error deleting comment:', error);
-    return res.status(500).json({ success: false, message: 'Failed to delete comment', error: error.message });
+    return res.status(500).json({ success: false, message: 'Failed to delete comment' });
   }
 };
