@@ -1,0 +1,4 @@
+## 2026-03-31 - Secure Error Handling in Comments Controller
+**Vulnerability:** Catch blocks in Express controller endpoints (specifically `commentController.ts`) were caught as type `any` and returned `error.message` directly inside the HTTP 500 JSON response payloads. This exposed database model details, query structures, and potentially underlying system paths or stack components to the client (Information Disclosure).
+**Learning:** Returning raw error objects or their messages directly to client-facing HTTP responses is unsafe, especially when using ORMs like Prisma which include schema tables, column names, and syntax queries in their runtime error messages.
+**Prevention:** Always catch errors as `unknown` (or cast them immediately) and return secure, generic, non-disclosing error messages (e.g., "Failed to create comment") to HTTP clients, while safely logging the complete and detailed error object server-side (`console.error`) for auditing and debugging.
