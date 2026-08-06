@@ -1,0 +1,4 @@
+## 2026-08-06 - Mass Assignment Protection in Report Controller
+**Vulnerability:** A mass assignment / over-posting vulnerability in `backend/src/controllers/reportController.ts` allowed any authenticated user to create a report and inject arbitrary administrative fields (e.g., `status: 'RESOLVED'` or `reviewedById`) via the raw request body spread (`{ ...req.body }`).
+**Learning:** Raw destructuring or spreading request bodies (`req.body`) directly into Prisma create or update operations exposes system-managed and administrative fields to unauthorized user tampering, bypassing role-based access control.
+**Prevention:** Always implement strict whitelisting of user-inputted fields in request handlers, destructuring only permitted keys or mapping request bodies safely rather than passing/spreading raw objects directly to query builders.
