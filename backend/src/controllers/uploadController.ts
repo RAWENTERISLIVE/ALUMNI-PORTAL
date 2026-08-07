@@ -219,20 +219,49 @@ export const uploadMultipleFiles = asyncHandler(async (req: AuthRequest, res: Re
 export const serveFile = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { filename } = req.params;
   
-  if (!filename) {
+  if (!filename || typeof filename !== 'string') {
     res.status(400).json({
       success: false,
-      message: 'Filename is required'
+      message: 'Filename is required and must be a string'
     });
     return;
   }
 
-  const filePath = path.join(__dirname, '../../uploads', filename);
+  // Sanitize filename to prevent path traversal
+  const safeFilename = path.basename(filename.replace(/\\/g, '/'));
+  const uploadsDir = path.resolve(__dirname, '../../uploads');
+  const filePath = path.resolve(uploadsDir, safeFilename);
+
+  // Ensure resolved path starts with the expected uploads directory and stays within it
+  if (!filePath.startsWith(uploadsDir)) {
+    res.status(403).json({
+      success: false,
+      message: 'Access denied'
+    });
+    return;
+  }
 
   if (!fs.existsSync(filePath)) {
     res.status(404).json({
       success: false,
       message: 'File not found'
+    });
+    return;
+  }
+
+  try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid file path'
+      });
+      return;
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to access file'
     });
     return;
   }
