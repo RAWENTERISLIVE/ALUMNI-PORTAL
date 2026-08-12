@@ -91,7 +91,7 @@ const createComment = async (req, res) => {
     }
     catch (error) {
         console.error('Error creating comment:', error);
-        return res.status(500).json({ success: false, message: 'Failed to create comment', error: error.message });
+        return res.status(500).json({ success: false, message: 'Failed to create comment' });
     }
 };
 exports.createComment = createComment;
@@ -127,7 +127,7 @@ const getPostComments = async (req, res) => {
     }
     catch (error) {
         console.error('Error fetching comments:', error);
-        return res.status(500).json({ success: false, message: 'Failed to fetch comments', error: error.message });
+        return res.status(500).json({ success: false, message: 'Failed to fetch comments' });
     }
 };
 exports.getPostComments = getPostComments;
@@ -163,7 +163,7 @@ const getCommentReplies = async (req, res) => {
     }
     catch (error) {
         console.error('Error fetching replies:', error);
-        return res.status(500).json({ success: false, message: 'Failed to fetch replies', error: error.message });
+        return res.status(500).json({ success: false, message: 'Failed to fetch replies' });
     }
 };
 exports.getCommentReplies = getCommentReplies;
@@ -216,7 +216,7 @@ const likeComment = async (req, res) => {
     }
     catch (error) {
         console.error('Error liking comment:', error);
-        return res.status(500).json({ success: false, message: 'Failed to like comment', error: error.message });
+        return res.status(500).json({ success: false, message: 'Failed to like comment' });
     }
 };
 exports.likeComment = likeComment;
@@ -250,7 +250,7 @@ const unlikeComment = async (req, res) => {
     }
     catch (error) {
         console.error('Error unliking comment:', error);
-        return res.status(500).json({ success: false, message: 'Failed to unlike comment', error: error.message });
+        return res.status(500).json({ success: false, message: 'Failed to unlike comment' });
     }
 };
 exports.unlikeComment = unlikeComment;
@@ -281,7 +281,7 @@ const deleteComment = async (req, res) => {
     }
     catch (error) {
         console.error('Error deleting comment:', error);
-        return res.status(500).json({ success: false, message: 'Failed to delete comment', error: error.message });
+        return res.status(500).json({ success: false, message: 'Failed to delete comment' });
     }
 };
 exports.deleteComment = deleteComment;
