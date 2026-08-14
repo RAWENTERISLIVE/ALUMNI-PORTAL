@@ -667,14 +667,52 @@ export const changePassword = asyncHandler(async (req: AuthRequest, res: Respons
 });
 
 export const updateNotificationSettings = asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!req.user) {
+  if (!req.user?.id) {
     res.status(401).json({ success: false, message: 'Not authenticated' });
     return;
   }
 
+  // Security: Whitelist allowed notification settings to prevent mass assignment/prototype pollution vulnerabilities
+  const allowedNotificationFields = [
+    'emailMessages',
+    'emailJobs',
+    'emailEvents',
+    'emailGroups',
+    'pushMessages',
+    'pushJobs',
+    'pushEvents',
+    'pushGroups',
+  ];
+
+  const filteredSettings: Record<string, unknown> = {};
+  if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+    for (const key of allowedNotificationFields) {
+      if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+        filteredSettings[key] = (req.body as Record<string, unknown>)[key];
+      }
+    }
+  }
+
+  const currentUser = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { notificationSettings: true }
+  });
+
+  const existingSettings =
+    currentUser?.notificationSettings &&
+    typeof currentUser.notificationSettings === 'object' &&
+    !Array.isArray(currentUser.notificationSettings)
+      ? (currentUser.notificationSettings as Record<string, unknown>)
+      : {};
+
+  const updatedNotificationSettings = {
+    ...existingSettings,
+    ...filteredSettings,
+  };
+
   const settings = await prisma.user.update({
     where: { id: req.user.id },
-    data: { notificationSettings: { ...(req.body || {}) } },
+    data: { notificationSettings: updatedNotificationSettings as any },
     select: { notificationSettings: true }
   });
 
@@ -682,14 +720,50 @@ export const updateNotificationSettings = asyncHandler(async (req: AuthRequest, 
 });
 
 export const updatePrivacySettings = asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!req.user) {
+  if (!req.user?.id) {
     res.status(401).json({ success: false, message: 'Not authenticated' });
     return;
   }
 
+  // Security: Whitelist allowed privacy settings to prevent mass assignment/prototype pollution vulnerabilities
+  const allowedPrivacyFields = [
+    'profileVisibility',
+    'showEmail',
+    'showPhone',
+    'allowMessaging',
+    'allowConnection',
+    'allowProfileSearch',
+  ];
+
+  const filteredSettings: Record<string, unknown> = {};
+  if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+    for (const key of allowedPrivacyFields) {
+      if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+        filteredSettings[key] = (req.body as Record<string, unknown>)[key];
+      }
+    }
+  }
+
+  const currentUser = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { privacySettings: true }
+  });
+
+  const existingSettings =
+    currentUser?.privacySettings &&
+    typeof currentUser.privacySettings === 'object' &&
+    !Array.isArray(currentUser.privacySettings)
+      ? (currentUser.privacySettings as Record<string, unknown>)
+      : {};
+
+  const updatedPrivacySettings = {
+    ...existingSettings,
+    ...filteredSettings,
+  };
+
   const settings = await prisma.user.update({
     where: { id: req.user.id },
-    data: { privacySettings: { ...(req.body || {}) } },
+    data: { privacySettings: updatedPrivacySettings as any },
     select: { privacySettings: true }
   });
 
