@@ -234,24 +234,39 @@ export const becomeMentor = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    const profileData = req.body;
+    // Security: Explicitly destructure only whitelisted fields from req.body to prevent Mass Assignment
+    const {
+      bio,
+      expertise,
+      experience,
+      industry,
+      yearsOfExperience,
+      availability,
+      preferredMenteeLevel,
+      maxMentees,
+      currentMentees,
+      communicationPreferences: rawCommPrefs,
+      sessionMode: rawSessionMode,
+      availableSlots: rawSlots,
+      iceBreakerTemplate: rawIceBreaker
+    } = req.body || {};
 
-    const sessionMode = normalizeSessionMode(profileData.sessionMode);
-    const availableSlots = Array.isArray(profileData.availableSlots)
-      ? profileData.availableSlots
+    const sessionMode = normalizeSessionMode(rawSessionMode);
+    const availableSlots = Array.isArray(rawSlots)
+      ? rawSlots
           .map((slot: unknown) => normalizeSlot(slot))
           .filter((slot: MentorSlot | null): slot is MentorSlot => Boolean(slot))
           .slice(0, 20)
       : [];
 
     const monthlyAvailability =
-      typeof profileData.availability === 'string' && profileData.availability.trim()
-        ? profileData.availability.trim()
+      typeof availability === 'string' && availability.trim()
+        ? availability.trim()
         : DEFAULT_AVAILABILITY.monthlyAvailability;
 
     const iceBreakerTemplate =
-      typeof profileData.iceBreakerTemplate === 'string' && profileData.iceBreakerTemplate.trim()
-        ? profileData.iceBreakerTemplate.trim()
+      typeof rawIceBreaker === 'string' && rawIceBreaker.trim()
+        ? rawIceBreaker.trim()
         : DEFAULT_AVAILABILITY.iceBreakerTemplate;
 
     const availabilityPayload = JSON.stringify({
@@ -264,7 +279,7 @@ export const becomeMentor = async (req: AuthRequest, res: Response): Promise<voi
     const communicationPreferences = Array.from(
       new Set(
         [
-          ...(Array.isArray(profileData.communicationPreferences) ? profileData.communicationPreferences : []),
+          ...(Array.isArray(rawCommPrefs) ? rawCommPrefs : []),
           sessionMode
         ]
           .filter((value): value is string => typeof value === 'string')
@@ -279,25 +294,25 @@ export const becomeMentor = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    const normalizedExpertise = Array.isArray(profileData.expertise)
-      ? profileData.expertise.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+    const normalizedExpertise = Array.isArray(expertise)
+      ? expertise.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
       : [];
 
-    const normalizedPreferredMenteeLevel = Array.isArray(profileData.preferredMenteeLevel)
-      ? profileData.preferredMenteeLevel.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+    const normalizedPreferredMenteeLevel = Array.isArray(preferredMenteeLevel)
+      ? preferredMenteeLevel.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
       : ['new_graduate'];
 
-    const normalizedExperience = typeof profileData.experience === 'string' ? profileData.experience : '';
-    const normalizedIndustry = typeof profileData.industry === 'string' ? profileData.industry : '';
-    const normalizedBio = typeof profileData.bio === 'string' ? profileData.bio : '';
-    const normalizedYears = Number.isFinite(Number(profileData.yearsOfExperience))
-      ? Number(profileData.yearsOfExperience)
+    const normalizedExperience = typeof experience === 'string' ? experience : '';
+    const normalizedIndustry = typeof industry === 'string' ? industry : '';
+    const normalizedBio = typeof bio === 'string' ? bio : '';
+    const normalizedYears = Number.isFinite(Number(yearsOfExperience))
+      ? Number(yearsOfExperience)
       : 0;
-    const normalizedMaxMentees = Number.isFinite(Number(profileData.maxMentees))
-      ? Number(profileData.maxMentees)
+    const normalizedMaxMentees = Number.isFinite(Number(maxMentees))
+      ? Number(maxMentees)
       : 3;
-    const normalizedCurrentMentees = Number.isFinite(Number(profileData.currentMentees))
-      ? Number(profileData.currentMentees)
+    const normalizedCurrentMentees = Number.isFinite(Number(currentMentees))
+      ? Number(currentMentees)
       : 0;
 
     const upsertData = {
@@ -371,8 +386,36 @@ export const getMentorshipProfile = async (req: AuthRequest, res: Response): Pro
       }
     });
 
-    let requests: any[] = [];
-    let incomingRequestsRaw: any[] = [];
+    let requests: Array<Prisma.MentorshipRequestGetPayload<{
+      include: {
+        mentor: {
+          include: {
+            user: {
+              select: {
+                id: true;
+                name: true;
+                jobTitle: true;
+                profileImage: true;
+              };
+            };
+          };
+        };
+      };
+    }>> = [];
+    let incomingRequestsRaw: Array<Prisma.MentorshipRequestGetPayload<{
+      include: {
+        mentee: {
+          select: {
+            id: true;
+            name: true;
+            jobTitle: true;
+            profileImage: true;
+            admissionYear: true;
+            company: true;
+          };
+        };
+      };
+    }>> = [];
 
     try {
       requests = await prisma.mentorshipRequest.findMany({
@@ -515,7 +558,7 @@ export const getMentorshipProfile = async (req: AuthRequest, res: Response): Pro
 
 export const requestMentorship = async (req: AuthRequest, res: Response) => {
   try {
-    const { mentorId } = req.params;
+    const mentorId = String(req.params.mentorId || '');
     const menteeId = getAuthUserId(req);
     const { message, topic, sessionMode, selectedSlot } = req.body;
 
@@ -618,7 +661,8 @@ export const requestMentorship = async (req: AuthRequest, res: Response) => {
 
 export const respondToRequest = async (req: AuthRequest, res: Response) => {
   try {
-    const { requestId, action } = req.params;
+    const requestId = String(req.params.requestId || '');
+    const action = String(req.params.action || '');
     const currentUserId = getAuthUserId(req);
 
     if (!currentUserId) {
