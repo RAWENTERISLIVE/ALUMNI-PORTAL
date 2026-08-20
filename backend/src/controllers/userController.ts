@@ -818,14 +818,34 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     return;
   }
 
-  if (req.user.id !== id && !isAdminRole(req.user.role)) {
+  const targetId = String(id);
+
+  if (req.user.id !== targetId && !isAdminRole(req.user.role)) {
     res.status(403).json({ success: false, message: 'Not authorized' });
     return;
   }
 
+  // Mass assignment protection: Whitelist allowed fields for profile update
+  const allowedFields = [
+    'name', 'firstName', 'lastName', 'bio', 'headline', 'city', 'country',
+    'company', 'jobTitle', 'contactEmail', 'contactPhone', 'linkedInProfile',
+    'location', 'isAvailableAsMentor', 'experiences', 'educations', 'skills',
+    'interests', 'profileImage', 'notificationSettings', 'privacySettings'
+  ] as const;
+
+  const updateData: Record<string, any> = {};
+
+  if (req.body && typeof req.body === 'object') {
+    for (const key of allowedFields) {
+      if (key in req.body && req.body[key] !== undefined) {
+        updateData[key] = req.body[key];
+      }
+    }
+  }
+
   const profile = await prisma.user.update({
-    where: { id },
-    data: { ...req.body }
+    where: { id: targetId },
+    data: updateData
   });
 
   res.status(200).json({ success: true, data: serializeUser(profile) });
