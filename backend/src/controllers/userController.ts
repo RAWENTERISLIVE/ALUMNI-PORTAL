@@ -83,7 +83,8 @@ const hiddenSystemEmails = () => [...getHiddenSystemAccountEmails()];
 const notHiddenSystemAccountsFilter = () => ({ notIn: hiddenSystemEmails() });
 
 const getTargetUserId = (req: Request): string | undefined => {
-  return (req.params as any).id || (req.params as any).userId;
+  const id = (req.params as any).id || (req.params as any).userId;
+  return Array.isArray(id) ? id[0] : id;
 };
 
 const getAuthenticatedUserId = (req: AuthRequest): string | undefined => {
@@ -663,7 +664,7 @@ export const getUserById = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const user = await prisma.user.findUnique({
-    where: { id },
+    where: { id: String(id) },
     select: {
       id: true,
       email: true,
@@ -770,7 +771,7 @@ export const getUserProfile = asyncHandler(async (req: Request, res: Response) =
   }
 
   const user = await prisma.user.findUnique({
-    where: { id },
+    where: { id: String(id) },
     select: {
       id: true,
       email: true,
@@ -823,9 +824,24 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     return;
   }
 
+  // Security: Whitelist allowed profile update fields to prevent mass assignment / privilege escalation
+  const allowedFields = [
+    'name', 'firstName', 'lastName', 'bio', 'headline', 'city', 'country',
+    'company', 'jobTitle', 'contactEmail', 'contactPhone', 'linkedInProfile',
+    'location', 'isAvailableAsMentor', 'experiences', 'educations', 'skills',
+    'interests', 'profileImage', 'notificationSettings', 'privacySettings'
+  ];
+
+  const updateData: Record<string, unknown> = {};
+  for (const field of allowedFields) {
+    if (req.body && field in req.body) {
+      updateData[field] = req.body[field];
+    }
+  }
+
   const profile = await prisma.user.update({
     where: { id },
-    data: { ...req.body }
+    data: updateData
   });
 
   res.status(200).json({ success: true, data: serializeUser(profile) });
