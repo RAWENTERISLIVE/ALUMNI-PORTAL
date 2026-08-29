@@ -132,8 +132,34 @@ const getNextAdminCandidateId = async (
 
 export const createGroup = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+
+  const payload = req.body as GroupSettingsPayload;
+  const name = typeof payload?.name === 'string' ? payload.name.trim() : '';
+
+  if (!name) {
+    res.status(400).json({ success: false, message: 'Group name is required' });
+    return;
+  }
+
+  const groupData: {
+    name: string;
+    description?: string;
+    privacy?: 'public' | 'private';
+    category?: string;
+    creatorId: string;
+    members: { connect: { id: string } };
+  } = {
+    name,
+    creatorId: req.user.id,
+    members: { connect: { id: req.user.id } }
+  };
+
+  if (typeof payload.description === 'string') groupData.description = payload.description.trim();
+  if (payload.privacy === 'public' || payload.privacy === 'private') groupData.privacy = payload.privacy;
+  if (typeof payload.category === 'string') groupData.category = payload.category.trim();
+
   const group = await prisma.group.create({
-    data: { ...req.body, creatorId: req.user.id, members: { connect: { id: req.user.id } } },
+    data: groupData,
     include: { creator: true, members: true }
   });
   res.status(201).json({ success: true, data: group });
