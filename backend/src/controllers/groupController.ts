@@ -31,7 +31,7 @@ interface GroupInviteTokenPayload {
   exp?: number;
 }
 
-const getGroupId = (req: Request) => req.params.groupId || req.params.id;
+const getGroupId = (req: Request) => String(req.params.groupId || req.params.id || '');
 
 const isUserMember = (members: Array<{ id: string }>, userId: string) =>
   members.some((member) => member.id === userId);
@@ -132,8 +132,25 @@ const getNextAdminCandidateId = async (
 
 export const createGroup = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   if (!req.user?.id) { res.status(401).json({ message: 'Not authenticated' }); return; }
+
+  const { name, description, privacy, category } = req.body || {};
+
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ success: false, message: 'Group name is required' });
+    return;
+  }
+
+  const groupData = {
+    name: name.trim(),
+    description: typeof description === 'string' ? description.trim() : '',
+    privacy: privacy === 'private' ? 'private' : 'public',
+    category: typeof category === 'string' && category.trim() ? category.trim() : 'professional',
+    creatorId: req.user.id,
+    members: { connect: { id: req.user.id } }
+  };
+
   const group = await prisma.group.create({
-    data: { ...req.body, creatorId: req.user.id, members: { connect: { id: req.user.id } } },
+    data: groupData,
     include: { creator: true, members: true }
   });
   res.status(201).json({ success: true, data: group });
@@ -509,7 +526,7 @@ export const getInvitableUsers = asyncHandler(async (req: AuthRequest, res: Resp
   const query = typeof req.query.query === 'string' ? req.query.query.trim() : '';
   const limit = Math.min(Number.parseInt(String(req.query.limit || '20'), 10) || 20, 50);
 
-  const where: any = {
+  const where: Record<string, unknown> = {
     status: 'ACTIVE',
     id: {
       notIn: [req.user.id, ...group.members.map((member) => member.id)]
